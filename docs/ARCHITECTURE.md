@@ -20,12 +20,14 @@
 - Node.js 24; конкретная версия — .nvmrc. Пакетный менеджер — npm, один package-lock.json.
 - TypeScript, ESLint flat config, typescript-eslint, Prettier и dependency-cruiser.
   Совместимые точные версии — package.json и lockfile.
-- Клиент: Phaser + Vite; версия выбирается и фиксируется при создании приложения в T001.
-- Сервер: Node.js + Colyseus; транспорт WebSocket, доступ через HTTPS/WSS.
+- Клиент: Phaser 4.2.1 + Vite 8.3.4, зафиксированы в T001.
+- Сервер: Node.js; в T001 доступен HTTP health endpoint. Colyseus и WebSocket
+  подключаются при реализации сетевого мира; публичный доступ через HTTPS/WSS.
 - Хранение первой версии: SQLite, постоянный диск, очередь коротких транзакций.
 - UI: HTML/CSS поверх игрового canvas. React/FSD пока не используются.
-- Игровые проверки: Vitest и Playwright добавляются вместе с приложениями.
-  Проверки инфраструктурных ограничений уже используют Node test runner.
+- Проверки запуска: Playwright 1.64.0, production-сборки клиента и сервера.
+  Vitest добавляется вместе с игровой логикой, когда появляются unit-сценарии.
+  Проверки инфраструктурных ограничений используют Node test runner.
 
 Не обновлять отдельный инструмент до latest без проверки диапазонов совместимости.
 В текущем наборе TypeScript 6.0.3 совместим с typescript-eslint 8.71.2;
@@ -168,3 +170,5 @@ domain нужен, чтобы protocol и simulation использовали о
 - [Colyseus: воспроизводимость предсказания](https://docs.colyseus.io/netcode/determinism).
 - [dependency-cruiser: правила графа импортов](https://github.com/sverweij/dependency-cruiser/blob/main/doc/rules-reference.md).
 - [Phaser: браузерный 2D-движок](https://docs.phaser.io/phaser/getting-started/what-is-phaser).
+- [Выбранный стабильный выпуск Phaser 4.2.1](https://github.com/phaserjs/phaser/releases/tag/v4.2.1).
+- [Playwright: запуск приложений для тестов](https://playwright.dev/docs/test-webserver).
