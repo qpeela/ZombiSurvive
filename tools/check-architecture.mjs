@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-const directories = ['apps', 'packages', 'tools', 'tests/tooling'].filter(directory =>
+const directories = ['apps', 'packages', 'tools', 'tests'].filter(directory =>
     existsSync(directory),
 );
 const result = spawnSync(
