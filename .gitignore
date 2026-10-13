@@ -1,0 +1,23 @@
+# IDE and macOS
+.idea/
+.DS_Store
+
+# Dependencies and build output
+node_modules/
+dist/
+*.tsbuildinfo
+.vite/
+
+# Local environment files (keep templates)
+.env
+.env.*
+!.env.example
+!.env.*.example
+
+# Logs
+*.log
+
+# Test output
+coverage/
+playwright-report/
+test-results/
