@@ -4,9 +4,13 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --watch src/main.ts",
+    "dev": "node --conditions=development --watch src/main.ts",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@zombi-survive/domain": "0.0.0",
+    "@zombi-survive/protocol": "0.0.0"
   }
 }

@@ -80,7 +80,7 @@ export default {
         tsConfig: { fileName: 'tsconfig.json' },
         enhancedResolveOptions: {
             exportsFields: ['exports'],
-            conditionNames: ['import', 'node', 'default'],
+            conditionNames: ['development', 'import', 'node', 'default'],
         },
     },
 };

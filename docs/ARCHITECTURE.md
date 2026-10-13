@@ -81,6 +81,12 @@ docs              требования, правила и архитектурн
 - При создании пакета задать exports; конфигурацию разрешения workspace-импортов
   согласовать с TypeScript, Vite, Node и dependency-cruiser.
 
+В T002 созданы domain и protocol; контракты — [MOVEMENT_PROTOCOL.md](MOVEMENT_PROTOCOL.md).
+Публичные exports используют исходники при условии development, собранные JS
+по умолчанию и декларации для TypeScript. Node dev включает это условие явно,
+Vite использует его в development. Проверка графа также читает исходники.
+Корневые build/lint/typecheck сначала собирают общие пакеты в порядке domain → protocol.
+
 domain нужен, чтобы protocol и simulation использовали общие значения без
 зависимости игровой логики от транспорта. Сетевые DTO и модель сохранения
 не заменяют внутреннюю модель мира.
