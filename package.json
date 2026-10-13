@@ -14,10 +14,14 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint . --max-warnings=0",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && npm run typecheck --workspaces",
     "architecture:check": "node tools/check-architecture.mjs",
-    "test": "node --test tests/tooling/*.test.mjs",
-    "check": "npm run format:check && npm run lint && npm run typecheck && npm run architecture:check && npm test"
+    "test": "npm run test:tooling && npm run test:smoke",
+    "check": "npm run format:check && npm run lint && npm run typecheck && npm run architecture:check && npm run build && npm test",
+    "dev": "concurrently --kill-others --names client,server \"npm run dev --workspace @zombi-survive/client\" \"npm run dev --workspace @zombi-survive/server\"",
+    "build": "npm run build --workspaces",
+    "test:tooling": "node --test tests/tooling/*.test.mjs",
+    "test:smoke": "playwright test"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -29,6 +33,8 @@
     "globals": "17.13.0",
     "prettier": "3.9.10",
     "typescript": "6.0.3",
-    "typescript-eslint": "8.71.2"
+    "typescript-eslint": "8.71.2",
+    "@playwright/test": "1.64.0",
+    "concurrently": "10.0.6"
   }
 }
