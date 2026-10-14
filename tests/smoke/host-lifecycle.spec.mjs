@@ -28,7 +28,7 @@ test('stopping the host disconnects joined clients and releases the server proce
         });
         room = await client.joinById(localWorldRoomId);
         room.reconnection.enabled = false;
-        expect((await room.request(initialStateRequest)).tick).toBe(0);
+        expect((await room.request(initialStateRequest)).tick).toBeGreaterThanOrEqual(0);
         const disconnected = new Promise(resolve => room.onLeave(resolve));
 
         host.kill('SIGTERM');

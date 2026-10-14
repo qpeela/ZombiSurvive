@@ -12,7 +12,9 @@
   "dependencies": {
     "@colyseus/core": "0.18.18",
     "@colyseus/ws-transport": "0.18.4",
+    "@zombi-survive/content": "0.0.0",
     "@zombi-survive/domain": "0.0.0",
-    "@zombi-survive/protocol": "0.0.0"
+    "@zombi-survive/protocol": "0.0.0",
+    "@zombi-survive/simulation": "0.0.0"
   }
 }

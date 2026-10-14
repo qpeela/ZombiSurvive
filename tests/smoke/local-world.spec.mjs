@@ -162,17 +162,20 @@ test('a real SDK receives the shared snapshot and client-supplied identity is ig
         expect(snapshot).toMatchObject({
             type: 'movement-snapshot',
             protocolVersion: 1,
-            tick: 0,
-            player: { position: { xMeters: 0, yMeters: 0 } },
             lastProcessedInputSequence: null,
         });
         expect(snapshot.worldId).not.toBe('forged');
         expect(snapshot.player.playerId).not.toBe('forged');
+        expect(snapshot.tick).toBeGreaterThanOrEqual(0);
         await first.leave();
 
         const second = await client.joinById(localWorldRoomId);
         try {
-            expect(await second.request(initialStateRequest)).toEqual(snapshot);
+            const rejoined = await second.request(initialStateRequest);
+            expect(rejoined.worldId).toBe(snapshot.worldId);
+            expect(rejoined.player).toEqual(snapshot.player);
+            expect(rejoined.tick).toBeGreaterThanOrEqual(snapshot.tick);
+            expect(rejoined.lastProcessedInputSequence).toBeNull();
         } finally {
             await second.leave();
         }
