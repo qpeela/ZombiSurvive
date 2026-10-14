@@ -15,7 +15,10 @@
   Colyseus создаёт один мир/solo-персонажа на процесс; браузер получает
   стартовый snapshot, reload/retry сохраняют ID. Endpoint от origin страницы,
   Vite proxy, loopback listener и проверки Host/Origin. После рестарта ID меняются.
-- Текущая задача: T004 — правила движения; IN_PROGRESS.
+- Текущая задача: T004 — правила движения; IN_REVIEW.
+- [PR #6](https://github.com/qpeela/ZombiSurvive/pull/6) открыт и прикреплён к чату.
+  GitHub Actions Quality реализации (472d1e5) прошёл: [run 38522857224](https://github.com/qpeela/ZombiSurvive/actions/runs/38522857224).
+  Workflow проверяет каждый последующий коммит PR; актуальный CI сверить перед следующей задачей.
 - Ветка: codex/t004-movement-rules от origin/main (25283b7).
 - Созданы content и simulation без внешних runtime-зависимостей, DOM и Node types.
   Публичные API используют те же dev/production exports, что domain/protocol.
