@@ -10,7 +10,10 @@
   Общие domain/protocol и runtime-проверка DTO: MOVEMENT_PROTOCOL.md.
 - S002: DONE, [PR #4](https://github.com/qpeela/ZombiSurvive/pull/4) слит
   (c5ccb47), слияние проверено через GitHub API; origin/main обновлён.
-- Текущая задача: T003 — подключение к локальному миру; IN_PROGRESS.
+- Текущая задача: T003 — подключение к локальному миру; IN_REVIEW.
+- [PR #5](https://github.com/qpeela/ZombiSurvive/pull/5) открыт и прикреплён к чату.
+  GitHub Actions Quality реализации (011411a) прошёл: [run 38521007161](https://github.com/qpeela/ZombiSurvive/actions/runs/38521007161).
+  Workflow проверяет каждый последующий коммит PR; актуальный CI сверить перед следующей задачей.
 - Ветка: codex/t003-local-world от origin/main (c5ccb47).
 - Сервер использует выбранный Colyseus/WebSocket, создаёт один Room при старте
   и сохраняет его без клиентов. Клиенту открыт только joinById.
