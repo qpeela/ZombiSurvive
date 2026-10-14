@@ -1,3 +1,4 @@
+export { initialStateRequest, localWorldRoomId } from './connection.ts';
 export {
     isMovementInputCommand,
     isMovementSnapshot,
