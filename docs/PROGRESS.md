@@ -8,7 +8,11 @@
 - S001, T001, T002, S002, T003: DONE; PR #1–#5 слиты в main.
 - T004: DONE, [PR #6](https://github.com/qpeela/ZombiSurvive/pull/6) слит
   (7b6be98); состояние подтверждено через GitHub API, origin/main обновлён.
-- Текущая задача: T005 — WASD и серверное движение; CI_PENDING.
+- Текущая задача: T005 — WASD и серверное движение; IN_REVIEW.
+- [PR #7](https://github.com/qpeela/ZombiSurvive/pull/7) открыт и прикреплён к чату.
+  GitHub Actions Quality реализации (0adbd09) прошёл:
+  [run 38547267441](https://github.com/qpeela/ZombiSurvive/actions/runs/38547267441).
+  Workflow проверяет каждый последующий коммит; актуальный CI сверить перед следующей задачей.
 - Ветка: codex/t005-server-movement от origin/main (7b6be98).
 - WASD по физическим клавишам отправляет намерения до 10 Гц. Противоположные
   клавиши отменяются; blur/скрытие вкладки отправляют остановку. Потеря связи,
@@ -33,7 +37,7 @@
 - Локальный npm run check прошёл: форматирование, lint, типы, граф импортов,
   шесть сборок, 38 unit + 17 tooling + 12 контрактных + 14 smoke-тестов
   без skipped (81 тест). Визуально проверены персонаж и сетка в dev-сборке.
-  git diff --check и Markdown-ссылки проверены; CI PR ожидается.
+  git diff --check и Markdown-ссылки проверены; Quality реализации прошёл.
 - Runtime: Node.js 24.19.0 (.nvmrc), npm. Chromium установлен в игнорируемый
   .cache/playwright; локальные браузерные проверки используют PLAYWRIGHT_BROWSERS_PATH.
   Phaser/Colyseus bundle около 411 kB gzip, предупреждение Vite сохранено.
