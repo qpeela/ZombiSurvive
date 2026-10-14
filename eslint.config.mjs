@@ -37,7 +37,7 @@ export default defineConfig([
         languageOptions: { globals: globals.node },
     },
     {
-        files: [...sourceFiles, 'tools/**/*.ts'],
+        files: [...sourceFiles, 'tools/**/*.ts', 'tests/unit/**/*.ts'],
         extends: [tseslint.configs.strictTypeChecked],
         languageOptions: {
             parserOptions: { projectService: true, tsconfigRootDir: import.meta.dirname },

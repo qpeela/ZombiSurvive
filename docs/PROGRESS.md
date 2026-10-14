@@ -8,37 +8,37 @@
 - S001: DONE, PR #1 слит (81662c2). T001: DONE, PR #2 слит (1e8fa7f).
 - T002: DONE, [PR #3](https://github.com/qpeela/ZombiSurvive/pull/3) слит (a3aa25f).
   Общие domain/protocol и runtime-проверка DTO: MOVEMENT_PROTOCOL.md.
-- S002: DONE, [PR #4](https://github.com/qpeela/ZombiSurvive/pull/4) слит
-  (c5ccb47), слияние проверено через GitHub API; origin/main обновлён.
-- Текущая задача: T003 — подключение к локальному миру; IN_REVIEW.
-- [PR #5](https://github.com/qpeela/ZombiSurvive/pull/5) открыт и прикреплён к чату.
-  GitHub Actions Quality реализации (011411a) прошёл: [run 38521007161](https://github.com/qpeela/ZombiSurvive/actions/runs/38521007161).
-  Workflow проверяет каждый последующий коммит PR; актуальный CI сверить перед следующей задачей.
-- Ветка: codex/t003-local-world от origin/main (c5ccb47).
-- Сервер использует выбранный Colyseus/WebSocket, создаёт один Room при старте
-  и сохраняет его без клиентов. Клиенту открыт только joinById.
-- Серверные worldId/playerId остаются теми же при reload, закрытии всех вкладок
-  и повторном входе; все вкладки представляют одного solo-персонажа.
-- Браузер получает и проверяет стартовый MovementSnapshot: (0, 0 м), tick 0,
-  ack null. UI показывает подключение, ошибки и потерю связи; есть ручной retry.
-- Игровой endpoint определяется от origin страницы; dev/preview используют
-  Vite proxy. GAME_SERVER_URL задаёт target proxy, CLIENT_ORIGIN — адрес клиента.
-- Сервер слушает только 127.0.0.1, проверяет Host/Origin при matchmaking и
-  WebSocket handshake. Создание комнат клиентом и внешний Origin отклоняются.
-- Подключение отменяется при уходе со страницы, HMR, новой попытке и тайм-ауте
-  10 секунд; pending socket закрывается, устаревшие callbacks не меняют UI.
-- Точные MIT-зависимости: @colyseus/core 0.18.18, ws-transport 0.18.4, sdk 0.18.5.
-  Единый lockfile обновлён; установка сообщила 0 уязвимостей.
-- Runtime: Node.js 24.19.0 (.nvmrc), npm. Bundle клиента около 410 kB gzip;
-  предупреждение Vite о размере chunk сохранено.
-- Локальный npm run check прошёл: форматирование, lint, типы, граф импортов,
-  четыре сборки, 17 tooling + 11 контрактных + 11 smoke-тестов без skipped.
-  Проверены reload, пустая комната, параллельные вкладки, offline/retry, тайм-аут,
-  Origin/Host, запрет создания комнат и реальная остановка процесса хоста.
-  Локальные Markdown-ссылки и git diff --check также проверены.
-- Ограничения: нет движения, видимого персонажа, чанков, друзей и сохранений.
-  После рестарта хоста создаются новый мир и ID. Production-раздача клиента — T005A,
-  LAN/интернет — T005B/T005C; автоматического восстановления связи пока нет.
-- Следующая задача после слияния T003: T004 — правила движения.
+- S002: DONE, [PR #4](https://github.com/qpeela/ZombiSurvive/pull/4) слит (c5ccb47).
+  Целевая модель — локальный сервер хоста для solo и друзей по LAN/интернету.
+- T003: DONE, [PR #5](https://github.com/qpeela/ZombiSurvive/pull/5) слит
+  (25283b7), слияние проверено через GitHub API; origin/main обновлён.
+  Colyseus создаёт один мир/solo-персонажа на процесс; браузер получает
+  стартовый snapshot, reload/retry сохраняют ID. Endpoint от origin страницы,
+  Vite proxy, loopback listener и проверки Host/Origin. После рестарта ID меняются.
+- Текущая задача: T004 — правила движения; IN_PROGRESS.
+- Ветка: codex/t004-movement-rules от origin/main (25283b7).
+- Созданы content и simulation без внешних runtime-зависимостей, DOM и Node types.
+  Публичные API используют те же dev/production exports, что domain/protocol.
+- movementSettings в content: 20 Гц и 4 м/с, заморожены; это параметры прототипа.
+- stepPlayerMovement принимает доменные значения и явный stepSeconds = 0.05,
+  отклоняет другую длительность, нормализует направление, сохраняет playerId
+  и возвращает новую позицию без мутации входов. По диагонали и оси — 0.2 м за тик.
+- Шаг пока не подключён к Room/сцене. Здесь нет серверного таймера, world tick,
+  ack, WASD, персонажа, столкновений, спринта, чанков или сохранений.
+- Добавлен Vitest 5.0.4 (MIT), совместимый с Node 24.19.0 и Vite 8.3.4.
+  Vite закреплён также в корне как peer. Единый lockfile; установка: 0 уязвимостей.
+- Unit-тесты входят в общий lint/typecheck. build:core собирает четыре общих
+  пакета перед приложениями; build:contracts остаётся для domain/protocol.
+- 21 unit-тест прошёл: девять направлений, остановка, диагональная скорость,
+  20 шагов за секунду, отрицательные координаты, immutable-входы,
+  воспроизводимость и отклонение неверного шага.
+- Полный npm run check прошёл: форматирование, lint, typecheck, граф импортов,
+  шесть сборок, 21 unit + 17 tooling + 12 контрактных + 11 smoke-тестов
+  без skipped (61 тест). Новые Node dev/production exports работают;
+  сценарии подключения T003 сохранились. Markdown-ссылки и git diff --check прошли.
+- Runtime: Node.js 24.19.0 (.nvmrc), npm. Клиент/сервер не изменялись;
+  Phaser/Colyseus bundle около 410 kB gzip, предупреждение Vite сохранено.
+- Следующая задача после слияния T004: T005 — WASD и серверное движение.
+  Production-раздача клиента — T005A, LAN/интернет — T005B/T005C, сохранения — T013.
 
-Не сливать PR автоматически и не начинать T004 в этом запуске.
+Не сливать PR автоматически и не начинать T005 в этом запуске.

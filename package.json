@@ -13,21 +13,25 @@
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "lint": "npm run build:contracts && eslint . --max-warnings=0",
-    "typecheck": "npm run build:contracts && tsc --noEmit && npm run typecheck --workspaces",
+    "lint": "npm run build:core && eslint . --max-warnings=0",
+    "typecheck": "npm run build:core && tsc --noEmit && npm run typecheck --workspaces",
     "architecture:check": "node tools/check-architecture.mjs",
-    "test": "npm run test:tooling && npm run test:contracts && npm run test:smoke",
+    "test": "npm run test:unit && npm run test:tooling && npm run test:contracts && npm run test:smoke",
     "check": "npm run format:check && npm run lint && npm run typecheck && npm run architecture:check && npm run build && npm test",
     "dev": "concurrently --kill-others --names client,server \"npm run dev --workspace @zombi-survive/client\" \"npm run dev --workspace @zombi-survive/server\"",
-    "build": "npm run build:contracts && npm run build --workspace @zombi-survive/client && npm run build --workspace @zombi-survive/server",
+    "build": "npm run build:core && npm run build --workspace @zombi-survive/client && npm run build --workspace @zombi-survive/server",
     "test:contracts": "node --test tests/contracts/*.test.mjs",
     "test:tooling": "node --test tests/tooling/*.test.mjs",
     "test:smoke": "playwright test",
-    "build:contracts": "npm run build --workspace @zombi-survive/domain && npm run build --workspace @zombi-survive/protocol"
+    "build:contracts": "npm run build --workspace @zombi-survive/domain && npm run build --workspace @zombi-survive/protocol",
+    "build:core": "npm run build:contracts && npm run build --workspace @zombi-survive/content && npm run build --workspace @zombi-survive/simulation",
+    "test:unit": "vitest run"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
+    "@playwright/test": "1.64.0",
     "@types/node": "24.19.2",
+    "concurrently": "10.0.6",
     "dependency-cruiser": "18.6.0",
     "eslint": "10.12.0",
     "eslint-config-prettier": "10.1.8",
@@ -36,7 +40,7 @@
     "prettier": "3.9.10",
     "typescript": "6.0.3",
     "typescript-eslint": "8.71.2",
-    "@playwright/test": "1.64.0",
-    "concurrently": "10.0.6"
+    "vite": "8.3.4",
+    "vitest": "5.0.4"
   }
 }

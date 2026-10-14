@@ -1,0 +1,21 @@
+{
+  "name": "@zombi-survive/simulation",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "development": "./src/index.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@zombi-survive/content": "0.0.0",
+    "@zombi-survive/domain": "0.0.0"
+  }
+}

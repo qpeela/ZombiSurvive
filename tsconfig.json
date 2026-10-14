@@ -8,5 +8,5 @@
     "allowImportingTsExtensions": true,
     "noEmit": true
   },
-  "include": ["tools/**/*.ts"]
+  "include": ["tools/**/*.ts", "tests/unit/**/*.ts"]
 }
