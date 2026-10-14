@@ -1,4 +1,4 @@
-import { createHttpServer } from './http-server.ts';
+import { startLocalServer } from './local-server.ts';
 
 const port = Number(process.env['PORT'] ?? '3001');
 const isIntegerPort = Number.isInteger(port);
@@ -8,7 +8,10 @@ if (!isIntegerPort || !isPortInRange) {
     throw new Error('PORT must be an integer between 1 and 65535.');
 }
 
-const server = createHttpServer();
+const server = await startLocalServer(
+    port,
+    process.env['CLIENT_ORIGIN'] ?? 'http://127.0.0.1:5173',
+);
 let isShuttingDown = false;
 
 const onError = (error: Error): void => {
@@ -22,16 +25,9 @@ const onShutdown = (): void => {
     }
 
     isShuttingDown = true;
-    server.close(error => {
-        if (error) {
-            onError(error);
-        }
-    });
+    server.gracefullyShutdown(false).catch(onError);
 };
 
-server.on('error', onError);
 process.once('SIGINT', onShutdown);
 process.once('SIGTERM', onShutdown);
-server.listen(port, '127.0.0.1', () => {
-    process.stdout.write(`Server ready at http://127.0.0.1:${String(port)}/health\n`);
-});
+process.stdout.write(`Local world ready at http://127.0.0.1:${String(port)}/health\n`);

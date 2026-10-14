@@ -16,6 +16,8 @@ test('production client boots a Phaser scene without browser errors', async ({ p
     await expect(canvas).toBeVisible();
     await expect(canvas).toHaveAttribute('data-scene-ready', 'true');
     expect(await canvas.evaluate(element => element.width > 0 && element.height > 0)).toBe(true);
+    await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
+    await expect(page.getByRole('status')).toContainText('Стартовая позиция: 0, 0 м.');
     expect(errors).toEqual([]);
 });
 
