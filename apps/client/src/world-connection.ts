@@ -1,11 +1,12 @@
 import { Client, Room } from '@colyseus/sdk';
+import type { MovementDirection } from '@zombi-survive/domain';
 import {
     initialStateRequest,
     localWorldRoomId,
     type MovementSnapshot,
 } from '@zombi-survive/protocol';
 
-import { readMovementSnapshot } from './movement-contract';
+import { createMovementInput, readMovementSnapshot } from './movement-contract.js';
 
 // The SDK exposes joined rooms only after the handshake. Retain the pending room
 // so navigation or a handshake timeout can also close its socket.
@@ -37,15 +38,23 @@ export type WorldConnectionState =
 export const createWorldConnection = (
     origin: string,
     onStateChange: (state: WorldConnectionState) => void,
-): { connect: () => Promise<void>; disconnect: () => void; dispose: () => void } => {
+): {
+    connect: () => Promise<void>;
+    sendMovement: (direction: MovementDirection) => void;
+    disconnect: () => void;
+    dispose: () => void;
+} => {
     let activeRoom: Room<unknown> | null = null;
     let attempt = 0;
     let isDisposed = false;
     let abortController: AbortController | null = null;
+    let sequence = 0;
+    let isReady = false;
 
     const closeRoom = (): void => {
         const room = activeRoom;
         activeRoom = null;
+        isReady = false;
         room?.connection.close();
     };
 
@@ -55,6 +64,7 @@ export const createWorldConnection = (
         }
 
         const currentAttempt = ++attempt;
+        sequence = 0;
         abortController?.abort();
         closeRoom();
         const controller = new AbortController();
@@ -101,14 +111,55 @@ export const createWorldConnection = (
             }
 
             activeRoom = room;
+            const received: { snapshot: MovementSnapshot | null } = { snapshot: null };
+            const isActiveRoom = (): boolean => isCurrentAttempt() && activeRoom === room;
+            const acceptSnapshot = (value: unknown): void => {
+                if (!isActiveRoom()) {
+                    return;
+                }
+
+                const snapshot = readMovementSnapshot(value);
+
+                if (snapshot === null) {
+                    closeRoom();
+                    onStateChange({ status: 'error' });
+
+                    return;
+                }
+
+                if (received.snapshot !== null) {
+                    const isSameWorld = snapshot.worldId === received.snapshot.worldId;
+                    const isSamePlayer =
+                        snapshot.player.playerId === received.snapshot.player.playerId;
+
+                    if (!isSameWorld || !isSamePlayer) {
+                        closeRoom();
+                        onStateChange({ status: 'error' });
+
+                        return;
+                    }
+
+                    if (snapshot.tick <= received.snapshot.tick) {
+                        return;
+                    }
+                }
+
+                received.snapshot = snapshot;
+
+                if (isReady) {
+                    onStateChange({ status: 'connected', snapshot });
+                }
+            };
+            room.onMessage<unknown>('movement-snapshot', acceptSnapshot);
             room.onLeave(() => {
-                if (isCurrentAttempt()) {
+                if (isActiveRoom()) {
                     activeRoom = null;
+                    isReady = false;
                     onStateChange({ status: 'disconnected' });
                 }
             });
             room.onError(() => {
-                if (isCurrentAttempt()) {
+                if (isActiveRoom()) {
                     closeRoom();
                     onStateChange({ status: 'error' });
                 }
@@ -117,14 +168,11 @@ export const createWorldConnection = (
             const value = await room.request<undefined, unknown>(initialStateRequest, undefined, {
                 timeout: 10000,
             });
-            const snapshot = readMovementSnapshot(value);
+            acceptSnapshot(value);
 
-            if (snapshot === null) {
-                throw new Error('Invalid initial world state.');
-            }
-
-            if (isCurrentAttempt() && activeRoom === room) {
-                onStateChange({ status: 'connected', snapshot });
+            if (isActiveRoom() && received.snapshot !== null) {
+                isReady = true;
+                onStateChange({ status: 'connected', snapshot: received.snapshot });
             }
         } catch {
             if (isCurrentAttempt()) {
@@ -136,10 +184,24 @@ export const createWorldConnection = (
         }
     };
 
+    const sendMovement = (direction: MovementDirection): void => {
+        if (!isReady || activeRoom === null) {
+            return;
+        }
+
+        try {
+            activeRoom.send('movement-input', createMovementInput(++sequence, direction));
+        } catch {
+            closeRoom();
+            onStateChange({ status: 'error' });
+        }
+    };
+
     const disconnect = (): void => {
         attempt++;
         abortController?.abort();
         closeRoom();
+        onStateChange({ status: 'disconnected' });
     };
 
     const dispose = (): void => {
@@ -147,5 +209,5 @@ export const createWorldConnection = (
         disconnect();
     };
 
-    return { connect, disconnect, dispose };
+    return { connect, sendMovement, disconnect, dispose };
 };
