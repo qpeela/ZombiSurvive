@@ -8,7 +8,11 @@
 - S001, T001, T002, S002, T003, T004: DONE; PR #1–#6 слиты в main.
 - T005: DONE, [PR #7](https://github.com/qpeela/ZombiSurvive/pull/7) слит
   (d06f19d); состояние подтверждено через GitHub API, origin/main обновлён.
-- Текущая задача: T005A — запуск собранной игры у хоста; IN_PROGRESS.
+- Текущая задача: T005A — запуск собранной игры у хоста; IN_REVIEW.
+- [PR #8](https://github.com/qpeela/ZombiSurvive/pull/8) открыт и прикреплён к чату.
+  GitHub Actions Quality реализации (71770c9) прошёл:
+  [run 38698248431](https://github.com/qpeela/ZombiSurvive/actions/runs/38698248431).
+  Workflow проверяет последующие коммиты; актуальный CI сверить перед следующей задачей.
 - Ветка: codex/t005a-host-launch от origin/main (d06f19d).
 - `npm run build` готовит приложения; `npm start` запускает один сервер,
   раздающий собранный клиент на http://127.0.0.1:3001/ и обслуживающий
@@ -27,10 +31,10 @@
   (87 без skipped). Проверены прямое подключение без Vite, WASD и reload,
   HTTP GET/HEAD/TRACE, Host/Origin, недоступность исходников и обходов пути.
 - Дополнительно проверены production/dev, нестандартный PORT, стандартные Origin,
-  health и SIGTERM. Большие статические ответы завершаются напрямую Node HTTP:
+  health, SIGTERM и отказ реального процесса без клиентской сборки.
+  Большие статические ответы завершаются напрямую Node HTTP:
   адаптер Colyseus оставлял ответ открытым после backpressure, что мешало reload.
   Библиотеки не менялись. Markdown-ссылки и git diff --check проверены.
-- Публикация PR и проверка CI — следующий шаг текущей задачи.
 - Runtime: Node.js 24.19.0 (.nvmrc), npm. Chromium установлен в игнорируемый
   .cache/playwright; локальные браузерные проверки используют PLAYWRIGHT_BROWSERS_PATH.
 - Ограничения: отдельная build перед первым запуском и после изменения исходников;
