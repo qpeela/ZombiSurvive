@@ -42,6 +42,10 @@ export const readMovementSnapshot = (value: unknown): MovementSnapshot | null =>
                 yMeters: value.player.position.yMeters,
             },
         },
+        otherPlayers: value.otherPlayers.map(player => ({
+            playerId: player.playerId,
+            position: { ...player.position },
+        })),
         lastProcessedInputSequence: value.lastProcessedInputSequence,
     };
 };

@@ -73,6 +73,7 @@ export const createWorldConnection = (
             fetchFn: (url, options) =>
                 fetch(url, {
                     ...options,
+                    credentials: 'same-origin',
                     signal: controller.signal,
                 }),
         });

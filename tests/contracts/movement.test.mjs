@@ -86,7 +86,7 @@ test('wrong message kinds, versions and non-object payloads are rejected on both
     assert.equal(readMovementInput(snapshot), null);
     assert.equal(readMovementSnapshot(command), null);
 
-    for (const protocolVersion of [undefined, '1', 0, 2]) {
+    for (const protocolVersion of [undefined, '2', 0, 1, 3]) {
         assert.equal(readMovementInput({ ...command, protocolVersion }), null);
         assert.equal(readMovementSnapshot({ ...snapshot, protocolVersion }), null);
     }
@@ -169,4 +169,29 @@ test('builders and the client snapshot reader detach positions and directions fr
     const accepted = readMovementSnapshot(snapshot);
     snapshot.player.position.xMeters = 20;
     assert.equal(accepted.player.position.xMeters, -2.5);
+});
+
+test('version 2 validates a bounded set of distinct peers and detaches their positions', () => {
+    const friend = { playerId: 'friend', position: { xMeters: 2, yMeters: 0 } };
+    const snapshot = createMovementSnapshot('world-1', 1, player, 1, [friend]);
+    const accepted = readMovementSnapshot(roundTrip(snapshot));
+    assert.deepEqual(accepted, snapshot);
+    friend.position.xMeters = 20;
+    assert.equal(snapshot.otherPlayers[0].position.xMeters, 2);
+    snapshot.otherPlayers[0].position.xMeters = 30;
+    assert.equal(accepted.otherPlayers[0].position.xMeters, 2);
+
+    for (const otherPlayers of [
+        undefined,
+        null,
+        {},
+        [player],
+        [friend, friend],
+        [{ ...friend, position: { xMeters: Infinity, yMeters: 0 } }],
+        Array.from({ length: 8 }, (_, index) => ({ ...friend, playerId: `peer-${index}` })),
+    ]) {
+        assert.equal(readMovementSnapshot({ ...snapshot, otherPlayers }), null);
+    }
+
+    assert.equal(readMovementSnapshot({ ...snapshot, protocolVersion: 1 }), null);
 });

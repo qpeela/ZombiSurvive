@@ -1,6 +1,7 @@
 import type { MovementDirection, PlayerMovementState, WorldId } from '@zombi-survive/domain';
 
-export const protocolVersion = 1;
+export const protocolVersion = 2;
+export const maxWorldPlayers = 8;
 
 export type MovementInputCommand = {
     readonly type: 'movement-input';
@@ -15,6 +16,7 @@ export type MovementSnapshot = {
     readonly worldId: WorldId;
     readonly tick: number;
     readonly player: PlayerMovementState;
+    readonly otherPlayers: readonly PlayerMovementState[];
     readonly lastProcessedInputSequence: number | null;
 };
 
@@ -87,6 +89,27 @@ export const isMovementInputCommand = (value: unknown): value is MovementInputCo
     return isValidX && isValidY;
 };
 
+const isPlayer = (value: unknown): value is PlayerMovementState => {
+    if (!isRecord(value)) {
+        return false;
+    }
+
+    if (!isId(value['playerId'])) {
+        return false;
+    }
+
+    const position = value['position'];
+
+    if (!isRecord(position)) {
+        return false;
+    }
+
+    const isValidX = isCoordinate(position['xMeters']);
+    const isValidY = isCoordinate(position['yMeters']);
+
+    return isValidX && isValidY;
+};
+
 export const isMovementSnapshot = (value: unknown): value is MovementSnapshot => {
     if (!isRecord(value)) {
         return false;
@@ -106,20 +129,30 @@ export const isMovementSnapshot = (value: unknown): value is MovementSnapshot =>
         !isValidTick ||
         !isValidWorldId ||
         !isValidAcknowledgement ||
-        !isRecord(player)
+        !isPlayer(player)
     ) {
         return false;
     }
 
-    const isValidPlayerId = isId(player['playerId']);
-    const position = player['position'];
+    const others = value['otherPlayers'];
 
-    if (!isValidPlayerId || !isRecord(position)) {
+    if (!Array.isArray(others) || others.length >= maxWorldPlayers) {
         return false;
     }
 
-    const isValidX = isCoordinate(position['xMeters']);
-    const isValidY = isCoordinate(position['yMeters']);
+    const ids = new Set([player.playerId]);
 
-    return isValidX && isValidY;
+    for (const other of others) {
+        if (!isPlayer(other)) {
+            return false;
+        }
+
+        if (ids.has(other.playerId)) {
+            return false;
+        }
+
+        ids.add(other.playerId);
+    }
+
+    return true;
 };

@@ -17,11 +17,12 @@ vi.mock('@colyseus/sdk', () => ({
 
 const snapshot = (tick: number): MovementSnapshot => ({
     type: 'movement-snapshot',
-    protocolVersion: 1,
+    protocolVersion: 2,
     worldId: 'world',
     tick,
     player: { playerId: 'player', position: { xMeters: tick * 0.2, yMeters: 0 } },
     lastProcessedInputSequence: null,
+    otherPlayers: [],
 });
 const createRoom = () => {
     let resolveInitial: (value: unknown) => void = () => {};
