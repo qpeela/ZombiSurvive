@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node --conditions=development --watch src/main.ts",
+    "dev": "node --conditions=development --watch src/main.ts --dev",
     "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "typecheck": "tsc --noEmit"

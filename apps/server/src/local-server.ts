@@ -1,4 +1,4 @@
-import { createServer } from 'node:http';
+import { createServer, type RequestListener } from 'node:http';
 
 import {
     createEndpoint,
@@ -11,9 +11,14 @@ import {
 import { WebSocketTransport } from '@colyseus/ws-transport';
 import { localWorldRoomId } from '@zombi-survive/protocol';
 
+import { loadClientBuild } from './client-build.ts';
 import { LocalWorldRoom } from './local-world-room.ts';
 
-export const startLocalServer = async (port: number, clientOrigin: string): Promise<Server> => {
+export const startLocalServer = async (
+    port: number,
+    clientOrigin: string,
+    clientDirectory?: URL,
+): Promise<Server> => {
     const clientUrl = new URL(clientOrigin);
     const isLoopback = clientUrl.hostname === '127.0.0.1' || clientUrl.hostname === 'localhost';
     const isPlainOrigin = clientUrl.origin === clientOrigin;
@@ -22,6 +27,8 @@ export const startLocalServer = async (port: number, clientOrigin: string): Prom
         throw new Error('CLIENT_ORIGIN must be an HTTP loopback origin.');
     }
 
+    const serveClient =
+        clientDirectory === undefined ? undefined : await loadClientBuild(clientDirectory);
     const serverOrigin = `http://127.0.0.1:${String(port)}`;
     const allowedOrigins = new Set([serverOrigin, clientOrigin]);
     const isAllowedRequest = (headers: Headers, isOriginRequired: boolean): boolean => {
@@ -104,6 +111,62 @@ export const startLocalServer = async (port: number, clientOrigin: string): Prom
             new Promise<never>((_, reject) => httpServer.once('error', reject)),
         ]);
         await matchMaker.createRoom(localWorldRoomId, {});
+
+        if (serveClient !== undefined) {
+            // The Colyseus response adapter can leave a large response open after
+            // backpressure. Node's end(body) owns completion for static responses.
+            const requestListeners = httpServer.listeners('request') as RequestListener[];
+            httpServer.removeAllListeners('request');
+            httpServer.on('request', (request, response) => {
+                let clientResponse: Response | undefined;
+
+                try {
+                    clientResponse = serveClient({
+                        url: new URL(request.url ?? '/', serverOrigin).href,
+                        method: request.method ?? 'GET',
+                    });
+                } catch {
+                    response.writeHead(400).end('Bad Request');
+
+                    return;
+                }
+
+                if (clientResponse === undefined) {
+                    for (const listener of requestListeners) {
+                        listener.call(httpServer, request, response);
+                    }
+
+                    return;
+                }
+
+                const headers = new Headers({ host: request.headers.host ?? '' });
+
+                if (request.headers.origin !== undefined) {
+                    headers.set('origin', request.headers.origin);
+                }
+
+                if (!isAllowedRequest(headers, false)) {
+                    response.writeHead(403).end('Forbidden');
+
+                    return;
+                }
+
+                clientResponse
+                    .arrayBuffer()
+                    .then(body => {
+                        response.writeHead(
+                            clientResponse.status,
+                            Object.fromEntries(clientResponse.headers),
+                        );
+                        response.end(Buffer.from(body));
+                    })
+                    .catch((error: unknown) => {
+                        response.destroy(
+                            error instanceof Error ? error : new Error('Client response failed.'),
+                        );
+                    });
+            });
+        }
     } catch (error) {
         await server.gracefullyShutdown(false);
 
