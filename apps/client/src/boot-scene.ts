@@ -6,6 +6,8 @@ const pixelsPerMeter = 24;
 export class BootScene extends Scene {
     private player: PlayerMovementState | null = null;
     private marker: GameObjects.Container | null = null;
+    private otherPlayers: readonly PlayerMovementState[] = [];
+    private readonly otherMarkers = new Map<string, GameObjects.Container>();
 
     constructor() {
         super('boot');
@@ -23,17 +25,36 @@ export class BootScene extends Scene {
         }
 
         grid.lineStyle(2, 0x50614a).lineBetween(480, 0, 480, 540).lineBetween(0, 270, 960, 270);
-        this.marker = this.add.container(480, 270, [
-            this.add.ellipse(0, 8, 24, 10, 0x0b100e),
-            this.add.rectangle(0, 1, 16, 18, 0x88a76d),
-            this.add.rectangle(0, -11, 10, 10, 0xddc7a0),
-        ]);
-        this.setPlayer(this.player);
+        this.marker = this.createMarker(true);
+        this.setPlayers(this.player, this.otherPlayers);
+        this.events.once('shutdown', () => {
+            this.marker = null;
+            this.otherMarkers.clear();
+        });
         this.game.canvas.dataset['sceneReady'] = 'true';
         this.game.canvas.setAttribute('aria-label', 'Игровое поле ZombiSurvive');
     }
 
-    setPlayer(player: PlayerMovementState | null): void {
+    private createMarker(isLocal: boolean): GameObjects.Container {
+        return this.add.container(480, 270, [
+            this.add.ellipse(0, 8, 24, 10, 0x0b100e),
+            this.add.rectangle(0, 1, 16, 18, isLocal ? 0x88a76d : 0x71a5cf),
+            this.add.rectangle(0, -11, 10, 10, 0xddc7a0),
+            this.add
+                .text(0, -36, isLocal ? 'Вы' : 'Друг', {
+                    fontFamily: 'monospace',
+                    fontSize: '12px',
+                    color: '#d8e3c9',
+                })
+                .setOrigin(0.5),
+        ]);
+    }
+
+    setPlayers(
+        player: PlayerMovementState | null,
+        otherPlayers: readonly PlayerMovementState[],
+    ): void {
+        this.otherPlayers = otherPlayers;
         this.player = player;
 
         if (this.marker === null) {
@@ -50,5 +71,25 @@ export class BootScene extends Scene {
             this.game.canvas.dataset['playerX'] = String(x);
             this.game.canvas.dataset['playerY'] = String(y);
         }
+
+        const ids = new Set(otherPlayers.map(other => other.playerId));
+
+        for (const [id, marker] of this.otherMarkers) {
+            if (!ids.has(id)) {
+                marker.destroy();
+                this.otherMarkers.delete(id);
+            }
+        }
+
+        for (const other of otherPlayers) {
+            const marker = this.otherMarkers.get(other.playerId) ?? this.createMarker(false);
+            marker.setPosition(
+                480 + other.position.xMeters * pixelsPerMeter,
+                270 + other.position.yMeters * pixelsPerMeter,
+            );
+            this.otherMarkers.set(other.playerId, marker);
+        }
+
+        this.game.canvas.dataset['otherPlayers'] = JSON.stringify(otherPlayers);
     }
 }

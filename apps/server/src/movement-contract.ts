@@ -25,6 +25,7 @@ export const createMovementSnapshot = (
     tick: number,
     player: PlayerMovementState,
     lastProcessedInputSequence: number | null,
+    otherPlayers: readonly PlayerMovementState[] = [],
 ): MovementSnapshot => {
     const snapshot: MovementSnapshot = {
         type: 'movement-snapshot',
@@ -36,6 +37,10 @@ export const createMovementSnapshot = (
             position: { xMeters: player.position.xMeters, yMeters: player.position.yMeters },
         },
         lastProcessedInputSequence,
+        otherPlayers: otherPlayers.map(other => ({
+            playerId: other.playerId,
+            position: { ...other.position },
+        })),
     };
 
     if (!isMovementSnapshot(snapshot)) {

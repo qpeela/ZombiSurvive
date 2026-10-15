@@ -5,7 +5,7 @@ import { LocalWorldMovement } from '../../apps/server/src/local-world-movement.t
 
 const command = (sequence: number, direction: MovementDirection = { x: 1, y: 0 }) => ({
     type: 'movement-input',
-    protocolVersion: 1,
+    protocolVersion: 2,
     sequence,
     direction,
 });
@@ -65,7 +65,7 @@ test('duplicate, old, malformed, incompatible and unknown-session inputs cannot 
     movement.receive('first', command(2, { x: 0, y: 0 }));
     movement.receive('first', command(2));
     movement.receive('first', command(1));
-    movement.receive('first', { ...command(3), protocolVersion: 2 });
+    movement.receive('first', { ...command(3), protocolVersion: 3 });
     movement.receive('first', { ...command(3), direction: { x: 100, y: 0 } });
     movement.receive('first', null);
     movement.receive('unknown', command(3));
@@ -146,4 +146,46 @@ test('disconnect cancels pending input and movement even while another tab remai
         player: { playerId: 'player', position: { xMeters: 0.2, yMeters: 0.2 } },
         lastProcessedInputSequence: 1,
     });
+});
+
+test('participants move independently and cannot select another character through a command', () => {
+    const movement = new LocalWorldMovement('world', 'host');
+    movement.join('host-tab', 'host');
+    movement.join('friend-tab', 'friend');
+    movement.receive('host-tab', { ...command(1), playerId: 'friend' });
+    movement.receive('friend-tab', command(1, { x: 0, y: -1 }));
+    movement.step();
+    expect(movement.snapshot('host-tab')).toMatchObject({
+        tick: 1,
+        player: { playerId: 'host', position: { xMeters: 0.2, yMeters: 0 } },
+        otherPlayers: [{ playerId: 'friend', position: { xMeters: 2, yMeters: -0.2 } }],
+        lastProcessedInputSequence: 1,
+    });
+    expect(movement.snapshot('friend-tab').otherPlayers).toEqual([
+        movement.snapshot('host-tab').player,
+    ]);
+    movement.leave('host-tab');
+    movement.step();
+    expect(movement.snapshot('friend-tab').player.position.yMeters).toBe(-0.4);
+    expect(movement.snapshot('friend-tab').otherPlayers[0]?.position.xMeters).toBe(0.2);
+    movement.join('host-reload', 'host');
+    expect(movement.snapshot('host-reload').player.position.xMeters).toBe(0.2);
+    expect(movement.snapshot('host-reload').lastProcessedInputSequence).toBeNull();
+});
+
+test('same-player tabs share control without cancelling another participant or leaking snapshots', () => {
+    const movement = new LocalWorldMovement('world', 'host');
+    movement.join('first', 'host');
+    movement.join('second', 'host');
+    movement.join('friend', 'friend');
+    movement.receive('second', command(1));
+    movement.receive('friend', command(1, { x: 0, y: 1 }));
+    movement.receive('first', command(1, { x: 0, y: 0 }));
+    movement.step();
+    const detached = movement.snapshot('first');
+    expect(detached.player.position.xMeters).toBe(0.2);
+    expect(detached.otherPlayers[0]?.position.yMeters).toBe(0.2);
+    movement.step();
+    expect(detached.otherPlayers[0]?.position.yMeters).toBe(0.2);
+    expect(movement.snapshot('friend').player.position.yMeters).toBe(0.4);
 });
