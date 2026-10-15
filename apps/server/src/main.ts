@@ -8,9 +8,13 @@ if (!isIntegerPort || !isPortInRange) {
     throw new Error('PORT must be an integer between 1 and 65535.');
 }
 
+const isDevelopment = process.argv.includes('--dev');
+const serverOrigin = `http://127.0.0.1:${String(port)}`;
+const defaultClientOrigin = isDevelopment ? 'http://127.0.0.1:5173' : serverOrigin;
 const server = await startLocalServer(
     port,
-    process.env['CLIENT_ORIGIN'] ?? 'http://127.0.0.1:5173',
+    process.env['CLIENT_ORIGIN'] ?? defaultClientOrigin,
+    isDevelopment ? undefined : new URL('../../client/dist/', import.meta.url),
 );
 let isShuttingDown = false;
 
@@ -30,4 +34,4 @@ const onShutdown = (): void => {
 
 process.once('SIGINT', onShutdown);
 process.once('SIGTERM', onShutdown);
-process.stdout.write(`Local world ready at http://127.0.0.1:${String(port)}/health\n`);
+process.stdout.write(`Local world ready at ${serverOrigin}/\n`);

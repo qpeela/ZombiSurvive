@@ -22,7 +22,7 @@ export default defineConfig({
             gracefulShutdown: { signal: 'SIGTERM', timeout: 5000 },
         },
         {
-            command: 'node apps/server/dist/main.js',
+            command: 'npm start',
             url: 'http://127.0.0.1:3101/health',
             env: { PORT: '3101', CLIENT_ORIGIN: 'http://127.0.0.1:4173' },
             name: 'server',

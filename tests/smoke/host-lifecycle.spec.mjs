@@ -6,7 +6,7 @@ import { initialStateRequest, localWorldRoomId } from '@zombi-survive/protocol';
 
 test('stopping the host disconnects joined clients and releases the server process', async () => {
     const host = spawn(process.execPath, ['apps/server/dist/main.js'], {
-        env: { ...process.env, PORT: '3102', CLIENT_ORIGIN: 'http://127.0.0.1:4173' },
+        env: { ...process.env, PORT: '3102' },
         stdio: ['ignore', 'pipe', 'pipe'],
     });
     let output = '';
@@ -24,7 +24,7 @@ test('stopping the host disconnects joined clients and releases the server proce
     try {
         await expect.poll(() => output).toContain('Local world ready');
         const client = new Client('http://127.0.0.1:3102', {
-            headers: { Origin: 'http://127.0.0.1:4173' },
+            headers: { Origin: 'http://127.0.0.1:3102' },
         });
         room = await client.joinById(localWorldRoomId);
         room.reconnection.enabled = false;
