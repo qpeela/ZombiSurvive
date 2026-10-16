@@ -3,7 +3,9 @@ import type { MovementDirection, WorldPosition } from '@zombi-survive/domain';
 import {
     initialStateRequest,
     localWorldRoomId,
+    type MovementInputCommand,
     type MovementSnapshot,
+    type MovementTargetCommand,
 } from '@zombi-survive/protocol';
 
 import {
@@ -42,6 +44,7 @@ export type WorldConnectionState =
 export const createWorldConnection = (
     origin: string,
     onStateChange: (state: WorldConnectionState) => void,
+    onCommandSent?: (command: MovementInputCommand | MovementTargetCommand) => void,
 ): {
     connect: () => Promise<void>;
     sendMovement: (direction: MovementDirection) => void;
@@ -196,7 +199,9 @@ export const createWorldConnection = (
         }
 
         try {
-            activeRoom.send('movement-input', createMovementInput(++sequence, direction));
+            const command = createMovementInput(++sequence, direction);
+            activeRoom.send('movement-input', command);
+            onCommandSent?.(command);
         } catch {
             closeRoom();
             onStateChange({ status: 'error' });
@@ -216,7 +221,9 @@ export const createWorldConnection = (
         }
 
         try {
-            activeRoom.send('movement-target', createMovementTarget(++sequence, target));
+            const command = createMovementTarget(++sequence, target);
+            activeRoom.send('movement-target', command);
+            onCommandSent?.(command);
         } catch {
             closeRoom();
             onStateChange({ status: 'error' });

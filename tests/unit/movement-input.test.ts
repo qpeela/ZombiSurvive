@@ -189,3 +189,32 @@ test.each(['blur', 'hidden', 'disconnect'])(
         expect(vi.getTimerCount()).toBe(0);
     },
 );
+
+test('prediction sees key changes, clicks and cancellation before the ten Hz network send', () => {
+    const send = vi.fn();
+    const onIntentChange = vi.fn();
+    const input = createMovementInputController(send, {
+        onIntentChange,
+        sendTarget: vi.fn(),
+    });
+    input.setEnabled(true);
+    key('KeyD');
+    expect(onIntentChange).toHaveBeenLastCalledWith({
+        type: 'direction',
+        direction: { x: 1, y: 0 },
+    });
+    expect(send).not.toHaveBeenCalled();
+    // Blur before the first heartbeat also retires unsent prediction through a stop ack.
+    windowEvents.dispatchEvent(new Event('blur'));
+    expect(onIntentChange).toHaveBeenLastCalledWith({
+        type: 'direction',
+        direction: { x: 0, y: 0 },
+    });
+    expect(send).toHaveBeenLastCalledWith({ x: 0, y: 0 });
+    input.moveTo({ xMeters: 2, yMeters: 1 });
+    expect(onIntentChange).toHaveBeenLastCalledWith({
+        type: 'target',
+        target: { xMeters: 2, yMeters: 1 },
+    });
+    input.dispose();
+});

@@ -15,6 +15,7 @@ export class BootScene extends Scene {
     private crosshair: GameObjects.Graphics | null = null;
     private destinationMarker: GameObjects.Graphics | null = null;
     private destination: WorldPosition | null = null;
+    onFrame: () => void = () => {};
     onMove: (position: WorldPosition) => void = () => {};
 
     constructor() {
@@ -99,6 +100,7 @@ export class BootScene extends Scene {
     }
 
     override update(): void {
+        this.onFrame();
         const camera = this.cameras.main;
         const canvas = this.game.canvas;
         const pointer = this.input.activePointer;
@@ -174,11 +176,7 @@ export class BootScene extends Scene {
         ]);
     }
 
-    setPlayers(
-        player: PlayerMovementState | null,
-        otherPlayers: readonly PlayerMovementState[],
-    ): void {
-        this.otherPlayers = otherPlayers;
+    setPlayer(player: PlayerMovementState | null): void {
         this.player = player;
 
         if (this.marker === null) {
@@ -195,6 +193,18 @@ export class BootScene extends Scene {
             this.cameras.main.centerOn(x, y);
             this.game.canvas.dataset['playerX'] = String(x);
             this.game.canvas.dataset['playerY'] = String(y);
+        }
+    }
+
+    setPlayers(
+        player: PlayerMovementState | null,
+        otherPlayers: readonly PlayerMovementState[],
+    ): void {
+        this.otherPlayers = otherPlayers;
+        this.setPlayer(player);
+
+        if (this.marker === null) {
+            return;
         }
 
         const ids = new Set(otherPlayers.map(other => other.playerId));

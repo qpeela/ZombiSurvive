@@ -147,7 +147,8 @@ test('a replaced room cannot publish, leave or send held input into the new sess
 test('mouse and keyboard share sequence numbers and cannot send before readiness or after disconnect', async () => {
     const fake = createRoom();
     join.mockResolvedValue(fake.room);
-    const connection = createWorldConnection('http://host', () => {});
+    const onCommandSent = vi.fn();
+    const connection = createWorldConnection('http://host', () => {}, onCommandSent);
     connection.sendTarget({ xMeters: 2, yMeters: -1 });
     const ready = connection.connect();
     await vi.waitFor(() => {
@@ -155,6 +156,7 @@ test('mouse and keyboard share sequence numbers and cannot send before readiness
     });
     connection.sendTarget({ xMeters: 2, yMeters: -1 });
     expect(fake.room.send).not.toHaveBeenCalled();
+    expect(onCommandSent).not.toHaveBeenCalled();
     fake.resolveInitial(snapshot(1));
     await ready;
     connection.sendTarget({ xMeters: 2, yMeters: -1 });
@@ -163,8 +165,17 @@ test('mouse and keyboard share sequence numbers and cannot send before readiness
         ['movement-target', { sequence: 1, target: { xMeters: 2, yMeters: -1 } }],
         ['movement-input', { sequence: 2, direction: { x: 1, y: 0 } }],
     ]);
+    expect(onCommandSent).toHaveBeenNthCalledWith(
+        1,
+        expect.objectContaining({ type: 'movement-target', sequence: 1 }),
+    );
+    expect(onCommandSent).toHaveBeenNthCalledWith(
+        2,
+        expect.objectContaining({ type: 'movement-input', sequence: 2 }),
+    );
     connection.disconnect();
     connection.sendTarget({ xMeters: 3, yMeters: 4 });
     expect(fake.room.send).toHaveBeenCalledTimes(2);
+    expect(onCommandSent).toHaveBeenCalledTimes(2);
     connection.dispose();
 });
