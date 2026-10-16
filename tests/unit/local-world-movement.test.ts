@@ -5,7 +5,7 @@ import { LocalWorldMovement } from '../../apps/server/src/local-world-movement.t
 
 const command = (sequence: number, direction: MovementDirection = { x: 1, y: 0 }) => ({
     type: 'movement-input',
-    protocolVersion: 2,
+    protocolVersion: 3,
     sequence,
     direction,
 });
@@ -65,7 +65,7 @@ test('duplicate, old, malformed, incompatible and unknown-session inputs cannot 
     movement.receive('first', command(2, { x: 0, y: 0 }));
     movement.receive('first', command(2));
     movement.receive('first', command(1));
-    movement.receive('first', { ...command(3), protocolVersion: 3 });
+    movement.receive('first', { ...command(3), protocolVersion: 4 });
     movement.receive('first', { ...command(3), direction: { x: 100, y: 0 } });
     movement.receive('first', null);
     movement.receive('unknown', command(3));
@@ -188,4 +188,82 @@ test('same-player tabs share control without cancelling another participant or l
     movement.step();
     expect(detached.otherPlayers[0]?.position.yMeters).toBe(0.2);
     expect(movement.snapshot('friend').player.position.yMeters).toBe(0.4);
+});
+
+const targetCommand = (sequence: number, xMeters: number, yMeters: number) => ({
+    type: 'movement-target',
+    protocolVersion: 3,
+    sequence,
+    target: { xMeters, yMeters },
+});
+
+test('mouse commands move at fixed speed, acknowledge on step and stop exactly at target', () => {
+    const movement = setup();
+    const target = targetCommand(1, 0.3, -0.4);
+    movement.receive('first', target);
+    target.target.xMeters = 999;
+    expect(movement.snapshot('first').player.position.xMeters).toBe(0);
+    movement.step();
+    const first = movement.snapshot('first');
+    expect(Math.hypot(first.player.position.xMeters, first.player.position.yMeters)).toBeCloseTo(
+        0.2,
+        12,
+    );
+    expect(first.lastProcessedInputSequence).toBe(1);
+    movement.step();
+    movement.step();
+    expect(movement.snapshot('first').player.position).toEqual({ xMeters: 0.3, yMeters: -0.4 });
+    movement.step();
+    expect(movement.snapshot('first').player.position).toEqual({ xMeters: 0.3, yMeters: -0.4 });
+});
+
+test('new targets and keyboard commands share ordering; unrelated tabs cannot cancel a target', () => {
+    const movement = setup();
+    movement.receive('first', targetCommand(1, 100, 0));
+    movement.receive('first', targetCommand(2, 0, -100));
+    movement.receive('second', command(1, { x: 0, y: 0 }));
+    movement.step();
+    expect(movement.snapshot('first').player.position).toEqual({ xMeters: 0, yMeters: -0.2 });
+    movement.receive('first', command(3, { x: 1, y: 0 }));
+    movement.receive('first', targetCommand(2, -100, 0));
+    movement.step();
+    expect(movement.snapshot('first').player.position).toEqual({ xMeters: 0.2, yMeters: -0.2 });
+    movement.receive('first', command(4, { x: 0, y: 0 }));
+    movement.step();
+    expect(movement.snapshot('first').player.position).toEqual({ xMeters: 0.2, yMeters: -0.2 });
+});
+
+test('target heartbeats expire and disconnect cancels a destination', () => {
+    const movement = setup();
+    movement.receive('first', targetCommand(1, 100, 0));
+    for (let tick = 0; tick < 20; tick++) {
+        movement.receive('first', targetCommand(1, 100, 0));
+        movement.step();
+    }
+    expect(movement.snapshot('first').player.position.xMeters).toBeCloseTo(2, 12);
+    movement.receive('first', targetCommand(2, 100, 0));
+    movement.step();
+    movement.leave('first');
+    movement.step();
+    expect(movement.snapshot('second').player.position.xMeters).toBeCloseTo(2.2, 12);
+});
+
+test('a flood of target commands cannot teleport or move another participant', () => {
+    const movement = new LocalWorldMovement('world', 'host');
+    movement.join('host-tab', 'host');
+    movement.join('friend-tab', 'friend');
+    for (let sequence = 1; sequence <= 1000; sequence++) {
+        movement.receive('host-tab', {
+            ...targetCommand(sequence, 1000, 0),
+            playerId: 'friend',
+            position: { xMeters: 999, yMeters: 999 },
+        });
+    }
+    movement.receive('unknown', targetCommand(1001, -1000, 0));
+    movement.step();
+    expect(movement.snapshot('host-tab')).toMatchObject({
+        player: { playerId: 'host', position: { xMeters: 0.2, yMeters: 0 } },
+        otherPlayers: [{ playerId: 'friend', position: { xMeters: 2, yMeters: 0 } }],
+        lastProcessedInputSequence: 1000,
+    });
 });

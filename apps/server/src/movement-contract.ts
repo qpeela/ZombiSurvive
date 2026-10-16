@@ -2,10 +2,25 @@ import type { PlayerMovementState, WorldId } from '@zombi-survive/domain';
 import {
     isMovementInputCommand,
     isMovementSnapshot,
+    isMovementTargetCommand,
     type MovementInputCommand,
     type MovementSnapshot,
+    type MovementTargetCommand,
     protocolVersion,
 } from '@zombi-survive/protocol';
+
+export const readMovementTarget = (value: unknown): MovementTargetCommand | null => {
+    if (!isMovementTargetCommand(value)) {
+        return null;
+    }
+
+    return {
+        type: value.type,
+        protocolVersion: value.protocolVersion,
+        sequence: value.sequence,
+        target: { xMeters: value.target.xMeters, yMeters: value.target.yMeters },
+    };
+};
 
 export const readMovementInput = (value: unknown): MovementInputCommand | null => {
     if (!isMovementInputCommand(value)) {

@@ -1,4 +1,4 @@
-import type { MovementAxis, MovementDirection } from '@zombi-survive/domain';
+import type { MovementAxis, MovementDirection, WorldPosition } from '@zombi-survive/domain';
 
 const movementCodes = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD']);
 const axis = (positive: boolean, negative: boolean): MovementAxis => {
@@ -11,15 +11,31 @@ const axis = (positive: boolean, negative: boolean): MovementAxis => {
 
 export const createMovementInputController = (
     send: (direction: MovementDirection) => void,
-): { setEnabled: (isEnabled: boolean) => void; dispose: () => void } => {
+    options: {
+        readonly sendTarget?: (target: WorldPosition) => void;
+        readonly onTargetChange?: (target: WorldPosition | null) => void;
+    } = {},
+): {
+    setEnabled: (isEnabled: boolean) => void;
+    moveTo: (target: WorldPosition) => void;
+    updatePosition: (position: WorldPosition) => void;
+    dispose: () => void;
+} => {
     const pressed = new Set<string>();
     let isEnabled = false;
     let isDirty = false;
     let isMoving = false;
+    let target: WorldPosition | null = null;
+
+    const setTarget = (value: WorldPosition | null): void => {
+        target = value;
+        options.onTargetChange?.(value);
+    };
 
     const clear = (): void => {
         pressed.clear();
         isDirty = false;
+        setTarget(null);
 
         if (isEnabled && isMoving) {
             send({ x: 0, y: 0 });
@@ -41,6 +57,7 @@ export const createMovementInputController = (
         event.preventDefault();
 
         if (!event.repeat) {
+            setTarget(null);
             pressed.add(event.code);
             isDirty = true;
         }
@@ -58,6 +75,14 @@ export const createMovementInputController = (
     };
     const interval = window.setInterval(() => {
         if (!isEnabled) {
+            return;
+        }
+
+        if (target !== null) {
+            isDirty = false;
+            isMoving = true;
+            options.sendTarget?.(target);
+
             return;
         }
 
@@ -96,5 +121,29 @@ export const createMovementInputController = (
         document.removeEventListener('visibilitychange', onVisibilityChange);
     };
 
-    return { setEnabled, dispose };
+    const moveTo = (value: WorldPosition): void => {
+        if (!isEnabled || document.hidden || options.sendTarget === undefined) {
+            return;
+        }
+
+        pressed.clear();
+        setTarget({ ...value });
+    };
+    const updatePosition = (position: WorldPosition): void => {
+        if (target === null) {
+            return;
+        }
+
+        const distance = Math.hypot(
+            target.xMeters - position.xMeters,
+            target.yMeters - position.yMeters,
+        );
+
+        if (distance <= 0.000001) {
+            setTarget(null);
+            isDirty = true;
+        }
+    };
+
+    return { setEnabled, moveTo, updatePosition, dispose };
 };

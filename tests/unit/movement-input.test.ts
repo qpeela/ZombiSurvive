@@ -122,3 +122,70 @@ test('disconnect and dispose clear intentions, listeners and timers', () => {
     expect(send).toHaveBeenCalledTimes(2);
     expect(vi.getTimerCount()).toBe(0);
 });
+
+test('clicks coalesce at ten Hz, copy the destination and stop when the server reaches it', () => {
+    const send = vi.fn();
+    const sendTarget = vi.fn();
+    const onTargetChange = vi.fn();
+    const input = createMovementInputController(send, { sendTarget, onTargetChange });
+    input.moveTo({ xMeters: 1, yMeters: 2 });
+    input.setEnabled(true);
+    const target = { xMeters: -3, yMeters: 1.5 };
+    input.moveTo(target);
+    target.xMeters = 999;
+    vi.advanceTimersByTime(100);
+    expect(sendTarget).toHaveBeenLastCalledWith({ xMeters: -3, yMeters: 1.5 });
+    for (let index = 0; index < 50; index++) input.moveTo({ xMeters: 4, yMeters: -2 });
+    vi.advanceTimersByTime(100);
+    expect(sendTarget).toHaveBeenCalledTimes(2);
+    input.updatePosition({ xMeters: 4, yMeters: -2 });
+    vi.advanceTimersByTime(100);
+    expect(send).toHaveBeenLastCalledWith({ x: 0, y: 0 });
+    expect(onTargetChange).toHaveBeenLastCalledWith(null);
+    vi.advanceTimersByTime(1000);
+    expect(sendTarget).toHaveBeenCalledTimes(2);
+    input.dispose();
+});
+
+test('WASD cancels a destination and a fresh click replaces held keyboard movement', () => {
+    const send = vi.fn();
+    const sendTarget = vi.fn();
+    const input = createMovementInputController(send, { sendTarget });
+    input.setEnabled(true);
+    input.moveTo({ xMeters: 3, yMeters: 4 });
+    vi.advanceTimersByTime(100);
+    key('KeyW');
+    vi.advanceTimersByTime(100);
+    expect(send).toHaveBeenLastCalledWith({ x: 0, y: -1 });
+    input.moveTo({ xMeters: -3, yMeters: 4 });
+    key('KeyW', 'keyup');
+    vi.advanceTimersByTime(100);
+    expect(sendTarget).toHaveBeenLastCalledWith({ xMeters: -3, yMeters: 4 });
+    expect(send).toHaveBeenCalledTimes(1);
+    input.dispose();
+});
+
+test.each(['blur', 'hidden', 'disconnect'])(
+    '%s cancels a mouse destination without silent resume',
+    reason => {
+        const send = vi.fn();
+        const sendTarget = vi.fn();
+        const input = createMovementInputController(send, { sendTarget });
+        input.setEnabled(true);
+        input.moveTo({ xMeters: 100, yMeters: -100 });
+        vi.advanceTimersByTime(100);
+        if (reason === 'blur') windowEvents.dispatchEvent(new Event('blur'));
+        if (reason === 'hidden') {
+            documentEvents.hidden = true;
+            documentEvents.dispatchEvent(new Event('visibilitychange'));
+        }
+        if (reason === 'disconnect') input.setEnabled(false);
+        documentEvents.hidden = false;
+        input.setEnabled(true);
+        vi.advanceTimersByTime(1000);
+        expect(send).toHaveBeenLastCalledWith({ x: 0, y: 0 });
+        expect(sendTarget).toHaveBeenCalledTimes(1);
+        input.dispose();
+        expect(vi.getTimerCount()).toBe(0);
+    },
+);

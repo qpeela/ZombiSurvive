@@ -25,6 +25,9 @@ export class LocalWorldRoom extends Room {
         this.onMessage<unknown>('movement-input', (client, value) => {
             movement.receive(client.sessionId, value);
         });
+        this.onMessage<unknown>('movement-target', (client, value) => {
+            movement.receive(client.sessionId, value);
+        });
         this.setTimestep(() => {
             movement.step();
 

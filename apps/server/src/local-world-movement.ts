@@ -1,24 +1,39 @@
-import type { MovementDirection, PlayerMovementState, WorldId } from '@zombi-survive/domain';
+import type {
+    MovementDirection,
+    PlayerMovementState,
+    WorldId,
+    WorldPosition,
+} from '@zombi-survive/domain';
 import {
     maxWorldPlayers,
     type MovementInputCommand,
     type MovementSnapshot,
+    type MovementTargetCommand,
 } from '@zombi-survive/protocol';
-import { movementStepSeconds, stepPlayerMovement } from '@zombi-survive/simulation';
+import {
+    movementStepSeconds,
+    stepPlayerMovement,
+    stepPlayerToward,
+} from '@zombi-survive/simulation';
 
-import { createMovementSnapshot, readMovementInput } from './movement-contract.ts';
+import {
+    createMovementSnapshot,
+    readMovementInput,
+    readMovementTarget,
+} from './movement-contract.ts';
 
 type SessionInput = {
     playerId: string;
     lastReceivedSequence: number;
     lastProcessedSequence: number | null;
-    pending: { command: MovementInputCommand; order: number } | null;
+    pending: { command: MovementInputCommand | MovementTargetCommand; order: number } | null;
 };
 
 type PlayerInput = {
     player: PlayerMovementState;
     controllerId: string | null;
     direction: MovementDirection;
+    target: WorldPosition | null;
     lastInputTick: number;
 };
 
@@ -49,6 +64,7 @@ export class LocalWorldMovement {
                 },
                 controllerId: null,
                 direction: { x: 0, y: 0 },
+                target: null,
                 lastInputTick: this.tick,
             });
         }
@@ -67,7 +83,7 @@ export class LocalWorldMovement {
 
     receive(sessionId: string, value: unknown): void {
         const session = this.sessions.get(sessionId);
-        const command = readMovementInput(value);
+        const command = readMovementInput(value) ?? readMovementTarget(value);
 
         if (session === undefined || command === null) {
             return;
@@ -104,12 +120,17 @@ export class LocalWorldMovement {
                 throw new Error('Session player is missing.');
             }
 
-            const isMoving = command.direction.x !== 0 || command.direction.y !== 0;
+            const isMoving =
+                command.type === 'movement-target' ||
+                command.direction.x !== 0 ||
+                command.direction.y !== 0;
             const isController = player.controllerId === sessionId;
 
             if (isMoving || isController) {
                 player.controllerId = isMoving ? sessionId : null;
-                player.direction = command.direction;
+                player.direction =
+                    command.type === 'movement-input' ? command.direction : { x: 0, y: 0 };
+                player.target = command.type === 'movement-target' ? command.target : null;
                 player.lastInputTick = this.tick;
             }
 
@@ -126,13 +147,18 @@ export class LocalWorldMovement {
             if (!isControllerPresent || isInputExpired) {
                 player.controllerId = null;
                 player.direction = { x: 0, y: 0 };
+                player.target = null;
             }
 
-            player.player = stepPlayerMovement(
-                player.player,
-                player.direction,
-                movementStepSeconds,
-            );
+            if (player.target !== null) {
+                player.player = stepPlayerToward(player.player, player.target, movementStepSeconds);
+            } else {
+                player.player = stepPlayerMovement(
+                    player.player,
+                    player.direction,
+                    movementStepSeconds,
+                );
+            }
         }
     }
 

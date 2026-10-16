@@ -37,9 +37,22 @@ const messages = {
     disconnected: 'Связь с хостом потеряна.',
     error: 'Не удалось подключиться к миру. Проверьте сервер хоста; для кооператива откройте действующее приглашение.',
 };
-const input = createMovementInputController(direction => {
-    connection.sendMovement(direction);
-});
+const input = createMovementInputController(
+    direction => {
+        connection.sendMovement(direction);
+    },
+    {
+        sendTarget: target => {
+            connection.sendTarget(target);
+        },
+        onTargetChange: target => {
+            scene.setDestination(target);
+        },
+    },
+);
+scene.onMove = position => {
+    input.moveTo(position);
+};
 const connection = createWorldConnection(window.location.origin, state => {
     status.dataset['status'] = state.status;
     reconnect.disabled = state.status === 'connecting' || state.status === 'connected';
@@ -47,6 +60,7 @@ const connection = createWorldConnection(window.location.origin, state => {
 
     if (state.status === 'connected') {
         const { snapshot } = state;
+        input.updatePosition(snapshot.player.position);
         const { xMeters, yMeters } = snapshot.player.position;
         status.dataset['worldId'] = snapshot.worldId;
         status.dataset['playerId'] = snapshot.player.playerId;

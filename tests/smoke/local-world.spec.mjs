@@ -161,7 +161,7 @@ test('a real SDK receives the shared snapshot and client-supplied identity is ig
         const snapshot = await first.request(initialStateRequest);
         expect(snapshot).toMatchObject({
             type: 'movement-snapshot',
-            protocolVersion: 2,
+            protocolVersion: 3,
             lastProcessedInputSequence: null,
         });
         expect(snapshot.worldId).not.toBe('forged');
