@@ -1,12 +1,16 @@
 import { Client, Room } from '@colyseus/sdk';
-import type { MovementDirection } from '@zombi-survive/domain';
+import type { MovementDirection, WorldPosition } from '@zombi-survive/domain';
 import {
     initialStateRequest,
     localWorldRoomId,
     type MovementSnapshot,
 } from '@zombi-survive/protocol';
 
-import { createMovementInput, readMovementSnapshot } from './movement-contract.js';
+import {
+    createMovementInput,
+    createMovementTarget,
+    readMovementSnapshot,
+} from './movement-contract.js';
 
 // The SDK exposes joined rooms only after the handshake. Retain the pending room
 // so navigation or a handshake timeout can also close its socket.
@@ -41,6 +45,7 @@ export const createWorldConnection = (
 ): {
     connect: () => Promise<void>;
     sendMovement: (direction: MovementDirection) => void;
+    sendTarget: (target: WorldPosition) => void;
     disconnect: () => void;
     dispose: () => void;
 } => {
@@ -205,10 +210,23 @@ export const createWorldConnection = (
         onStateChange({ status: 'disconnected' });
     };
 
+    const sendTarget = (target: WorldPosition): void => {
+        if (!isReady || activeRoom === null) {
+            return;
+        }
+
+        try {
+            activeRoom.send('movement-target', createMovementTarget(++sequence, target));
+        } catch {
+            closeRoom();
+            onStateChange({ status: 'error' });
+        }
+    };
+
     const dispose = (): void => {
         isDisposed = true;
         disconnect();
     };
 
-    return { connect, sendMovement, disconnect, dispose };
+    return { connect, sendMovement, sendTarget, disconnect, dispose };
 };

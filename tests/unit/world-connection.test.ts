@@ -17,7 +17,7 @@ vi.mock('@colyseus/sdk', () => ({
 
 const snapshot = (tick: number): MovementSnapshot => ({
     type: 'movement-snapshot',
-    protocolVersion: 2,
+    protocolVersion: 3,
     worldId: 'world',
     tick,
     player: { playerId: 'player', position: { xMeters: tick * 0.2, yMeters: 0 } },
@@ -141,5 +141,30 @@ test('a replaced room cannot publish, leave or send held input into the new sess
     connection.sendMovement({ x: -1, y: 0 });
     expect(first.room.send.mock.calls[0]?.[1]).toMatchObject({ sequence: 1 });
     expect(second.room.send.mock.calls[0]?.[1]).toMatchObject({ sequence: 1 });
+    connection.dispose();
+});
+
+test('mouse and keyboard share sequence numbers and cannot send before readiness or after disconnect', async () => {
+    const fake = createRoom();
+    join.mockResolvedValue(fake.room);
+    const connection = createWorldConnection('http://host', () => {});
+    connection.sendTarget({ xMeters: 2, yMeters: -1 });
+    const ready = connection.connect();
+    await vi.waitFor(() => {
+        expect(fake.room.request).toHaveBeenCalled();
+    });
+    connection.sendTarget({ xMeters: 2, yMeters: -1 });
+    expect(fake.room.send).not.toHaveBeenCalled();
+    fake.resolveInitial(snapshot(1));
+    await ready;
+    connection.sendTarget({ xMeters: 2, yMeters: -1 });
+    connection.sendMovement({ x: 1, y: 0 });
+    expect(fake.room.send.mock.calls).toMatchObject([
+        ['movement-target', { sequence: 1, target: { xMeters: 2, yMeters: -1 } }],
+        ['movement-input', { sequence: 2, direction: { x: 1, y: 0 } }],
+    ]);
+    connection.disconnect();
+    connection.sendTarget({ xMeters: 3, yMeters: 4 });
+    expect(fake.room.send).toHaveBeenCalledTimes(2);
     connection.dispose();
 });

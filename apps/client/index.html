@@ -11,12 +11,15 @@
             <header>
                 <p class="eyebrow">Выживание начинается здесь</p>
                 <h1>ZombiSurvive</h1>
-                <p class="description">WASD — движение. Отпустите клавиши, чтобы остановиться.</p>
+                <p class="description">
+                    WASD — движение · Левый клик — идти к точке · Мышь — прицел. WASD отменяет
+                    выбранную точку.
+                </p>
             </header>
             <p id="connection-status" role="status">Подключение к локальному миру…</p>
             <button id="reconnect" type="button" disabled>Подключиться снова</button>
             <section id="game" aria-label="Игровое поле"></section>
-            <p class="caption">Ранний прототип · Клетка: 1 метр · Камера пока неподвижна</p>
+            <p class="caption">Ранний прототип · Клетка: 1 метр · Камера следует за вами</p>
         </main>
         <script type="module" src="/src/main.ts"></script>
     </body>

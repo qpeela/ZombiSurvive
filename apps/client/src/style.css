@@ -50,3 +50,7 @@ h1 {
     display: block;
     image-rendering: pixelated;
 }
+
+#game canvas[data-aim-visible='true'] {
+    cursor: none;
+}

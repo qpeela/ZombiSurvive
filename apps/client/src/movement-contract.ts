@@ -1,11 +1,31 @@
-import type { MovementDirection } from '@zombi-survive/domain';
+import type { MovementDirection, WorldPosition } from '@zombi-survive/domain';
 import {
     isMovementInputCommand,
     isMovementSnapshot,
+    isMovementTargetCommand,
     type MovementInputCommand,
     type MovementSnapshot,
+    type MovementTargetCommand,
     protocolVersion,
 } from '@zombi-survive/protocol';
+
+export const createMovementTarget = (
+    sequence: number,
+    target: WorldPosition,
+): MovementTargetCommand => {
+    const command: MovementTargetCommand = {
+        type: 'movement-target',
+        protocolVersion,
+        sequence,
+        target: { xMeters: target.xMeters, yMeters: target.yMeters },
+    };
+
+    if (!isMovementTargetCommand(command)) {
+        throw new Error('Invalid movement target.');
+    }
+
+    return command;
+};
 
 export const createMovementInput = (
     sequence: number,

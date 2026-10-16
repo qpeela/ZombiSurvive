@@ -6,11 +6,13 @@ import { isMovementInputCommand, isMovementSnapshot } from '@zombi-survive/proto
 
 import {
     createMovementInput,
+    createMovementTarget,
     readMovementSnapshot,
 } from '../../apps/client/src/movement-contract.ts';
 import {
     createMovementSnapshot,
     readMovementInput,
+    readMovementTarget,
 } from '../../apps/server/dist/movement-contract.js';
 
 const player = { playerId: 'player-1', position: { xMeters: -2.5, yMeters: 0 } };
@@ -86,7 +88,7 @@ test('wrong message kinds, versions and non-object payloads are rejected on both
     assert.equal(readMovementInput(snapshot), null);
     assert.equal(readMovementSnapshot(command), null);
 
-    for (const protocolVersion of [undefined, '2', 0, 1, 3]) {
+    for (const protocolVersion of [undefined, '3', 0, 1, 2, 4]) {
         assert.equal(readMovementInput({ ...command, protocolVersion }), null);
         assert.equal(readMovementSnapshot({ ...snapshot, protocolVersion }), null);
     }
@@ -171,7 +173,7 @@ test('builders and the client snapshot reader detach positions and directions fr
     assert.equal(accepted.player.position.xMeters, -2.5);
 });
 
-test('version 2 validates a bounded set of distinct peers and detaches their positions', () => {
+test('version 3 validates a bounded set of distinct peers and detaches their positions', () => {
     const friend = { playerId: 'friend', position: { xMeters: 2, yMeters: 0 } };
     const snapshot = createMovementSnapshot('world-1', 1, player, 1, [friend]);
     const accepted = readMovementSnapshot(roundTrip(snapshot));
@@ -194,4 +196,41 @@ test('version 2 validates a bounded set of distinct peers and detaches their pos
     }
 
     assert.equal(readMovementSnapshot({ ...snapshot, protocolVersion: 1 }), null);
+});
+
+test('v3 mouse targets are detached intentions and reject old versions and unsafe coordinates', () => {
+    const source = { xMeters: -2.25, yMeters: 4.75, playerId: 'forged' };
+    const command = createMovementTarget(1, source);
+    source.xMeters = 99;
+    assert.deepEqual(command.target, { xMeters: -2.25, yMeters: 4.75 });
+    const incoming = { ...roundTrip(command), playerId: 'another', position: { xMeters: 999 } };
+    incoming.target.extra = 'not-a-coordinate';
+    const accepted = readMovementTarget(incoming);
+    assert.deepEqual(accepted, command);
+    incoming.target.yMeters = 999;
+    assert.equal(accepted.target.yMeters, 4.75);
+    assert.equal(readMovementInput(command), null);
+    assert.equal(readMovementTarget(createMovementInput(1, { x: 1, y: 0 })), null);
+    for (const version of [1, 2, 4, '3', undefined]) {
+        assert.equal(readMovementTarget({ ...command, protocolVersion: version }), null);
+    }
+    for (const target of [null, [], {}, { xMeters: 0 }, { xMeters: '1', yMeters: 0 }]) {
+        assert.equal(readMovementTarget({ ...command, target }), null);
+    }
+    for (const value of [NaN, Infinity, -Infinity, 1_000_001, -1_000_001]) {
+        for (const axis of ['xMeters', 'yMeters']) {
+            const target = { ...command.target, [axis]: value };
+            assert.equal(readMovementTarget({ ...command, target }), null);
+            assert.throws(() => createMovementTarget(1, target), /Invalid/);
+        }
+    }
+    for (const sequence of [0, -1, 1.5, NaN, 2 ** 53]) {
+        assert.equal(readMovementTarget({ ...command, sequence }), null);
+    }
+    assert.deepEqual(
+        readMovementTarget(
+            roundTrip(createMovementTarget(2, { xMeters: -1_000_000, yMeters: 1_000_000 })),
+        ).target,
+        { xMeters: -1_000_000, yMeters: 1_000_000 },
+    );
 });

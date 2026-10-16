@@ -1,1 +1,1 @@
-export { movementStepSeconds, stepPlayerMovement } from './movement.ts';
+export { movementStepSeconds, stepPlayerMovement, stepPlayerToward } from './movement.ts';

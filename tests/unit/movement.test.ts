@@ -1,6 +1,10 @@
 import { movementSettings } from '@zombi-survive/content';
 import type { MovementDirection, PlayerMovementState } from '@zombi-survive/domain';
-import { movementStepSeconds, stepPlayerMovement } from '@zombi-survive/simulation';
+import {
+    movementStepSeconds,
+    stepPlayerMovement,
+    stepPlayerToward,
+} from '@zombi-survive/simulation';
 import { describe, expect, test } from 'vitest';
 
 const player: PlayerMovementState = {
@@ -109,4 +113,38 @@ describe('fixed movement step', () => {
             expect(player.position).toEqual(original);
         },
     );
+});
+
+describe('movement toward a mouse destination', () => {
+    test('arbitrary directions keep the walking speed and clamp the final step', () => {
+        const target = {
+            xMeters: player.position.xMeters - 0.3,
+            yMeters: player.position.yMeters + 0.4,
+        };
+        const first = stepPlayerToward(player, target, movementStepSeconds);
+        expect(
+            Math.hypot(
+                first.position.xMeters - player.position.xMeters,
+                first.position.yMeters - player.position.yMeters,
+            ),
+        ).toBeCloseTo(0.2, 12);
+        const second = stepPlayerToward(first, target, movementStepSeconds);
+        const arrived = stepPlayerToward(second, target, movementStepSeconds);
+        expect(arrived).toEqual({ ...player, position: target });
+        expect(stepPlayerToward(arrived, target, movementStepSeconds)).toEqual(arrived);
+        expect(player.position).toEqual({ xMeters: 12.25, yMeters: -8.5 });
+        expect(arrived.position).not.toBe(target);
+    });
+
+    test('a target under the player remains finite and a short step never overshoots', () => {
+        expect(stepPlayerToward(player, player.position, movementStepSeconds)).toEqual(player);
+        const target = { xMeters: 12.26, yMeters: -8.49 };
+        expect(stepPlayerToward(player, target, movementStepSeconds).position).toEqual(target);
+    });
+
+    test.each([0, -0.05, 0.1, NaN, Infinity])('rejects non-fixed mouse step %s', step => {
+        expect(() => stepPlayerToward(player, { xMeters: 0, yMeters: 0 }, step)).toThrow(
+            RangeError,
+        );
+    });
 });

@@ -1,6 +1,11 @@
-import type { MovementDirection, PlayerMovementState, WorldId } from '@zombi-survive/domain';
+import type {
+    MovementDirection,
+    PlayerMovementState,
+    WorldId,
+    WorldPosition,
+} from '@zombi-survive/domain';
 
-export const protocolVersion = 2;
+export const protocolVersion = 3;
 export const maxWorldPlayers = 8;
 
 export type MovementInputCommand = {
@@ -8,6 +13,35 @@ export type MovementInputCommand = {
     readonly protocolVersion: typeof protocolVersion;
     readonly sequence: number;
     readonly direction: MovementDirection;
+};
+
+export type MovementTargetCommand = {
+    readonly type: 'movement-target';
+    readonly protocolVersion: typeof protocolVersion;
+    readonly sequence: number;
+    readonly target: WorldPosition;
+};
+
+export const isMovementTargetCommand = (value: unknown): value is MovementTargetCommand => {
+    if (!isRecord(value)) {
+        return false;
+    }
+
+    const isSupportedType = value['type'] === 'movement-target';
+    const isSupportedVersion = value['protocolVersion'] === protocolVersion;
+    const isValidSequence = isSequence(value['sequence']);
+    const target = value['target'];
+
+    if (!isSupportedType || !isSupportedVersion || !isValidSequence || !isRecord(target)) {
+        return false;
+    }
+
+    const isTargetCoordinate = (coordinate: unknown): boolean =>
+        typeof coordinate === 'number' &&
+        Number.isFinite(coordinate) &&
+        Math.abs(coordinate) <= 1_000_000;
+
+    return isTargetCoordinate(target['xMeters']) && isTargetCoordinate(target['yMeters']);
 };
 
 export type MovementSnapshot = {
