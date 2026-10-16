@@ -1,9 +1,11 @@
 import './style.css';
 
+import type { PlayerMovementState } from '@zombi-survive/domain';
 import { AUTO, Game, Scale } from 'phaser';
 
 import { BootScene } from './boot-scene';
 import { createMovementInputController } from './movement-input';
+import { MovementPrediction } from './movement-prediction';
 import { createWorldConnection } from './world-connection';
 import { createWorldSession } from './world-session';
 
@@ -32,6 +34,7 @@ const game = new Game({
     scene: [scene],
 });
 
+const prediction = new MovementPrediction();
 const messages = {
     connecting: 'Подключение к локальному миру…',
     disconnected: 'Связь с хостом потеряна.',
@@ -42,6 +45,9 @@ const input = createMovementInputController(
         connection.sendMovement(direction);
     },
     {
+        onIntentChange: intent => {
+            prediction.setIntent(intent, performance.now());
+        },
         sendTarget: target => {
             connection.sendTarget(target);
         },
@@ -53,38 +59,52 @@ const input = createMovementInputController(
 scene.onMove = position => {
     input.moveTo(position);
 };
-const connection = createWorldConnection(window.location.origin, state => {
-    status.dataset['status'] = state.status;
-    reconnect.disabled = state.status === 'connecting' || state.status === 'connected';
-    input.setEnabled(state.status === 'connected');
+let otherPlayers: readonly PlayerMovementState[] = [];
+scene.onFrame = () => {
+    scene.setPlayer(prediction.sample(performance.now()));
+};
+const connection = createWorldConnection(
+    window.location.origin,
+    state => {
+        status.dataset['status'] = state.status;
+        reconnect.disabled = state.status === 'connecting' || state.status === 'connected';
+        input.setEnabled(state.status === 'connected');
 
-    if (state.status === 'connected') {
-        const { snapshot } = state;
-        input.updatePosition(snapshot.player.position);
-        const { xMeters, yMeters } = snapshot.player.position;
-        status.dataset['worldId'] = snapshot.worldId;
-        status.dataset['playerId'] = snapshot.player.playerId;
-        status.dataset['xMeters'] = String(xMeters);
-        status.dataset['yMeters'] = String(yMeters);
-        status.dataset['tick'] = String(snapshot.tick);
-        status.dataset['ack'] = String(snapshot.lastProcessedInputSequence);
-        status.textContent = `Мир подключён. Позиция: ${xMeters.toFixed(2)}, ${yMeters.toFixed(2)} м. Персонажей: ${String(snapshot.otherPlayers.length + 1)}.`;
-        scene.setPlayers(snapshot.player, snapshot.otherPlayers);
-        status.dataset['playerCount'] = String(snapshot.otherPlayers.length + 1);
+        if (state.status === 'connected') {
+            const { snapshot } = state;
+            prediction.accept(snapshot, performance.now());
+            otherPlayers = snapshot.otherPlayers;
+            input.updatePosition(snapshot.player.position);
+            const { xMeters, yMeters } = snapshot.player.position;
+            status.dataset['worldId'] = snapshot.worldId;
+            status.dataset['playerId'] = snapshot.player.playerId;
+            status.dataset['xMeters'] = String(xMeters);
+            status.dataset['yMeters'] = String(yMeters);
+            status.dataset['tick'] = String(snapshot.tick);
+            status.dataset['ack'] = String(snapshot.lastProcessedInputSequence);
+            status.textContent = `Мир подключён. Позиция: ${xMeters.toFixed(2)}, ${yMeters.toFixed(2)} м. Персонажей: ${String(snapshot.otherPlayers.length + 1)}.`;
+            scene.setPlayers(prediction.sample(performance.now()), otherPlayers);
+            status.dataset['playerCount'] = String(snapshot.otherPlayers.length + 1);
 
-        return;
-    }
+            return;
+        }
 
-    delete status.dataset['worldId'];
-    delete status.dataset['playerId'];
-    delete status.dataset['xMeters'];
-    delete status.dataset['yMeters'];
-    delete status.dataset['tick'];
-    delete status.dataset['ack'];
-    delete status.dataset['playerCount'];
-    scene.setPlayers(null, []);
-    status.textContent = messages[state.status];
-});
+        prediction.reset();
+        otherPlayers = [];
+        delete status.dataset['worldId'];
+        delete status.dataset['playerId'];
+        delete status.dataset['xMeters'];
+        delete status.dataset['yMeters'];
+        delete status.dataset['tick'];
+        delete status.dataset['ack'];
+        delete status.dataset['playerCount'];
+        scene.setPlayers(null, []);
+        status.textContent = messages[state.status];
+    },
+    command => {
+        prediction.recordSent(command, performance.now());
+    },
+);
 const session = createWorldSession();
 let connectAttempt = 0;
 let isPageActive = true;

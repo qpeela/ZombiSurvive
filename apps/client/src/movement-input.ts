@@ -1,5 +1,7 @@
 import type { MovementAxis, MovementDirection, WorldPosition } from '@zombi-survive/domain';
 
+import type { MovementIntent } from './movement-prediction.js';
+
 const movementCodes = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD']);
 const axis = (positive: boolean, negative: boolean): MovementAxis => {
     if (positive === negative) {
@@ -13,6 +15,7 @@ export const createMovementInputController = (
     send: (direction: MovementDirection) => void,
     options: {
         readonly sendTarget?: (target: WorldPosition) => void;
+        readonly onIntentChange?: (intent: MovementIntent) => void;
         readonly onTargetChange?: (target: WorldPosition | null) => void;
     } = {},
 ): {
@@ -32,12 +35,22 @@ export const createMovementInputController = (
         options.onTargetChange?.(value);
     };
 
+    const direction = (): MovementDirection => ({
+        x: axis(pressed.has('KeyD'), pressed.has('KeyA')),
+        y: axis(pressed.has('KeyS'), pressed.has('KeyW')),
+    });
+    const notifyDirection = (): void => {
+        options.onIntentChange?.({ type: 'direction', direction: direction() });
+    };
+
     const clear = (): void => {
+        const hasInput = isMoving || isDirty || target !== null;
         pressed.clear();
         isDirty = false;
         setTarget(null);
+        notifyDirection();
 
-        if (isEnabled && isMoving) {
+        if (isEnabled && hasInput) {
             send({ x: 0, y: 0 });
         }
 
@@ -60,12 +73,17 @@ export const createMovementInputController = (
             setTarget(null);
             pressed.add(event.code);
             isDirty = true;
+            notifyDirection();
         }
     };
     const onKeyUp = (event: KeyboardEvent): void => {
         if (pressed.delete(event.code)) {
             event.preventDefault();
             isDirty = true;
+
+            if (target === null) {
+                notifyDirection();
+            }
         }
     };
     const onVisibilityChange = (): void => {
@@ -86,16 +104,13 @@ export const createMovementInputController = (
             return;
         }
 
-        const direction = {
-            x: axis(pressed.has('KeyD'), pressed.has('KeyA')),
-            y: axis(pressed.has('KeyS'), pressed.has('KeyW')),
-        };
-        const hasDirection = direction.x !== 0 || direction.y !== 0;
+        const currentDirection = direction();
+        const hasDirection = currentDirection.x !== 0 || currentDirection.y !== 0;
 
         if (isDirty || hasDirection) {
             isDirty = false;
             isMoving = hasDirection;
-            send(direction);
+            send(currentDirection);
         }
     }, 100);
 
@@ -128,6 +143,7 @@ export const createMovementInputController = (
 
         pressed.clear();
         setTarget({ ...value });
+        options.onIntentChange?.({ type: 'target', target: { ...value } });
     };
     const updatePosition = (position: WorldPosition): void => {
         if (target === null) {
@@ -142,6 +158,7 @@ export const createMovementInputController = (
         if (distance <= 0.000001) {
             setTarget(null);
             isDirty = true;
+            notifyDirection();
         }
     };
 
