@@ -267,3 +267,53 @@ test('a flood of target commands cannot teleport or move another participant', (
         lastProcessedInputSequence: 1000,
     });
 });
+
+test.each(['keyboard', 'target', 'inside-target'] as const)(
+    '%s cannot move through a wall, even with forged positions',
+    kind => {
+        const movement = setup();
+
+        for (let sequence = 1; sequence <= 100; sequence++) {
+            const targetX = kind === 'inside-target' ? 5.25 : 1000;
+            const input =
+                kind === 'keyboard' ? command(sequence) : targetCommand(sequence, targetX, 0);
+            movement.receive('first', { ...input, position: { xMeters: 1000, yMeters: 0 } });
+            movement.step();
+            expect(movement.snapshot('first').player.position.xMeters).toBeLessThanOrEqual(4.65);
+        }
+
+        expect(movement.snapshot('first')).toMatchObject({
+            player: { position: { xMeters: 4.65, yMeters: 0 } },
+            lastProcessedInputSequence: 100,
+        });
+        movement.leave('first');
+        movement.join('replacement');
+        expect(movement.snapshot('replacement').player.position).toEqual({
+            xMeters: 4.65,
+            yMeters: 0,
+        });
+        expect(movement.snapshot('replacement').lastProcessedInputSequence).toBeNull();
+    },
+);
+
+test('keyboard slides along a wall; new targets can lead around its end', () => {
+    const movement = setup();
+    let sequence = 0;
+    const walkTo = (x: number, y: number, ticks: number): void => {
+        for (let tick = 0; tick < ticks; tick++) {
+            movement.receive('first', targetCommand(++sequence, x, y));
+            movement.step();
+        }
+    };
+    walkTo(10, 0, 50);
+    for (let tick = 0; tick < 10; tick++) {
+        movement.receive('first', command(++sequence, { x: 1, y: 1 }));
+        movement.step();
+    }
+
+    expect(movement.snapshot('first').player.position.xMeters).toBe(4.65);
+    expect(movement.snapshot('first').player.position.yMeters).toBeCloseTo(Math.SQRT2, 12);
+    walkTo(4, 4, 30);
+    walkTo(7, 4, 30);
+    expect(movement.snapshot('first').player.position).toEqual({ xMeters: 7, yMeters: 4 });
+});
