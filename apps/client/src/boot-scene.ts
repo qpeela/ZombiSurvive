@@ -1,3 +1,4 @@
+import { prototypeObstacles } from '@zombi-survive/content';
 import type { PlayerMovementState, WorldPosition } from '@zombi-survive/domain';
 import { type GameObjects, type Input, Scene } from 'phaser';
 
@@ -22,6 +23,23 @@ export class BootScene extends Scene {
 
     create(): void {
         this.grid = this.add.graphics();
+        const obstacles = this.add.graphics();
+
+        for (const obstacle of prototypeObstacles) {
+            const x = 480 + obstacle.minXMeters * pixelsPerMeter;
+            const y = 270 + obstacle.minYMeters * pixelsPerMeter;
+            const width = (obstacle.maxXMeters - obstacle.minXMeters) * pixelsPerMeter;
+            const height = (obstacle.maxYMeters - obstacle.minYMeters) * pixelsPerMeter;
+            obstacles
+                .fillStyle(0x465147)
+                .fillRect(x, y, width, height)
+                .lineStyle(2, 0x879779)
+                .strokeRect(x, y, width, height)
+                .lineStyle(2, 0x253529)
+                .lineBetween(x + 3, y + height - 3, x + width - 3, y + height - 3);
+        }
+
+        this.game.canvas.dataset['obstacles'] = JSON.stringify(prototypeObstacles);
         this.aim = this.add
             .graphics()
             .lineStyle(2, 0xe3bb70)

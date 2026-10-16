@@ -1,3 +1,4 @@
+import { prototypeObstacles } from '@zombi-survive/content';
 import type {
     MovementDirection,
     PlayerMovementState,
@@ -12,6 +13,7 @@ import {
 } from '@zombi-survive/protocol';
 import {
     movementStepSeconds,
+    resolveMovement,
     stepPlayerMovement,
     stepPlayerToward,
 } from '@zombi-survive/simulation';
@@ -139,6 +141,7 @@ export class LocalWorldMovement {
         }
 
         for (const player of this.players.values()) {
+            const previousPosition = player.player.position;
             const isControllerPresent =
                 player.controllerId !== null && this.sessions.has(player.controllerId);
             // Ten fixed steps = 0.5 seconds. An unreachable browser cannot keep walking.
@@ -159,6 +162,15 @@ export class LocalWorldMovement {
                     movementStepSeconds,
                 );
             }
+
+            player.player = {
+                ...player.player,
+                position: resolveMovement(
+                    previousPosition,
+                    player.player.position,
+                    prototypeObstacles,
+                ),
+            };
         }
     }
 

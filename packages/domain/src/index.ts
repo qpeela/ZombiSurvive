@@ -6,3 +6,4 @@ export type {
     WorldId,
     WorldPosition,
 } from './movement.ts';
+export type { WorldObstacle } from './world-obstacle.ts';
