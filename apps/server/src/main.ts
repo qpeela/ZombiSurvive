@@ -12,12 +12,12 @@ if (!isIntegerPort || !isPortInRange) {
 }
 
 const isDevelopment = process.argv.includes('--dev');
-const host = readHostAddress(process.env['COOP_HOST']);
+const host = readHostAddress(process.env['COOP_HOST'], undefined, process.env['COOP_NETWORK']);
 const isCooperative = host !== '127.0.0.1';
 
 if (isDevelopment && isCooperative) {
     throw new Error(
-        'Co-op requires the built game. Use npm run build and COOP_HOST=<private IPv4> npm start.',
+        'Co-op requires the built game. Use npm run build and COOP_HOST=<interface IPv4> npm start.',
     );
 }
 
