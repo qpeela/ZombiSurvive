@@ -12,13 +12,18 @@
                 <p class="eyebrow">Выживание начинается здесь</p>
                 <h1>ZombiSurvive</h1>
                 <p class="description">
-                    WASD — движение · Левый клик — идти к точке · Мышь — прицел. WASD отменяет
-                    выбранную точку.
+                    WASD — движение · Shift — спринт · Левый клик — идти к точке · Мышь — прицел.
+                    WASD отменяет выбранную точку.
                 </p>
             </header>
             <p id="connection-status" role="status">Подключение к локальному миру…</p>
             <button id="reconnect" type="button" disabled>Подключиться снова</button>
-            <section id="game" aria-label="Игровое поле"></section>
+            <section id="game" aria-label="Игровое поле">
+                <div class="stamina-hud">
+                    <label id="stamina-label" for="stamina">Выносливость: —</label>
+                    <progress id="stamina" max="1" value="0"></progress>
+                </div>
+            </section>
             <p class="caption">
                 Клетка: 1 метр · Серые блоки непроходимы. Обходите их WASD или промежуточными
                 кликами.

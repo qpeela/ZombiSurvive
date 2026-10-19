@@ -74,8 +74,12 @@ test('camera follows beyond the initial grid and mouse aim uses world coordinate
     await pointer(page, 0.3, 0.6, true);
     await expect(page.locator('canvas')).toHaveAttribute('data-target-visible', 'true');
     const destination = await view(page);
-    expect(destination.targetX).toBeCloseTo(p.x - 8, 1);
-    expect(destination.targetY).toBeCloseTo(p.y + 2.25, 1);
+    // Browser mouse coordinates round to CSS pixels after scaling/scrolling.
+    // Check within one displayed pixel, including at a fractional canvas size.
+    const box = await page.locator('canvas').boundingBox();
+    const pointerToleranceMeters = 960 / box.width / 24;
+    expect(Math.abs(destination.targetX - (p.x - 8))).toBeLessThan(pointerToleranceMeters);
+    expect(Math.abs(destination.targetY - (p.y + 2.25))).toBeLessThan(pointerToleranceMeters);
     await expect.poll(async () => (await position(page)).x).toBeCloseTo(destination.targetX, 7);
     await expect(page.locator('canvas')).toHaveAttribute('data-target-visible', 'false');
     const arrived = await stopped(page);

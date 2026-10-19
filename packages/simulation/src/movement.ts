@@ -3,29 +3,59 @@ import type { MovementDirection, PlayerMovementState, WorldPosition } from '@zom
 
 export const movementStepSeconds = 1 / movementSettings.ticksPerSecond;
 
-export const stepPlayerToward = (
-    player: PlayerMovementState,
-    target: WorldPosition,
-    stepSeconds: number,
-): PlayerMovementState => {
+const prepareStep = ({
+    player,
+    isMoving,
+    isSprinting,
+    stepSeconds,
+}: {
+    player: PlayerMovementState;
+    isMoving: boolean;
+    isSprinting: boolean;
+    stepSeconds: number;
+}): { player: PlayerMovementState; distanceMeters: number } => {
     if (stepSeconds !== movementStepSeconds) {
         throw new RangeError('Movement requires the configured fixed stepSeconds.');
     }
 
+    const canSprint = !player.isExhausted && player.stamina > 0;
+    const isRunning = isMoving && isSprinting && canSprint;
+    const staminaChange = isRunning
+        ? -movementSettings.staminaDrainPerSecond
+        : movementSettings.staminaRecoveryPerSecond;
+    const stamina = Math.min(1, Math.max(0, player.stamina + staminaChange * stepSeconds));
+    const isExhausted =
+        stamina === 0 || (player.isExhausted && stamina < movementSettings.sprintRecoveryThreshold);
+    const speed = isRunning
+        ? movementSettings.sprintSpeedMetersPerSecond
+        : movementSettings.walkSpeedMetersPerSecond;
+
+    return {
+        player: { ...player, stamina, isExhausted },
+        distanceMeters: speed * stepSeconds,
+    };
+};
+
+export const stepPlayerToward = (
+    player: PlayerMovementState,
+    target: WorldPosition,
+    stepSeconds: number,
+    isSprinting = false,
+): PlayerMovementState => {
     const dx = target.xMeters - player.position.xMeters;
     const dy = target.yMeters - player.position.yMeters;
     const distance = Math.hypot(dx, dy);
-    const stepDistance = movementSettings.walkSpeedMetersPerSecond * stepSeconds;
+    const step = prepareStep({ player, isMoving: distance > 0, isSprinting, stepSeconds });
 
-    if (distance <= stepDistance) {
-        return { ...player, position: { ...target } };
+    if (distance <= step.distanceMeters) {
+        return { ...step.player, position: { ...target } };
     }
 
     return {
-        ...player,
+        ...step.player,
         position: {
-            xMeters: player.position.xMeters + (dx / distance) * stepDistance,
-            yMeters: player.position.yMeters + (dy / distance) * stepDistance,
+            xMeters: player.position.xMeters + (dx / distance) * step.distanceMeters,
+            yMeters: player.position.yMeters + (dy / distance) * step.distanceMeters,
         },
     };
 };
@@ -35,17 +65,14 @@ export const stepPlayerMovement = (
     player: PlayerMovementState,
     direction: MovementDirection,
     stepSeconds: number,
+    isSprinting = false,
 ): PlayerMovementState => {
-    if (stepSeconds !== movementStepSeconds) {
-        throw new RangeError('Movement requires the configured fixed stepSeconds.');
-    }
-
     const directionLength = Math.hypot(direction.x, direction.y);
-    const distanceMeters = movementSettings.walkSpeedMetersPerSecond * stepSeconds;
-    const movementScale = directionLength === 0 ? 0 : distanceMeters / directionLength;
+    const step = prepareStep({ player, isMoving: directionLength > 0, isSprinting, stepSeconds });
+    const movementScale = directionLength === 0 ? 0 : step.distanceMeters / directionLength;
 
     return {
-        playerId: player.playerId,
+        ...step.player,
         position: {
             xMeters: player.position.xMeters + direction.x * movementScale,
             yMeters: player.position.yMeters + direction.y * movementScale,

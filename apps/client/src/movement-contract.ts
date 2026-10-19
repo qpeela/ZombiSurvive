@@ -12,11 +12,13 @@ import {
 export const createMovementTarget = (
     sequence: number,
     target: WorldPosition,
+    isSprinting = false,
 ): MovementTargetCommand => {
     const command: MovementTargetCommand = {
         type: 'movement-target',
         protocolVersion,
         sequence,
+        isSprinting,
         target: { xMeters: target.xMeters, yMeters: target.yMeters },
     };
 
@@ -30,11 +32,13 @@ export const createMovementTarget = (
 export const createMovementInput = (
     sequence: number,
     direction: MovementDirection,
+    isSprinting = false,
 ): MovementInputCommand => {
     const command: MovementInputCommand = {
         type: 'movement-input',
         protocolVersion,
         sequence,
+        isSprinting,
         direction: { x: direction.x, y: direction.y },
     };
 
@@ -57,6 +61,8 @@ export const readMovementSnapshot = (value: unknown): MovementSnapshot | null =>
         tick: value.tick,
         player: {
             playerId: value.player.playerId,
+            stamina: value.player.stamina,
+            isExhausted: value.player.isExhausted,
             position: {
                 xMeters: value.player.position.xMeters,
                 yMeters: value.player.position.yMeters,
@@ -64,6 +70,8 @@ export const readMovementSnapshot = (value: unknown): MovementSnapshot | null =>
         },
         otherPlayers: value.otherPlayers.map(player => ({
             playerId: player.playerId,
+            stamina: player.stamina,
+            isExhausted: player.isExhausted,
             position: { ...player.position },
         })),
         lastProcessedInputSequence: value.lastProcessedInputSequence,

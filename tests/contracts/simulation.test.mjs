@@ -13,11 +13,21 @@ test('movement packages expose working built and development public APIs to Node
     assert.ok(Object.isFrozen(movementSettings));
     assert.deepEqual(
         stepPlayerMovement(
-            { playerId: 'player-1', position: { xMeters: 0, yMeters: 0 } },
+            {
+                playerId: 'player-1',
+                stamina: 1,
+                isExhausted: false,
+                position: { xMeters: 0, yMeters: 0 },
+            },
             { x: 1, y: 0 },
             movementStepSeconds,
         ),
-        { playerId: 'player-1', position: { xMeters: 0.2, yMeters: 0 } },
+        {
+            playerId: 'player-1',
+            stamina: 1,
+            isExhausted: false,
+            position: { xMeters: 0.2, yMeters: 0 },
+        },
     );
 
     const result = spawnSync(
@@ -34,9 +44,9 @@ test('movement packages expose working built and development public APIs to Node
          }
          assert.ok(Object.isFrozen(movementSettings));
          assert.deepEqual(stepPlayerMovement(
-             { playerId: 'player-1', position: { xMeters: 0, yMeters: 0 } },
+             { playerId: 'player-1', stamina: 1, isExhausted: false, position: { xMeters: 0, yMeters: 0 } },
              { x: -1, y: 0 }, movementStepSeconds,
-         ), { playerId: 'player-1', position: { xMeters: -0.2, yMeters: 0 } });`,
+         ), { playerId: 'player-1', stamina: 1, isExhausted: false, position: { xMeters: -0.2, yMeters: 0 } });`,
         ],
         { encoding: 'utf8' },
     );

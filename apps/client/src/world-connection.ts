@@ -47,8 +47,8 @@ export const createWorldConnection = (
     onCommandSent?: (command: MovementInputCommand | MovementTargetCommand) => void,
 ): {
     connect: () => Promise<void>;
-    sendMovement: (direction: MovementDirection) => void;
-    sendTarget: (target: WorldPosition) => void;
+    sendMovement: (direction: MovementDirection, isSprinting?: boolean) => void;
+    sendTarget: (target: WorldPosition, isSprinting?: boolean) => void;
     disconnect: () => void;
     dispose: () => void;
 } => {
@@ -193,13 +193,13 @@ export const createWorldConnection = (
         }
     };
 
-    const sendMovement = (direction: MovementDirection): void => {
+    const sendMovement = (direction: MovementDirection, isSprinting = false): void => {
         if (!isReady || activeRoom === null) {
             return;
         }
 
         try {
-            const command = createMovementInput(++sequence, direction);
+            const command = createMovementInput(++sequence, direction, isSprinting);
             activeRoom.send('movement-input', command);
             onCommandSent?.(command);
         } catch {
@@ -215,13 +215,13 @@ export const createWorldConnection = (
         onStateChange({ status: 'disconnected' });
     };
 
-    const sendTarget = (target: WorldPosition): void => {
+    const sendTarget = (target: WorldPosition, isSprinting = false): void => {
         if (!isReady || activeRoom === null) {
             return;
         }
 
         try {
-            const command = createMovementTarget(++sequence, target);
+            const command = createMovementTarget(++sequence, target, isSprinting);
             activeRoom.send('movement-target', command);
             onCommandSent?.(command);
         } catch {

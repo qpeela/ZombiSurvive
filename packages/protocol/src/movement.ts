@@ -5,13 +5,14 @@ import type {
     WorldPosition,
 } from '@zombi-survive/domain';
 
-export const protocolVersion = 3;
+export const protocolVersion = 4;
 export const maxWorldPlayers = 8;
 
 export type MovementInputCommand = {
     readonly type: 'movement-input';
     readonly protocolVersion: typeof protocolVersion;
     readonly sequence: number;
+    readonly isSprinting: boolean;
     readonly direction: MovementDirection;
 };
 
@@ -19,6 +20,7 @@ export type MovementTargetCommand = {
     readonly type: 'movement-target';
     readonly protocolVersion: typeof protocolVersion;
     readonly sequence: number;
+    readonly isSprinting: boolean;
     readonly target: WorldPosition;
 };
 
@@ -30,9 +32,16 @@ export const isMovementTargetCommand = (value: unknown): value is MovementTarget
     const isSupportedType = value['type'] === 'movement-target';
     const isSupportedVersion = value['protocolVersion'] === protocolVersion;
     const isValidSequence = isSequence(value['sequence']);
+    const isValidSprint = typeof value['isSprinting'] === 'boolean';
     const target = value['target'];
 
-    if (!isSupportedType || !isSupportedVersion || !isValidSequence || !isRecord(target)) {
+    if (
+        !isSupportedType ||
+        !isSupportedVersion ||
+        !isValidSequence ||
+        !isValidSprint ||
+        !isRecord(target)
+    ) {
         return false;
     }
 
@@ -111,9 +120,16 @@ export const isMovementInputCommand = (value: unknown): value is MovementInputCo
     const isSupportedType = value['type'] === 'movement-input';
     const isSupportedVersion = value['protocolVersion'] === protocolVersion;
     const isValidSequence = isSequence(value['sequence']);
+    const isValidSprint = typeof value['isSprinting'] === 'boolean';
     const direction = value['direction'];
 
-    if (!isSupportedType || !isSupportedVersion || !isValidSequence || !isRecord(direction)) {
+    if (
+        !isSupportedType ||
+        !isSupportedVersion ||
+        !isValidSequence ||
+        !isValidSprint ||
+        !isRecord(direction)
+    ) {
         return false;
     }
 
@@ -129,6 +145,15 @@ const isPlayer = (value: unknown): value is PlayerMovementState => {
     }
 
     if (!isId(value['playerId'])) {
+        return false;
+    }
+
+    const stamina = value['stamina'];
+    const isValidStamina =
+        typeof stamina === 'number' && Number.isFinite(stamina) && stamina >= 0 && stamina <= 1;
+    const isValidExhaustion = typeof value['isExhausted'] === 'boolean';
+
+    if (!isValidStamina || !isValidExhaustion) {
         return false;
     }
 

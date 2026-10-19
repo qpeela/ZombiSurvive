@@ -3,6 +3,7 @@ import type { MovementAxis, MovementDirection, WorldPosition } from '@zombi-surv
 import type { MovementIntent } from './movement-prediction.js';
 
 const movementCodes = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD']);
+const sprintCodes = new Set(['ShiftLeft', 'ShiftRight']);
 const axis = (positive: boolean, negative: boolean): MovementAxis => {
     if (positive === negative) {
         return 0;
@@ -12,9 +13,9 @@ const axis = (positive: boolean, negative: boolean): MovementAxis => {
 };
 
 export const createMovementInputController = (
-    send: (direction: MovementDirection) => void,
+    send: (direction: MovementDirection, isSprinting: boolean) => void,
     options: {
-        readonly sendTarget?: (target: WorldPosition) => void;
+        readonly sendTarget?: (target: WorldPosition, isSprinting: boolean) => void;
         readonly onIntentChange?: (intent: MovementIntent) => void;
         readonly onTargetChange?: (target: WorldPosition | null) => void;
     } = {},
@@ -39,8 +40,14 @@ export const createMovementInputController = (
         x: axis(pressed.has('KeyD'), pressed.has('KeyA')),
         y: axis(pressed.has('KeyS'), pressed.has('KeyW')),
     });
-    const notifyDirection = (): void => {
-        options.onIntentChange?.({ type: 'direction', direction: direction() });
+    const isSprinting = (): boolean => pressed.has('ShiftLeft') || pressed.has('ShiftRight');
+    const notifyIntent = (): void => {
+        const sprint = isSprinting();
+        const intent: MovementIntent =
+            target === null
+                ? { type: 'direction', direction: direction(), isSprinting: sprint }
+                : { type: 'target', target: { ...target }, isSprinting: sprint };
+        options.onIntentChange?.(intent);
     };
 
     const clear = (): void => {
@@ -48,32 +55,36 @@ export const createMovementInputController = (
         pressed.clear();
         isDirty = false;
         setTarget(null);
-        notifyDirection();
+        notifyIntent();
 
         if (isEnabled && hasInput) {
-            send({ x: 0, y: 0 });
+            send({ x: 0, y: 0 }, false);
         }
 
         isMoving = false;
     };
     const onKeyDown = (event: KeyboardEvent): void => {
         const isMovementKey = movementCodes.has(event.code);
+        const isInputKey = isMovementKey || sprintCodes.has(event.code);
         const isModified = event.altKey || event.ctrlKey || event.metaKey;
         const isEditing =
             event.target instanceof HTMLElement &&
             (event.target.isContentEditable || event.target.matches('input, textarea, select'));
 
-        if (!isEnabled || !isMovementKey || isModified || isEditing || document.hidden) {
+        if (!isEnabled || !isInputKey || isModified || isEditing || document.hidden) {
             return;
         }
 
         event.preventDefault();
 
         if (!event.repeat) {
-            setTarget(null);
+            if (isMovementKey) {
+                setTarget(null);
+            }
+
             pressed.add(event.code);
             isDirty = true;
-            notifyDirection();
+            notifyIntent();
         }
     };
     const onKeyUp = (event: KeyboardEvent): void => {
@@ -81,9 +92,7 @@ export const createMovementInputController = (
             event.preventDefault();
             isDirty = true;
 
-            if (target === null) {
-                notifyDirection();
-            }
+            notifyIntent();
         }
     };
     const onVisibilityChange = (): void => {
@@ -99,7 +108,7 @@ export const createMovementInputController = (
         if (target !== null) {
             isDirty = false;
             isMoving = true;
-            options.sendTarget?.(target);
+            options.sendTarget?.(target, isSprinting());
 
             return;
         }
@@ -110,7 +119,7 @@ export const createMovementInputController = (
         if (isDirty || hasDirection) {
             isDirty = false;
             isMoving = hasDirection;
-            send(currentDirection);
+            send(currentDirection, isSprinting());
         }
     }, 100);
 
@@ -141,9 +150,12 @@ export const createMovementInputController = (
             return;
         }
 
-        pressed.clear();
+        for (const code of movementCodes) {
+            pressed.delete(code);
+        }
+
         setTarget({ ...value });
-        options.onIntentChange?.({ type: 'target', target: { ...value } });
+        notifyIntent();
     };
     const updatePosition = (position: WorldPosition): void => {
         if (target === null) {
@@ -158,7 +170,7 @@ export const createMovementInputController = (
         if (distance <= 0.000001) {
             setTarget(null);
             isDirty = true;
-            notifyDirection();
+            notifyIntent();
         }
     };
 
