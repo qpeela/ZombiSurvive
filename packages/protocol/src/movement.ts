@@ -5,7 +5,7 @@ import type {
     WorldPosition,
 } from '@zombi-survive/domain';
 
-export const protocolVersion = 4;
+export const protocolVersion = 5;
 export const maxWorldPlayers = 8;
 
 export type MovementInputCommand = {
@@ -13,6 +13,7 @@ export type MovementInputCommand = {
     readonly protocolVersion: typeof protocolVersion;
     readonly sequence: number;
     readonly isSprinting: boolean;
+    readonly isSneaking: boolean;
     readonly direction: MovementDirection;
 };
 
@@ -21,6 +22,7 @@ export type MovementTargetCommand = {
     readonly protocolVersion: typeof protocolVersion;
     readonly sequence: number;
     readonly isSprinting: boolean;
+    readonly isSneaking: boolean;
     readonly target: WorldPosition;
 };
 
@@ -33,6 +35,7 @@ export const isMovementTargetCommand = (value: unknown): value is MovementTarget
     const isSupportedVersion = value['protocolVersion'] === protocolVersion;
     const isValidSequence = isSequence(value['sequence']);
     const isValidSprint = typeof value['isSprinting'] === 'boolean';
+    const isValidSneak = typeof value['isSneaking'] === 'boolean';
     const target = value['target'];
 
     if (
@@ -40,6 +43,7 @@ export const isMovementTargetCommand = (value: unknown): value is MovementTarget
         !isSupportedVersion ||
         !isValidSequence ||
         !isValidSprint ||
+        !isValidSneak ||
         !isRecord(target)
     ) {
         return false;
@@ -121,6 +125,7 @@ export const isMovementInputCommand = (value: unknown): value is MovementInputCo
     const isSupportedVersion = value['protocolVersion'] === protocolVersion;
     const isValidSequence = isSequence(value['sequence']);
     const isValidSprint = typeof value['isSprinting'] === 'boolean';
+    const isValidSneak = typeof value['isSneaking'] === 'boolean';
     const direction = value['direction'];
 
     if (
@@ -128,6 +133,7 @@ export const isMovementInputCommand = (value: unknown): value is MovementInputCo
         !isSupportedVersion ||
         !isValidSequence ||
         !isValidSprint ||
+        !isValidSneak ||
         !isRecord(direction)
     ) {
         return false;
@@ -153,7 +159,11 @@ const isPlayer = (value: unknown): value is PlayerMovementState => {
         typeof stamina === 'number' && Number.isFinite(stamina) && stamina >= 0 && stamina <= 1;
     const isValidExhaustion = typeof value['isExhausted'] === 'boolean';
 
-    if (!isValidStamina || !isValidExhaustion) {
+    const isValidSneak = typeof value['isSneaking'] === 'boolean';
+    const noise = value['noiseRadiusMeters'];
+    const isValidNoise = typeof noise === 'number' && Number.isFinite(noise) && noise >= 0;
+
+    if (!isValidStamina || !isValidExhaustion || !isValidSneak || !isValidNoise) {
         return false;
     }
 

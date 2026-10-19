@@ -11,6 +11,8 @@ const player: PlayerMovementState = {
     playerId: 'player-1',
     stamina: 1,
     isExhausted: false,
+    isSneaking: false,
+    noiseRadiusMeters: 0,
     position: { xMeters: 12.25, yMeters: -8.5 },
 };
 const directions: readonly MovementDirection[] = [
@@ -132,8 +134,11 @@ describe('movement toward a mouse destination', () => {
         ).toBeCloseTo(0.2, 12);
         const second = stepPlayerToward(first, target, movementStepSeconds);
         const arrived = stepPlayerToward(second, target, movementStepSeconds);
-        expect(arrived).toEqual({ ...player, position: target });
-        expect(stepPlayerToward(arrived, target, movementStepSeconds)).toEqual(arrived);
+        expect(arrived).toEqual({ ...player, position: target, noiseRadiusMeters: 8 });
+        expect(stepPlayerToward(arrived, target, movementStepSeconds)).toEqual({
+            ...arrived,
+            noiseRadiusMeters: 0,
+        });
         expect(player.position).toEqual({ xMeters: 12.25, yMeters: -8.5 });
         expect(arrived.position).not.toBe(target);
     });
@@ -158,7 +163,9 @@ describe('sprint and stamina', () => {
     ] as const)('sprints seven meters per second without a diagonal bonus: %o', direction => {
         let state = player;
         for (let tick = 0; tick < 20; tick++) {
-            state = stepPlayerMovement(state, direction, movementStepSeconds, true);
+            state = stepPlayerMovement(state, direction, movementStepSeconds, {
+                isSprinting: true,
+            });
         }
         expect(
             Math.hypot(
@@ -174,18 +181,24 @@ describe('sprint and stamina', () => {
     test('exhaustion forces walking until twenty percent is recovered even while Shift stays held', () => {
         let state = player;
         for (let tick = 0; tick < 100; tick++) {
-            state = stepPlayerMovement(state, { x: 1, y: 0 }, movementStepSeconds, true);
+            state = stepPlayerMovement(state, { x: 1, y: 0 }, movementStepSeconds, {
+                isSprinting: true,
+            });
         }
         expect(state.stamina).toBe(0);
         expect(state.isExhausted).toBe(true);
         for (let tick = 0; tick < 40; tick++) {
             const previousX = state.position.xMeters;
-            state = stepPlayerMovement(state, { x: 1, y: 0 }, movementStepSeconds, true);
+            state = stepPlayerMovement(state, { x: 1, y: 0 }, movementStepSeconds, {
+                isSprinting: true,
+            });
             expect(state.position.xMeters - previousX).toBeCloseTo(0.2, 12);
         }
         expect(state.stamina).toBeCloseTo(0.2, 12);
         expect(state.isExhausted).toBe(false);
-        const running = stepPlayerMovement(state, { x: 1, y: 0 }, movementStepSeconds, true);
+        const running = stepPlayerMovement(state, { x: 1, y: 0 }, movementStepSeconds, {
+            isSprinting: true,
+        });
         expect(running.position.xMeters - state.position.xMeters).toBeCloseTo(0.35, 12);
         expect(running.stamina).toBeLessThan(state.stamina);
     });
@@ -196,7 +209,9 @@ describe('sprint and stamina', () => {
             const depleted = { ...player, stamina: 0, isExhausted: true };
             let state = depleted;
             for (let tick = 0; tick < 250; tick++) {
-                state = stepPlayerMovement(state, { x: 0, y: 0 }, movementStepSeconds, isSprinting);
+                state = stepPlayerMovement(state, { x: 0, y: 0 }, movementStepSeconds, {
+                    isSprinting,
+                });
             }
             expect(state).toEqual(player);
             const walking = stepPlayerMovement(depleted, { x: 1, y: 0 }, movementStepSeconds);
@@ -210,7 +225,7 @@ describe('sprint and stamina', () => {
             { ...player, stamina: 0 },
             { x: 1, y: 0 },
             movementStepSeconds,
-            true,
+            { isSprinting: true },
         );
         expect(next.position.xMeters - player.position.xMeters).toBeCloseTo(0.2, 12);
         expect(next.stamina).toBeGreaterThan(0);
@@ -219,11 +234,76 @@ describe('sprint and stamina', () => {
     test('mouse sprint clamps arrival, then recovers at the destination with Shift held', () => {
         const source = { ...player, stamina: 0.5 };
         const target = { xMeters: source.position.xMeters + 0.3, yMeters: source.position.yMeters };
-        const arrived = stepPlayerToward(source, target, movementStepSeconds, true);
+        const arrived = stepPlayerToward(source, target, movementStepSeconds, {
+            isSprinting: true,
+        });
         expect(arrived.position).toEqual(target);
         expect(arrived.stamina).toBeCloseTo(0.49, 12);
-        const idle = stepPlayerToward(arrived, target, movementStepSeconds, true);
+        const idle = stepPlayerToward(arrived, target, movementStepSeconds, { isSprinting: true });
         expect(idle.position).toEqual(target);
         expect(idle.stamina).toBeCloseTo(0.495, 12);
+    });
+});
+
+describe('stealth movement and noise', () => {
+    test.each(directions)(
+        'sneaking normalizes $x, $y and overrides sprint while recovering',
+        direction => {
+            const source = Object.freeze({ ...player, stamina: 0.5 });
+            const next = stepPlayerMovement(source, direction, movementStepSeconds, {
+                isSneaking: true,
+                isSprinting: true,
+            });
+            const isMoving = direction.x !== 0 || direction.y !== 0;
+            expect(
+                Math.hypot(
+                    next.position.xMeters - source.position.xMeters,
+                    next.position.yMeters - source.position.yMeters,
+                ),
+            ).toBeCloseTo(isMoving ? 0.1 : 0, 12);
+            expect(next).toMatchObject({
+                isSneaking: true,
+                noiseRadiusMeters: isMoving ? 2 : 0,
+                stamina: 0.505,
+            });
+            expect(source.stamina).toBe(0.5);
+        },
+    );
+
+    test('walking and sprinting have louder footsteps, but idle has none', () => {
+        expect(
+            stepPlayerMovement(player, { x: 1, y: 0 }, movementStepSeconds).noiseRadiusMeters,
+        ).toBe(8);
+        expect(
+            stepPlayerMovement(player, { x: 1, y: 0 }, movementStepSeconds, { isSprinting: true })
+                .noiseRadiusMeters,
+        ).toBe(16);
+        expect(
+            stepPlayerMovement(player, { x: 0, y: 0 }, movementStepSeconds, { isSprinting: true })
+                .noiseRadiusMeters,
+        ).toBe(0);
+    });
+
+    test('exhausted players can sneak and arrive without overshoot, then stop making noise', () => {
+        const source = { ...player, stamina: 0, isExhausted: true };
+        const target = {
+            xMeters: source.position.xMeters + 0.03,
+            yMeters: source.position.yMeters,
+        };
+        const next = stepPlayerToward(source, target, movementStepSeconds, {
+            isSneaking: true,
+            isSprinting: true,
+        });
+        expect(next.position).toEqual(target);
+        expect(next.stamina).toBeCloseTo(0.005, 12);
+        expect(next).toMatchObject({
+            isSneaking: true,
+            isExhausted: true,
+            noiseRadiusMeters: 2,
+        });
+        expect(
+            stepPlayerToward(next, target, movementStepSeconds, { isSneaking: true })
+                .noiseRadiusMeters,
+        ).toBe(0);
     });
 });

@@ -17,13 +17,15 @@ vi.mock('@colyseus/sdk', () => ({
 
 const snapshot = (tick: number): MovementSnapshot => ({
     type: 'movement-snapshot',
-    protocolVersion: 4,
+    protocolVersion: 5,
     worldId: 'world',
     tick,
     player: {
         playerId: 'player',
         stamina: 1,
         isExhausted: false,
+        isSneaking: false,
+        noiseRadiusMeters: 0,
         position: { xMeters: tick * 0.2, yMeters: 0 },
     },
     lastProcessedInputSequence: null,

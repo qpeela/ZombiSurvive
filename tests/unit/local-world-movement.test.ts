@@ -5,9 +5,10 @@ import { LocalWorldMovement } from '../../apps/server/src/local-world-movement.t
 
 const command = (sequence: number, direction: MovementDirection = { x: 1, y: 0 }) => ({
     type: 'movement-input',
-    protocolVersion: 4,
+    protocolVersion: 5,
     sequence,
     isSprinting: false,
+    isSneaking: false,
     direction,
 });
 const setup = (): LocalWorldMovement => {
@@ -66,7 +67,7 @@ test('duplicate, old, malformed, incompatible and unknown-session inputs cannot 
     movement.receive('first', command(2, { x: 0, y: 0 }));
     movement.receive('first', command(2));
     movement.receive('first', command(1));
-    movement.receive('first', { ...command(3), protocolVersion: 5 });
+    movement.receive('first', { ...command(3), protocolVersion: 4 });
     movement.receive('first', { ...command(3), direction: { x: 100, y: 0 } });
     movement.receive('first', null);
     movement.receive('unknown', command(3));
@@ -210,9 +211,10 @@ test('same-player tabs share control without cancelling another participant or l
 
 const targetCommand = (sequence: number, xMeters: number, yMeters: number) => ({
     type: 'movement-target',
-    protocolVersion: 4,
+    protocolVersion: 5,
     sequence,
     isSprinting: false,
+    isSneaking: false,
     target: { xMeters, yMeters },
 });
 
@@ -408,4 +410,63 @@ test('authoritative sprint depletes, walks through recovery and resumes for inde
     expect(
         movement.snapshot('host').player.position.yMeters - recovered.position.yMeters,
     ).toBeCloseTo(-0.35, 12);
+});
+
+test('stealth is authoritative, overrides sprint, and clears on expiry and disconnect', () => {
+    const movement = setup();
+    movement.receive('first', {
+        ...command(1, { x: 0, y: -1 }),
+        isSneaking: true,
+        isSprinting: true,
+        noiseRadiusMeters: 999,
+        speed: 999,
+    });
+    movement.step();
+    expect(movement.snapshot('first').player).toMatchObject({
+        position: { xMeters: 0, yMeters: -0.1 },
+        isSneaking: true,
+        noiseRadiusMeters: 2,
+        stamina: 1,
+    });
+    for (let tick = 0; tick < 10; tick++) movement.step();
+    expect(movement.snapshot('first').player).toMatchObject({
+        isSneaking: false,
+        noiseRadiusMeters: 0,
+    });
+    movement.receive('first', { ...targetCommand(2, 0, -2), isSneaking: true });
+    movement.step();
+    expect(movement.snapshot('first').player.isSneaking).toBe(true);
+    movement.leave('first');
+    movement.step();
+    expect(movement.snapshot('second').player).toMatchObject({
+        isSneaking: false,
+        noiseRadiusMeters: 0,
+    });
+});
+
+test('idle stealth stays owned, follows the latest tab and cannot be stopped by an inactive tab', () => {
+    const movement = setup();
+    movement.receive('first', { ...command(1, { x: 0, y: 0 }), isSneaking: true });
+    movement.step();
+    expect(movement.snapshot('second').player).toMatchObject({
+        isSneaking: true,
+        noiseRadiusMeters: 0,
+    });
+    movement.receive('second', command(1, { x: 0, y: 0 }));
+    movement.step();
+    expect(movement.snapshot('first').player.isSneaking).toBe(true);
+    movement.receive('first', command(2, { x: 0, y: 0 }));
+    movement.step();
+    expect(movement.snapshot('first').player.isSneaking).toBe(false);
+});
+
+test('a sneaking character stopped by a wall is silent and cannot cross it', () => {
+    const movement = setup();
+    for (let tick = 1; tick <= 70; tick++) {
+        movement.receive('first', { ...command(tick), isSneaking: true });
+        movement.step();
+    }
+    const player = movement.snapshot('first').player;
+    expect(player.position.xMeters).toBeCloseTo(4.65, 8);
+    expect(player).toMatchObject({ isSneaking: true, noiseRadiusMeters: 0, stamina: 1 });
 });

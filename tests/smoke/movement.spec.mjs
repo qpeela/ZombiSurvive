@@ -114,8 +114,9 @@ test('real transport applies intentions once per tick and isolates session ackno
     second.onMessage('movement-snapshot', snapshot => other.push(snapshot));
     const command = (sequence, direction) => ({
         type: 'movement-input',
-        protocolVersion: 4,
+        protocolVersion: 5,
         isSprinting: false,
+        isSneaking: false,
         sequence,
         direction,
         playerId: 'forged',

@@ -67,7 +67,7 @@ export class BootScene extends Scene {
             .setDepth(1);
         const onPointerDown = (pointer: Input.Pointer): void => {
             const event = pointer.event;
-            const isModified = event.altKey || event.ctrlKey || event.metaKey;
+            const isModified = event.altKey || event.metaKey;
 
             if (this.player === null || pointer.button !== 0 || isModified) {
                 return;
@@ -79,11 +79,18 @@ export class BootScene extends Scene {
                 yMeters: (pointer.y + camera.scrollY - 270) / pixelsPerMeter,
             });
         };
+        const onContextMenu = (event: MouseEvent): void => {
+            if (event.ctrlKey && this.player !== null) {
+                event.preventDefault();
+            }
+        };
+        this.game.canvas.addEventListener('contextmenu', onContextMenu);
         this.input.on('pointerdown', onPointerDown);
         this.marker = this.createMarker(true);
         this.setPlayers(this.player, this.otherPlayers);
         this.events.once('shutdown', () => {
             this.input.off('pointerdown', onPointerDown);
+            this.game.canvas.removeEventListener('contextmenu', onContextMenu);
             this.grid = null;
             this.aim = null;
             this.crosshair = null;
@@ -189,7 +196,7 @@ export class BootScene extends Scene {
         if (player !== null) {
             const x = 480 + player.position.xMeters * pixelsPerMeter;
             const y = 270 + player.position.yMeters * pixelsPerMeter;
-            this.marker.setPosition(x, y);
+            this.marker.setPosition(x, y).setScale(1, player.isSneaking ? 0.75 : 1);
             this.cameras.main.centerOn(x, y);
             this.game.canvas.dataset['playerX'] = String(x);
             this.game.canvas.dataset['playerY'] = String(y);
@@ -222,6 +229,7 @@ export class BootScene extends Scene {
                 480 + other.position.xMeters * pixelsPerMeter,
                 270 + other.position.yMeters * pixelsPerMeter,
             );
+            marker.setScale(1, other.isSneaking ? 0.75 : 1);
             this.otherMarkers.set(other.playerId, marker);
         }
 

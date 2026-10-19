@@ -1,9 +1,15 @@
-import type { MovementAxis, MovementDirection, WorldPosition } from '@zombi-survive/domain';
+import type {
+    MovementAxis,
+    MovementDirection,
+    MovementModifiers,
+    WorldPosition,
+} from '@zombi-survive/domain';
 
 import type { MovementIntent } from './movement-prediction.js';
 
 const movementCodes = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD']);
 const sprintCodes = new Set(['ShiftLeft', 'ShiftRight']);
+const sneakCodes = new Set(['ControlLeft', 'ControlRight']);
 const axis = (positive: boolean, negative: boolean): MovementAxis => {
     if (positive === negative) {
         return 0;
@@ -13,9 +19,9 @@ const axis = (positive: boolean, negative: boolean): MovementAxis => {
 };
 
 export const createMovementInputController = (
-    send: (direction: MovementDirection, isSprinting: boolean) => void,
+    send: (direction: MovementDirection, modifiers: MovementModifiers) => void,
     options: {
-        readonly sendTarget?: (target: WorldPosition, isSprinting: boolean) => void;
+        readonly sendTarget?: (target: WorldPosition, modifiers: MovementModifiers) => void;
         readonly onIntentChange?: (intent: MovementIntent) => void;
         readonly onTargetChange?: (target: WorldPosition | null) => void;
     } = {},
@@ -40,33 +46,37 @@ export const createMovementInputController = (
         x: axis(pressed.has('KeyD'), pressed.has('KeyA')),
         y: axis(pressed.has('KeyS'), pressed.has('KeyW')),
     });
-    const isSprinting = (): boolean => pressed.has('ShiftLeft') || pressed.has('ShiftRight');
+    const modifiers = (): Required<MovementModifiers> => ({
+        isSprinting: pressed.has('ShiftLeft') || pressed.has('ShiftRight'),
+        isSneaking: pressed.has('ControlLeft') || pressed.has('ControlRight'),
+    });
     const notifyIntent = (): void => {
-        const sprint = isSprinting();
+        const currentModifiers = modifiers();
         const intent: MovementIntent =
             target === null
-                ? { type: 'direction', direction: direction(), isSprinting: sprint }
-                : { type: 'target', target: { ...target }, isSprinting: sprint };
+                ? { type: 'direction', direction: direction(), ...currentModifiers }
+                : { type: 'target', target: { ...target }, ...currentModifiers };
         options.onIntentChange?.(intent);
     };
 
     const clear = (): void => {
-        const hasInput = isMoving || isDirty || target !== null;
+        const hasInput = isMoving || isDirty || target !== null || pressed.size > 0;
         pressed.clear();
         isDirty = false;
         setTarget(null);
         notifyIntent();
 
         if (isEnabled && hasInput) {
-            send({ x: 0, y: 0 }, false);
+            send({ x: 0, y: 0 }, modifiers());
         }
 
         isMoving = false;
     };
     const onKeyDown = (event: KeyboardEvent): void => {
         const isMovementKey = movementCodes.has(event.code);
-        const isInputKey = isMovementKey || sprintCodes.has(event.code);
-        const isModified = event.altKey || event.ctrlKey || event.metaKey;
+        const isInputKey =
+            isMovementKey || sprintCodes.has(event.code) || sneakCodes.has(event.code);
+        const isModified = event.altKey || event.metaKey;
         const isEditing =
             event.target instanceof HTMLElement &&
             (event.target.isContentEditable || event.target.matches('input, textarea, select'));
@@ -108,7 +118,7 @@ export const createMovementInputController = (
         if (target !== null) {
             isDirty = false;
             isMoving = true;
-            options.sendTarget?.(target, isSprinting());
+            options.sendTarget?.(target, modifiers());
 
             return;
         }
@@ -116,10 +126,10 @@ export const createMovementInputController = (
         const currentDirection = direction();
         const hasDirection = currentDirection.x !== 0 || currentDirection.y !== 0;
 
-        if (isDirty || hasDirection) {
+        if (isDirty || hasDirection || modifiers().isSneaking) {
             isDirty = false;
             isMoving = hasDirection;
-            send(currentDirection, isSprinting());
+            send(currentDirection, modifiers());
         }
     }, 100);
 

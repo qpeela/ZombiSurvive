@@ -17,8 +17,14 @@ export type MovementIntent =
           readonly type: 'direction';
           readonly direction: MovementDirection;
           readonly isSprinting: boolean;
+          readonly isSneaking: boolean;
       }
-    | { readonly type: 'target'; readonly target: WorldPosition; readonly isSprinting: boolean };
+    | {
+          readonly type: 'target';
+          readonly target: WorldPosition;
+          readonly isSprinting: boolean;
+          readonly isSneaking: boolean;
+      };
 
 type InputEntry = {
     readonly intent: MovementIntent;
@@ -31,6 +37,7 @@ const stopped: MovementIntent = {
     type: 'direction',
     direction: { x: 0, y: 0 },
     isSprinting: false,
+    isSneaking: false,
 };
 const stepMs = movementStepSeconds * 1000;
 const horizonMs = 500;
@@ -43,7 +50,10 @@ const copyIntent = (intent: MovementIntent): MovementIntent => {
     return { ...intent, direction: { ...intent.direction } };
 };
 const sameIntent = (first: MovementIntent, second: MovementIntent): boolean => {
-    if (first.isSprinting !== second.isSprinting) {
+    const isSameSprint = first.isSprinting === second.isSprinting;
+    const isSameStealth = first.isSneaking === second.isSneaking;
+
+    if (!isSameSprint || !isSameStealth) {
         return false;
     }
 
@@ -110,8 +120,14 @@ export class MovementPrediction {
                       type: 'direction',
                       direction: command.direction,
                       isSprinting: command.isSprinting,
+                      isSneaking: command.isSneaking,
                   }
-                : { type: 'target', target: command.target, isSprinting: command.isSprinting };
+                : {
+                      type: 'target',
+                      target: command.target,
+                      isSprinting: command.isSprinting,
+                      isSneaking: command.isSneaking,
+                  };
         const latest = this.pending.at(-1);
         const isUnsent = latest !== undefined && latest.sequence === null;
 
@@ -167,7 +183,10 @@ export class MovementPrediction {
             return null;
         }
 
-        if (this.isSuspended) {
+        const hasLocalIntent = this.acknowledged !== null || this.pending.length > 0;
+
+        if (this.isSuspended || !hasLocalIntent) {
+            // Another tab may own this character. Without local intent keep its authoritative mode.
             return snapshot.player;
         }
 
@@ -204,13 +223,13 @@ export class MovementPrediction {
                           player,
                           activeIntent.target,
                           movementStepSeconds,
-                          activeIntent.isSprinting,
+                          activeIntent,
                       )
                     : stepPlayerMovement(
                           player,
                           activeIntent.direction,
                           movementStepSeconds,
-                          activeIntent.isSprinting,
+                          activeIntent,
                       );
             const fraction = Math.min(1, (endMs - atMs) / stepMs);
             const desired = {
@@ -221,11 +240,18 @@ export class MovementPrediction {
                     player.position.yMeters +
                     (next.position.yMeters - player.position.yMeters) * fraction,
             };
+            const position = resolveMovement(player.position, desired, prototypeObstacles);
+            const hasMoved =
+                Math.hypot(
+                    position.xMeters - player.position.xMeters,
+                    position.yMeters - player.position.yMeters,
+                ) > 0.000001;
             player = {
                 ...next,
+                noiseRadiusMeters: hasMoved ? next.noiseRadiusMeters : 0,
                 stamina: player.stamina + (next.stamina - player.stamina) * fraction,
                 isExhausted: fraction === 1 ? next.isExhausted : player.isExhausted,
-                position: resolveMovement(player.position, desired, prototypeObstacles),
+                position,
             };
         }
 

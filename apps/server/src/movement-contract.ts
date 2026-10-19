@@ -19,6 +19,7 @@ export const readMovementTarget = (value: unknown): MovementTargetCommand | null
         protocolVersion: value.protocolVersion,
         sequence: value.sequence,
         isSprinting: value.isSprinting,
+        isSneaking: value.isSneaking,
         target: { xMeters: value.target.xMeters, yMeters: value.target.yMeters },
     };
 };
@@ -33,6 +34,7 @@ export const readMovementInput = (value: unknown): MovementInputCommand | null =
         protocolVersion: value.protocolVersion,
         sequence: value.sequence,
         isSprinting: value.isSprinting,
+        isSneaking: value.isSneaking,
         direction: { x: value.direction.x, y: value.direction.y },
     };
 };
@@ -53,6 +55,8 @@ export const createMovementSnapshot = (
             playerId: player.playerId,
             stamina: player.stamina,
             isExhausted: player.isExhausted,
+            isSneaking: player.isSneaking,
+            noiseRadiusMeters: player.noiseRadiusMeters,
             position: { xMeters: player.position.xMeters, yMeters: player.position.yMeters },
         },
         lastProcessedInputSequence,
@@ -60,6 +64,8 @@ export const createMovementSnapshot = (
             playerId: other.playerId,
             stamina: other.stamina,
             isExhausted: other.isExhausted,
+            isSneaking: other.isSneaking,
+            noiseRadiusMeters: other.noiseRadiusMeters,
             position: { ...other.position },
         })),
     };

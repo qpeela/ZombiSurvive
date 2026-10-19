@@ -1,4 +1,4 @@
-import type { MovementDirection, WorldPosition } from '@zombi-survive/domain';
+import type { MovementDirection, MovementModifiers, WorldPosition } from '@zombi-survive/domain';
 import {
     isMovementInputCommand,
     isMovementSnapshot,
@@ -12,13 +12,14 @@ import {
 export const createMovementTarget = (
     sequence: number,
     target: WorldPosition,
-    isSprinting = false,
+    { isSprinting = false, isSneaking = false }: MovementModifiers = {},
 ): MovementTargetCommand => {
     const command: MovementTargetCommand = {
         type: 'movement-target',
         protocolVersion,
         sequence,
         isSprinting,
+        isSneaking,
         target: { xMeters: target.xMeters, yMeters: target.yMeters },
     };
 
@@ -32,13 +33,14 @@ export const createMovementTarget = (
 export const createMovementInput = (
     sequence: number,
     direction: MovementDirection,
-    isSprinting = false,
+    { isSprinting = false, isSneaking = false }: MovementModifiers = {},
 ): MovementInputCommand => {
     const command: MovementInputCommand = {
         type: 'movement-input',
         protocolVersion,
         sequence,
         isSprinting,
+        isSneaking,
         direction: { x: direction.x, y: direction.y },
     };
 
@@ -63,6 +65,8 @@ export const readMovementSnapshot = (value: unknown): MovementSnapshot | null =>
             playerId: value.player.playerId,
             stamina: value.player.stamina,
             isExhausted: value.player.isExhausted,
+            isSneaking: value.player.isSneaking,
+            noiseRadiusMeters: value.player.noiseRadiusMeters,
             position: {
                 xMeters: value.player.position.xMeters,
                 yMeters: value.player.position.yMeters,
@@ -72,6 +76,8 @@ export const readMovementSnapshot = (value: unknown): MovementSnapshot | null =>
             playerId: player.playerId,
             stamina: player.stamina,
             isExhausted: player.isExhausted,
+            isSneaking: player.isSneaking,
+            noiseRadiusMeters: player.noiseRadiusMeters,
             position: { ...player.position },
         })),
         lastProcessedInputSequence: value.lastProcessedInputSequence,
