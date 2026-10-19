@@ -5,8 +5,9 @@ import { LocalWorldMovement } from '../../apps/server/src/local-world-movement.t
 
 const command = (sequence: number, direction: MovementDirection = { x: 1, y: 0 }) => ({
     type: 'movement-input',
-    protocolVersion: 3,
+    protocolVersion: 4,
     sequence,
+    isSprinting: false,
     direction,
 });
 const setup = (): LocalWorldMovement => {
@@ -65,7 +66,7 @@ test('duplicate, old, malformed, incompatible and unknown-session inputs cannot 
     movement.receive('first', command(2, { x: 0, y: 0 }));
     movement.receive('first', command(2));
     movement.receive('first', command(1));
-    movement.receive('first', { ...command(3), protocolVersion: 4 });
+    movement.receive('first', { ...command(3), protocolVersion: 5 });
     movement.receive('first', { ...command(3), direction: { x: 100, y: 0 } });
     movement.receive('first', null);
     movement.receive('unknown', command(3));
@@ -143,7 +144,12 @@ test('disconnect cancels pending input and movement even while another tab remai
 
     expect(movement.snapshot('replacement')).toMatchObject({
         worldId: 'world',
-        player: { playerId: 'player', position: { xMeters: 0.2, yMeters: 0.2 } },
+        player: {
+            playerId: 'player',
+            stamina: 1,
+            isExhausted: false,
+            position: { xMeters: 0.2, yMeters: 0.2 },
+        },
         lastProcessedInputSequence: 1,
     });
 });
@@ -157,8 +163,20 @@ test('participants move independently and cannot select another character throug
     movement.step();
     expect(movement.snapshot('host-tab')).toMatchObject({
         tick: 1,
-        player: { playerId: 'host', position: { xMeters: 0.2, yMeters: 0 } },
-        otherPlayers: [{ playerId: 'friend', position: { xMeters: 2, yMeters: -0.2 } }],
+        player: {
+            playerId: 'host',
+            stamina: 1,
+            isExhausted: false,
+            position: { xMeters: 0.2, yMeters: 0 },
+        },
+        otherPlayers: [
+            {
+                playerId: 'friend',
+                stamina: 1,
+                isExhausted: false,
+                position: { xMeters: 2, yMeters: -0.2 },
+            },
+        ],
         lastProcessedInputSequence: 1,
     });
     expect(movement.snapshot('friend-tab').otherPlayers).toEqual([
@@ -192,8 +210,9 @@ test('same-player tabs share control without cancelling another participant or l
 
 const targetCommand = (sequence: number, xMeters: number, yMeters: number) => ({
     type: 'movement-target',
-    protocolVersion: 3,
+    protocolVersion: 4,
     sequence,
+    isSprinting: false,
     target: { xMeters, yMeters },
 });
 
@@ -256,14 +275,28 @@ test('a flood of target commands cannot teleport or move another participant', (
         movement.receive('host-tab', {
             ...targetCommand(sequence, 1000, 0),
             playerId: 'friend',
+            stamina: 1,
+            isExhausted: false,
             position: { xMeters: 999, yMeters: 999 },
         });
     }
     movement.receive('unknown', targetCommand(1001, -1000, 0));
     movement.step();
     expect(movement.snapshot('host-tab')).toMatchObject({
-        player: { playerId: 'host', position: { xMeters: 0.2, yMeters: 0 } },
-        otherPlayers: [{ playerId: 'friend', position: { xMeters: 2, yMeters: 0 } }],
+        player: {
+            playerId: 'host',
+            stamina: 1,
+            isExhausted: false,
+            position: { xMeters: 0.2, yMeters: 0 },
+        },
+        otherPlayers: [
+            {
+                playerId: 'friend',
+                stamina: 1,
+                isExhausted: false,
+                position: { xMeters: 2, yMeters: 0 },
+            },
+        ],
         lastProcessedInputSequence: 1000,
     });
 });
@@ -316,4 +349,63 @@ test('keyboard slides along a wall; new targets can lead around its end', () => 
     walkTo(4, 4, 30);
     walkTo(7, 4, 30);
     expect(movement.snapshot('first').player.position).toEqual({ xMeters: 7, yMeters: 4 });
+});
+
+test('sprint cannot forge stamina or speed and disconnected controllers recover without moving', () => {
+    const movement = setup();
+    movement.receive('first', {
+        ...command(1, { x: 0, y: -1 }),
+        isSprinting: true,
+        stamina: 999,
+        speed: 999,
+    });
+    movement.step();
+    expect(movement.snapshot('first').player.position.yMeters).toBeCloseTo(-0.35, 12);
+    expect(movement.snapshot('first').player.stamina).toBeCloseTo(0.99, 12);
+    movement.leave('first');
+    movement.step();
+    const stopped = movement.snapshot('second').player;
+    expect(stopped.position.yMeters).toBeCloseTo(-0.35, 12);
+    expect(stopped.stamina).toBeCloseTo(0.995, 12);
+    movement.join('reloaded');
+    expect(movement.snapshot('reloaded').player).toEqual(stopped);
+});
+
+test('mouse sprint respects walls and expired sprint stops draining stamina', () => {
+    const movement = setup();
+    movement.receive('first', { ...targetCommand(1, 100, 0), isSprinting: true });
+    for (let tick = 0; tick < 10; tick++) movement.step();
+    expect(movement.snapshot('first').player.stamina).toBeCloseTo(0.9, 12);
+    movement.step();
+    expect(movement.snapshot('first').player.stamina).toBeCloseTo(0.905, 12);
+    for (let tick = 2; tick < 30; tick++) {
+        movement.receive('first', { ...targetCommand(tick, 100, 0), isSprinting: true });
+        movement.step();
+    }
+    expect(movement.snapshot('first').player.position.xMeters).toBe(4.65);
+    expect(movement.snapshot('first').player.stamina).toBeLessThan(0.9);
+});
+
+test('authoritative sprint depletes, walks through recovery and resumes for independent players', () => {
+    const movement = new LocalWorldMovement('world', 'host');
+    movement.join('host');
+    movement.join('friend', 'friend');
+    for (let tick = 1; tick <= 100; tick++) {
+        movement.receive('host', { ...command(tick, { x: 0, y: -1 }), isSprinting: true });
+        movement.step();
+    }
+    expect(movement.snapshot('host').player).toMatchObject({ stamina: 0, isExhausted: true });
+    expect(movement.snapshot('friend').player.stamina).toBe(1);
+    const startY = movement.snapshot('host').player.position.yMeters;
+    for (let tick = 101; tick <= 140; tick++) {
+        movement.receive('host', { ...command(tick, { x: 0, y: -1 }), isSprinting: true });
+        movement.step();
+    }
+    const recovered = movement.snapshot('host').player;
+    expect(recovered.position.yMeters - startY).toBeCloseTo(-8, 12);
+    expect(recovered.isExhausted).toBe(false);
+    movement.step();
+    expect(
+        movement.snapshot('host').player.position.yMeters - recovered.position.yMeters,
+    ).toBeCloseTo(-0.35, 12);
 });

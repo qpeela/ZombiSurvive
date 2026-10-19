@@ -13,8 +13,12 @@ import {
 } from '@zombi-survive/simulation';
 
 export type MovementIntent =
-    | { readonly type: 'direction'; readonly direction: MovementDirection }
-    | { readonly type: 'target'; readonly target: WorldPosition };
+    | {
+          readonly type: 'direction';
+          readonly direction: MovementDirection;
+          readonly isSprinting: boolean;
+      }
+    | { readonly type: 'target'; readonly target: WorldPosition; readonly isSprinting: boolean };
 
 type InputEntry = {
     readonly intent: MovementIntent;
@@ -23,18 +27,26 @@ type InputEntry = {
     sentAtMs: number | null;
 };
 
-const stopped: MovementIntent = { type: 'direction', direction: { x: 0, y: 0 } };
+const stopped: MovementIntent = {
+    type: 'direction',
+    direction: { x: 0, y: 0 },
+    isSprinting: false,
+};
 const stepMs = movementStepSeconds * 1000;
 const horizonMs = 500;
 const maxHistory = 64;
 const copyIntent = (intent: MovementIntent): MovementIntent => {
     if (intent.type === 'target') {
-        return { type: 'target', target: { ...intent.target } };
+        return { ...intent, target: { ...intent.target } };
     }
 
-    return { type: 'direction', direction: { ...intent.direction } };
+    return { ...intent, direction: { ...intent.direction } };
 };
 const sameIntent = (first: MovementIntent, second: MovementIntent): boolean => {
+    if (first.isSprinting !== second.isSprinting) {
+        return false;
+    }
+
     if (first.type === 'target' && second.type === 'target') {
         return (
             first.target.xMeters === second.target.xMeters &&
@@ -94,8 +106,12 @@ export class MovementPrediction {
 
         const intent: MovementIntent =
             command.type === 'movement-input'
-                ? { type: 'direction', direction: command.direction }
-                : { type: 'target', target: command.target };
+                ? {
+                      type: 'direction',
+                      direction: command.direction,
+                      isSprinting: command.isSprinting,
+                  }
+                : { type: 'target', target: command.target, isSprinting: command.isSprinting };
         const latest = this.pending.at(-1);
         const isUnsent = latest !== undefined && latest.sequence === null;
 
@@ -184,8 +200,18 @@ export class MovementPrediction {
             const activeIntent = isExpired ? stopped : intent;
             const next =
                 activeIntent.type === 'target'
-                    ? stepPlayerToward(player, activeIntent.target, movementStepSeconds)
-                    : stepPlayerMovement(player, activeIntent.direction, movementStepSeconds);
+                    ? stepPlayerToward(
+                          player,
+                          activeIntent.target,
+                          movementStepSeconds,
+                          activeIntent.isSprinting,
+                      )
+                    : stepPlayerMovement(
+                          player,
+                          activeIntent.direction,
+                          movementStepSeconds,
+                          activeIntent.isSprinting,
+                      );
             const fraction = Math.min(1, (endMs - atMs) / stepMs);
             const desired = {
                 xMeters:
@@ -196,7 +222,9 @@ export class MovementPrediction {
                     (next.position.yMeters - player.position.yMeters) * fraction,
             };
             player = {
-                ...player,
+                ...next,
+                stamina: player.stamina + (next.stamina - player.stamina) * fraction,
+                isExhausted: fraction === 1 ? next.isExhausted : player.isExhausted,
                 position: resolveMovement(player.position, desired, prototypeObstacles),
             };
         }

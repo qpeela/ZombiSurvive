@@ -18,6 +18,7 @@ export const readMovementTarget = (value: unknown): MovementTargetCommand | null
         type: value.type,
         protocolVersion: value.protocolVersion,
         sequence: value.sequence,
+        isSprinting: value.isSprinting,
         target: { xMeters: value.target.xMeters, yMeters: value.target.yMeters },
     };
 };
@@ -31,6 +32,7 @@ export const readMovementInput = (value: unknown): MovementInputCommand | null =
         type: value.type,
         protocolVersion: value.protocolVersion,
         sequence: value.sequence,
+        isSprinting: value.isSprinting,
         direction: { x: value.direction.x, y: value.direction.y },
     };
 };
@@ -49,11 +51,15 @@ export const createMovementSnapshot = (
         tick,
         player: {
             playerId: player.playerId,
+            stamina: player.stamina,
+            isExhausted: player.isExhausted,
             position: { xMeters: player.position.xMeters, yMeters: player.position.yMeters },
         },
         lastProcessedInputSequence,
         otherPlayers: otherPlayers.map(other => ({
             playerId: other.playerId,
+            stamina: other.stamina,
+            isExhausted: other.isExhausted,
             position: { ...other.position },
         })),
     };

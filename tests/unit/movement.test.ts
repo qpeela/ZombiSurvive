@@ -9,6 +9,8 @@ import { describe, expect, test } from 'vitest';
 
 const player: PlayerMovementState = {
     playerId: 'player-1',
+    stamina: 1,
+    isExhausted: false,
     position: { xMeters: 12.25, yMeters: -8.5 },
 };
 const directions: readonly MovementDirection[] = [
@@ -146,5 +148,82 @@ describe('movement toward a mouse destination', () => {
         expect(() => stepPlayerToward(player, { xMeters: 0, yMeters: 0 }, step)).toThrow(
             RangeError,
         );
+    });
+});
+
+describe('sprint and stamina', () => {
+    test.each([
+        { x: 1, y: 0 },
+        { x: -1, y: -1 },
+    ] as const)('sprints seven meters per second without a diagonal bonus: %o', direction => {
+        let state = player;
+        for (let tick = 0; tick < 20; tick++) {
+            state = stepPlayerMovement(state, direction, movementStepSeconds, true);
+        }
+        expect(
+            Math.hypot(
+                state.position.xMeters - player.position.xMeters,
+                state.position.yMeters - player.position.yMeters,
+            ),
+        ).toBeCloseTo(7, 12);
+        expect(state.stamina).toBeCloseTo(0.8, 12);
+        expect(state.isExhausted).toBe(false);
+        expect(player.stamina).toBe(1);
+    });
+
+    test('exhaustion forces walking until twenty percent is recovered even while Shift stays held', () => {
+        let state = player;
+        for (let tick = 0; tick < 100; tick++) {
+            state = stepPlayerMovement(state, { x: 1, y: 0 }, movementStepSeconds, true);
+        }
+        expect(state.stamina).toBe(0);
+        expect(state.isExhausted).toBe(true);
+        for (let tick = 0; tick < 40; tick++) {
+            const previousX = state.position.xMeters;
+            state = stepPlayerMovement(state, { x: 1, y: 0 }, movementStepSeconds, true);
+            expect(state.position.xMeters - previousX).toBeCloseTo(0.2, 12);
+        }
+        expect(state.stamina).toBeCloseTo(0.2, 12);
+        expect(state.isExhausted).toBe(false);
+        const running = stepPlayerMovement(state, { x: 1, y: 0 }, movementStepSeconds, true);
+        expect(running.position.xMeters - state.position.xMeters).toBeCloseTo(0.35, 12);
+        expect(running.stamina).toBeLessThan(state.stamina);
+    });
+
+    test.each([false, true])(
+        'idle recovers with Shift=%s and walking also recovers, capped at full',
+        isSprinting => {
+            const depleted = { ...player, stamina: 0, isExhausted: true };
+            let state = depleted;
+            for (let tick = 0; tick < 250; tick++) {
+                state = stepPlayerMovement(state, { x: 0, y: 0 }, movementStepSeconds, isSprinting);
+            }
+            expect(state).toEqual(player);
+            const walking = stepPlayerMovement(depleted, { x: 1, y: 0 }, movementStepSeconds);
+            expect(walking.stamina).toBeCloseTo(0.005, 12);
+            expect(walking.isExhausted).toBe(true);
+        },
+    );
+
+    test('zero reserve cannot sprint even if the exhaustion flag was not set', () => {
+        const next = stepPlayerMovement(
+            { ...player, stamina: 0 },
+            { x: 1, y: 0 },
+            movementStepSeconds,
+            true,
+        );
+        expect(next.position.xMeters - player.position.xMeters).toBeCloseTo(0.2, 12);
+        expect(next.stamina).toBeGreaterThan(0);
+    });
+
+    test('mouse sprint clamps arrival, then recovers at the destination with Shift held', () => {
+        const source = { ...player, stamina: 0.5 };
+        const target = { xMeters: source.position.xMeters + 0.3, yMeters: source.position.yMeters };
+        const arrived = stepPlayerToward(source, target, movementStepSeconds, true);
+        expect(arrived.position).toEqual(target);
+        expect(arrived.stamina).toBeCloseTo(0.49, 12);
+        const idle = stepPlayerToward(arrived, target, movementStepSeconds, true);
+        expect(idle.position).toEqual(target);
+        expect(idle.stamina).toBeCloseTo(0.495, 12);
     });
 });

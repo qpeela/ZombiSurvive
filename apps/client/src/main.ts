@@ -12,8 +12,10 @@ import { createWorldSession } from './world-session';
 const container = document.querySelector<HTMLElement>('#game');
 const status = document.querySelector<HTMLElement>('#connection-status');
 const reconnect = document.querySelector<HTMLButtonElement>('#reconnect');
+const stamina = document.querySelector<HTMLProgressElement>('#stamina');
+const staminaLabel = document.querySelector<HTMLElement>('#stamina-label');
 
-if (!container || !status || !reconnect) {
+if (!container || !status || !reconnect || !stamina || !staminaLabel) {
     throw new Error('Game UI is missing.');
 }
 
@@ -41,15 +43,15 @@ const messages = {
     error: 'Не удалось подключиться к миру. Проверьте сервер хоста; для кооператива откройте действующее приглашение.',
 };
 const input = createMovementInputController(
-    direction => {
-        connection.sendMovement(direction);
+    (direction, isSprinting) => {
+        connection.sendMovement(direction, isSprinting);
     },
     {
         onIntentChange: intent => {
             prediction.setIntent(intent, performance.now());
         },
-        sendTarget: target => {
-            connection.sendTarget(target);
+        sendTarget: (target, isSprinting) => {
+            connection.sendTarget(target, isSprinting);
         },
         onTargetChange: target => {
             scene.setDestination(target);
@@ -61,7 +63,13 @@ scene.onMove = position => {
 };
 let otherPlayers: readonly PlayerMovementState[] = [];
 scene.onFrame = () => {
-    scene.setPlayer(prediction.sample(performance.now()));
+    const player = prediction.sample(performance.now());
+    scene.setPlayer(player);
+    stamina.value = player?.stamina ?? 0;
+    staminaLabel.textContent =
+        player === null
+            ? 'Выносливость: —'
+            : `Выносливость: ${String(Math.round(player.stamina * 100))}%${player.isExhausted ? ' · Восстановление до 20%' : ''}`;
 };
 const connection = createWorldConnection(
     window.location.origin,
@@ -81,6 +89,8 @@ const connection = createWorldConnection(
             status.dataset['xMeters'] = String(xMeters);
             status.dataset['yMeters'] = String(yMeters);
             status.dataset['tick'] = String(snapshot.tick);
+            status.dataset['stamina'] = String(snapshot.player.stamina);
+            status.dataset['exhausted'] = String(snapshot.player.isExhausted);
             status.dataset['ack'] = String(snapshot.lastProcessedInputSequence);
             status.textContent = `Мир подключён. Позиция: ${xMeters.toFixed(2)}, ${yMeters.toFixed(2)} м. Персонажей: ${String(snapshot.otherPlayers.length + 1)}.`;
             scene.setPlayers(prediction.sample(performance.now()), otherPlayers);
@@ -96,6 +106,8 @@ const connection = createWorldConnection(
         delete status.dataset['xMeters'];
         delete status.dataset['yMeters'];
         delete status.dataset['tick'];
+        delete status.dataset['stamina'];
+        delete status.dataset['exhausted'];
         delete status.dataset['ack'];
         delete status.dataset['playerCount'];
         scene.setPlayers(null, []);

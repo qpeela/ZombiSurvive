@@ -37,6 +37,7 @@ type PlayerInput = {
     direction: MovementDirection;
     target: WorldPosition | null;
     lastInputTick: number;
+    isSprinting: boolean;
 };
 
 // Transport callbacks only stage intentions. Position and acknowledgements change on step().
@@ -62,9 +63,12 @@ export class LocalWorldMovement {
             this.players.set(playerId, {
                 player: {
                     playerId,
+                    stamina: 1,
+                    isExhausted: false,
                     position: { xMeters: this.players.size * 2, yMeters: 0 },
                 },
                 controllerId: null,
+                isSprinting: false,
                 direction: { x: 0, y: 0 },
                 target: null,
                 lastInputTick: this.tick,
@@ -134,6 +138,7 @@ export class LocalWorldMovement {
                     command.type === 'movement-input' ? command.direction : { x: 0, y: 0 };
                 player.target = command.type === 'movement-target' ? command.target : null;
                 player.lastInputTick = this.tick;
+                player.isSprinting = command.isSprinting;
             }
 
             session.lastProcessedSequence = command.sequence;
@@ -149,17 +154,24 @@ export class LocalWorldMovement {
 
             if (!isControllerPresent || isInputExpired) {
                 player.controllerId = null;
+                player.isSprinting = false;
                 player.direction = { x: 0, y: 0 };
                 player.target = null;
             }
 
             if (player.target !== null) {
-                player.player = stepPlayerToward(player.player, player.target, movementStepSeconds);
+                player.player = stepPlayerToward(
+                    player.player,
+                    player.target,
+                    movementStepSeconds,
+                    player.isSprinting,
+                );
             } else {
                 player.player = stepPlayerMovement(
                     player.player,
                     player.direction,
                     movementStepSeconds,
+                    player.isSprinting,
                 );
             }
 

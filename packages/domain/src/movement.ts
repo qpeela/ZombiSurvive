@@ -16,4 +16,7 @@ export type MovementDirection = {
 export type PlayerMovementState = {
     readonly playerId: PlayerId;
     readonly position: WorldPosition;
+    /** Normalized reserve in [0, 1]. Only simulation changes it. */
+    readonly stamina: number;
+    readonly isExhausted: boolean;
 };
