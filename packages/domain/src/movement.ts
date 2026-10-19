@@ -6,6 +6,11 @@ export type WorldPosition = {
     readonly yMeters: number;
 };
 
+export type MovementModifiers = {
+    readonly isSprinting?: boolean;
+    readonly isSneaking?: boolean;
+};
+
 export type MovementAxis = -1 | 0 | 1;
 
 export type MovementDirection = {
@@ -19,4 +24,7 @@ export type PlayerMovementState = {
     /** Normalized reserve in [0, 1]. Only simulation changes it. */
     readonly stamina: number;
     readonly isExhausted: boolean;
+    readonly isSneaking: boolean;
+    /** Current movement noise radius; zero while idle. */
+    readonly noiseRadiusMeters: number;
 };

@@ -19,6 +19,8 @@ const player = {
     playerId: 'player-1',
     stamina: 1,
     isExhausted: false,
+    isSneaking: false,
+    noiseRadiusMeters: 0,
     position: { xMeters: -2.5, yMeters: 0 },
 };
 const roundTrip = value => JSON.parse(JSON.stringify(value));
@@ -93,7 +95,7 @@ test('wrong message kinds, versions and non-object payloads are rejected on both
     assert.equal(readMovementInput(snapshot), null);
     assert.equal(readMovementSnapshot(command), null);
 
-    for (const protocolVersion of [undefined, '4', 0, 1, 2, 3, 5]) {
+    for (const protocolVersion of [undefined, '5', 0, 1, 2, 3, 4, 6]) {
         assert.equal(readMovementInput({ ...command, protocolVersion }), null);
         assert.equal(readMovementSnapshot({ ...snapshot, protocolVersion }), null);
     }
@@ -159,6 +161,8 @@ test('server extracts only input intentions and does not retain client-owned mut
         playerId: 'other-player',
         stamina: 1,
         isExhausted: false,
+        isSneaking: false,
+        noiseRadiusMeters: 0,
         position: { xMeters: 999 },
     };
     const accepted = readMovementInput(incoming);
@@ -184,11 +188,13 @@ test('builders and the client snapshot reader detach positions and directions fr
     assert.equal(accepted.player.position.xMeters, -2.5);
 });
 
-test('version 4 validates a bounded set of distinct peers and detaches their positions', () => {
+test('version 5 validates a bounded set of distinct peers and detaches their positions', () => {
     const friend = {
         playerId: 'friend',
         stamina: 1,
         isExhausted: false,
+        isSneaking: false,
+        noiseRadiusMeters: 0,
         position: { xMeters: 2, yMeters: 0 },
     };
     const snapshot = createMovementSnapshot('world-1', 1, player, 1, [friend]);
@@ -214,7 +220,7 @@ test('version 4 validates a bounded set of distinct peers and detaches their pos
     assert.equal(readMovementSnapshot({ ...snapshot, protocolVersion: 1 }), null);
 });
 
-test('v4 mouse targets are detached intentions and reject old versions and unsafe coordinates', () => {
+test('v5 mouse targets are detached intentions and reject old versions and unsafe coordinates', () => {
     const source = { xMeters: -2.25, yMeters: 4.75, playerId: 'forged' };
     const command = createMovementTarget(1, source);
     source.xMeters = 99;
@@ -224,6 +230,8 @@ test('v4 mouse targets are detached intentions and reject old versions and unsaf
         playerId: 'another',
         stamina: 1,
         isExhausted: false,
+        isSneaking: false,
+        noiseRadiusMeters: 0,
         position: { xMeters: 999 },
     };
     incoming.target.extra = 'not-a-coordinate';
@@ -233,7 +241,7 @@ test('v4 mouse targets are detached intentions and reject old versions and unsaf
     assert.equal(accepted.target.yMeters, 4.75);
     assert.equal(readMovementInput(command), null);
     assert.equal(readMovementTarget(createMovementInput(1, { x: 1, y: 0 })), null);
-    for (const version of [1, 2, 3, 5, '4', undefined]) {
+    for (const version of [1, 2, 3, 4, 6, '5', undefined]) {
         assert.equal(readMovementTarget({ ...command, protocolVersion: version }), null);
     }
     for (const target of [null, [], {}, { xMeters: 0 }, { xMeters: '1', yMeters: 0 }]) {
@@ -257,10 +265,10 @@ test('v4 mouse targets are detached intentions and reject old versions and unsaf
     );
 });
 
-test('v4 carries sprint and stamina, rejecting malformed or missing values on both sides', () => {
+test('v5 carries sprint and stamina, rejecting malformed or missing values on both sides', () => {
     for (const command of [
-        createMovementInput(1, { x: 1, y: 0 }, true),
-        createMovementTarget(2, { xMeters: 1, yMeters: 0 }, true),
+        createMovementInput(1, { x: 1, y: 0 }, { isSprinting: true }),
+        createMovementTarget(2, { xMeters: 1, yMeters: 0 }, { isSprinting: true }),
     ]) {
         const read = command.type === 'movement-input' ? readMovementInput : readMovementTarget;
         assert.equal(read(roundTrip(command)).isSprinting, true);
@@ -291,5 +299,44 @@ test('v4 carries sprint and stamina, rejecting malformed or missing values on bo
             readMovementSnapshot({ ...snapshot, player: { ...exhausted, isExhausted } }),
             null,
         );
+    }
+});
+
+test('v5 validates stealth and noise for self and peers, ignoring client-supplied noise', () => {
+    for (const command of [
+        createMovementInput(1, { x: 1, y: 0 }, { isSneaking: true }),
+        createMovementTarget(
+            2,
+            { xMeters: 1, yMeters: 0 },
+            { isSneaking: true, isSprinting: true },
+        ),
+    ]) {
+        const read = command.type === 'movement-input' ? readMovementInput : readMovementTarget;
+        assert.deepEqual(
+            read(roundTrip({ ...command, noiseRadiusMeters: 999, speed: 999 })),
+            command,
+        );
+        for (const isSneaking of [undefined, null, 0, 1, 'true', {}, []])
+            assert.equal(read({ ...command, isSneaking }), null);
+    }
+    const self = { ...player, isSneaking: true, noiseRadiusMeters: 2 };
+    const peer = { ...self, playerId: 'friend' };
+    const snapshot = createMovementSnapshot('world', 1, self, 1, [peer]);
+    assert.deepEqual(readMovementSnapshot(roundTrip(snapshot)), snapshot);
+    for (const field of ['isSneaking', 'noiseRadiusMeters']) {
+        const invalidValues =
+            field === 'isSneaking'
+                ? [undefined, null, 0, 'true']
+                : [undefined, null, '2', NaN, Infinity, -1];
+        for (const value of invalidValues) {
+            assert.equal(
+                readMovementSnapshot({ ...snapshot, player: { ...self, [field]: value } }),
+                null,
+            );
+            assert.equal(
+                readMovementSnapshot({ ...snapshot, otherPlayers: [{ ...peer, [field]: value }] }),
+                null,
+            );
+        }
     }
 });

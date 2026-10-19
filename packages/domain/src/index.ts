@@ -1,6 +1,7 @@
 export type {
     MovementAxis,
     MovementDirection,
+    MovementModifiers,
     PlayerId,
     PlayerMovementState,
     WorldId,

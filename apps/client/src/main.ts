@@ -14,8 +14,9 @@ const status = document.querySelector<HTMLElement>('#connection-status');
 const reconnect = document.querySelector<HTMLButtonElement>('#reconnect');
 const stamina = document.querySelector<HTMLProgressElement>('#stamina');
 const staminaLabel = document.querySelector<HTMLElement>('#stamina-label');
+const movementLabel = document.querySelector<HTMLElement>('#movement-label');
 
-if (!container || !status || !reconnect || !stamina || !staminaLabel) {
+if (!container || !status || !reconnect || !stamina || !staminaLabel || !movementLabel) {
     throw new Error('Game UI is missing.');
 }
 
@@ -43,15 +44,15 @@ const messages = {
     error: 'Не удалось подключиться к миру. Проверьте сервер хоста; для кооператива откройте действующее приглашение.',
 };
 const input = createMovementInputController(
-    (direction, isSprinting) => {
-        connection.sendMovement(direction, isSprinting);
+    (direction, modifiers) => {
+        connection.sendMovement(direction, modifiers);
     },
     {
         onIntentChange: intent => {
             prediction.setIntent(intent, performance.now());
         },
-        sendTarget: (target, isSprinting) => {
-            connection.sendTarget(target, isSprinting);
+        sendTarget: (target, modifiers) => {
+            connection.sendTarget(target, modifiers);
         },
         onTargetChange: target => {
             scene.setDestination(target);
@@ -66,6 +67,10 @@ scene.onFrame = () => {
     const player = prediction.sample(performance.now());
     scene.setPlayer(player);
     stamina.value = player?.stamina ?? 0;
+    movementLabel.textContent =
+        player === null
+            ? 'Режим: —'
+            : `${player.isSneaking ? 'Скрытность' : 'Обычный режим'} · Шум: ${String(player.noiseRadiusMeters)} м`;
     staminaLabel.textContent =
         player === null
             ? 'Выносливость: —'
@@ -91,6 +96,8 @@ const connection = createWorldConnection(
             status.dataset['tick'] = String(snapshot.tick);
             status.dataset['stamina'] = String(snapshot.player.stamina);
             status.dataset['exhausted'] = String(snapshot.player.isExhausted);
+            status.dataset['sneaking'] = String(snapshot.player.isSneaking);
+            status.dataset['noiseRadius'] = String(snapshot.player.noiseRadiusMeters);
             status.dataset['ack'] = String(snapshot.lastProcessedInputSequence);
             status.textContent = `Мир подключён. Позиция: ${xMeters.toFixed(2)}, ${yMeters.toFixed(2)} м. Персонажей: ${String(snapshot.otherPlayers.length + 1)}.`;
             scene.setPlayers(prediction.sample(performance.now()), otherPlayers);
@@ -108,6 +115,8 @@ const connection = createWorldConnection(
         delete status.dataset['tick'];
         delete status.dataset['stamina'];
         delete status.dataset['exhausted'];
+        delete status.dataset['sneaking'];
+        delete status.dataset['noiseRadius'];
         delete status.dataset['ack'];
         delete status.dataset['playerCount'];
         scene.setPlayers(null, []);

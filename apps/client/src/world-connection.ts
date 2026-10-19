@@ -1,5 +1,5 @@
 import { Client, Room } from '@colyseus/sdk';
-import type { MovementDirection, WorldPosition } from '@zombi-survive/domain';
+import type { MovementDirection, MovementModifiers, WorldPosition } from '@zombi-survive/domain';
 import {
     initialStateRequest,
     localWorldRoomId,
@@ -47,8 +47,8 @@ export const createWorldConnection = (
     onCommandSent?: (command: MovementInputCommand | MovementTargetCommand) => void,
 ): {
     connect: () => Promise<void>;
-    sendMovement: (direction: MovementDirection, isSprinting?: boolean) => void;
-    sendTarget: (target: WorldPosition, isSprinting?: boolean) => void;
+    sendMovement: (direction: MovementDirection, modifiers?: MovementModifiers) => void;
+    sendTarget: (target: WorldPosition, modifiers?: MovementModifiers) => void;
     disconnect: () => void;
     dispose: () => void;
 } => {
@@ -193,13 +193,16 @@ export const createWorldConnection = (
         }
     };
 
-    const sendMovement = (direction: MovementDirection, isSprinting = false): void => {
+    const sendMovement = (
+        direction: MovementDirection,
+        modifiers: MovementModifiers = {},
+    ): void => {
         if (!isReady || activeRoom === null) {
             return;
         }
 
         try {
-            const command = createMovementInput(++sequence, direction, isSprinting);
+            const command = createMovementInput(++sequence, direction, modifiers);
             activeRoom.send('movement-input', command);
             onCommandSent?.(command);
         } catch {
@@ -215,13 +218,13 @@ export const createWorldConnection = (
         onStateChange({ status: 'disconnected' });
     };
 
-    const sendTarget = (target: WorldPosition, isSprinting = false): void => {
+    const sendTarget = (target: WorldPosition, modifiers: MovementModifiers = {}): void => {
         if (!isReady || activeRoom === null) {
             return;
         }
 
         try {
-            const command = createMovementTarget(++sequence, target, isSprinting);
+            const command = createMovementTarget(++sequence, target, modifiers);
             activeRoom.send('movement-target', command);
             onCommandSent?.(command);
         } catch {

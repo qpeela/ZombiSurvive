@@ -95,7 +95,10 @@ test.each(['blur', 'hidden'])(
             documentEvents.dispatchEvent(new Event('visibilitychange'));
         }
 
-        expect(send).toHaveBeenLastCalledWith({ x: 0, y: 0 }, false);
+        expect(send).toHaveBeenLastCalledWith(
+            { x: 0, y: 0 },
+            { isSprinting: false, isSneaking: false },
+        );
         documentEvents.hidden = false;
         vi.advanceTimersByTime(1000);
         expect(send).toHaveBeenCalledTimes(2);
@@ -134,13 +137,19 @@ test('clicks coalesce at ten Hz, copy the destination and stop when the server r
     input.moveTo(target);
     target.xMeters = 999;
     vi.advanceTimersByTime(100);
-    expect(sendTarget).toHaveBeenLastCalledWith({ xMeters: -3, yMeters: 1.5 }, false);
+    expect(sendTarget).toHaveBeenLastCalledWith(
+        { xMeters: -3, yMeters: 1.5 },
+        { isSprinting: false, isSneaking: false },
+    );
     for (let index = 0; index < 50; index++) input.moveTo({ xMeters: 4, yMeters: -2 });
     vi.advanceTimersByTime(100);
     expect(sendTarget).toHaveBeenCalledTimes(2);
     input.updatePosition({ xMeters: 4, yMeters: -2 });
     vi.advanceTimersByTime(100);
-    expect(send).toHaveBeenLastCalledWith({ x: 0, y: 0 }, false);
+    expect(send).toHaveBeenLastCalledWith(
+        { x: 0, y: 0 },
+        { isSprinting: false, isSneaking: false },
+    );
     expect(onTargetChange).toHaveBeenLastCalledWith(null);
     vi.advanceTimersByTime(1000);
     expect(sendTarget).toHaveBeenCalledTimes(2);
@@ -156,11 +165,17 @@ test('WASD cancels a destination and a fresh click replaces held keyboard moveme
     vi.advanceTimersByTime(100);
     key('KeyW');
     vi.advanceTimersByTime(100);
-    expect(send).toHaveBeenLastCalledWith({ x: 0, y: -1 }, false);
+    expect(send).toHaveBeenLastCalledWith(
+        { x: 0, y: -1 },
+        { isSprinting: false, isSneaking: false },
+    );
     input.moveTo({ xMeters: -3, yMeters: 4 });
     key('KeyW', 'keyup');
     vi.advanceTimersByTime(100);
-    expect(sendTarget).toHaveBeenLastCalledWith({ xMeters: -3, yMeters: 4 }, false);
+    expect(sendTarget).toHaveBeenLastCalledWith(
+        { xMeters: -3, yMeters: 4 },
+        { isSprinting: false, isSneaking: false },
+    );
     expect(send).toHaveBeenCalledTimes(1);
     input.dispose();
 });
@@ -183,7 +198,10 @@ test.each(['blur', 'hidden', 'disconnect'])(
         documentEvents.hidden = false;
         input.setEnabled(true);
         vi.advanceTimersByTime(1000);
-        expect(send).toHaveBeenLastCalledWith({ x: 0, y: 0 }, false);
+        expect(send).toHaveBeenLastCalledWith(
+            { x: 0, y: 0 },
+            { isSprinting: false, isSneaking: false },
+        );
         expect(sendTarget).toHaveBeenCalledTimes(1);
         input.dispose();
         expect(vi.getTimerCount()).toBe(0);
@@ -202,6 +220,7 @@ test('prediction sees key changes, clicks and cancellation before the ten Hz net
     expect(onIntentChange).toHaveBeenLastCalledWith({
         type: 'direction',
         isSprinting: false,
+        isSneaking: false,
         direction: { x: 1, y: 0 },
     });
     expect(send).not.toHaveBeenCalled();
@@ -210,13 +229,18 @@ test('prediction sees key changes, clicks and cancellation before the ten Hz net
     expect(onIntentChange).toHaveBeenLastCalledWith({
         type: 'direction',
         isSprinting: false,
+        isSneaking: false,
         direction: { x: 0, y: 0 },
     });
-    expect(send).toHaveBeenLastCalledWith({ x: 0, y: 0 }, false);
+    expect(send).toHaveBeenLastCalledWith(
+        { x: 0, y: 0 },
+        { isSprinting: false, isSneaking: false },
+    );
     input.moveTo({ xMeters: 2, yMeters: 1 });
     expect(onIntentChange).toHaveBeenLastCalledWith({
         type: 'target',
         isSprinting: false,
+        isSneaking: false,
         target: { xMeters: 2, yMeters: 1 },
     });
     input.dispose();
@@ -234,21 +258,32 @@ test('both Shift keys update prediction immediately and do not cancel the mouse 
         type: 'direction',
         direction: { x: 1, y: 0 },
         isSprinting: true,
+        isSneaking: false,
     });
     expect(send).not.toHaveBeenCalled();
     vi.advanceTimersByTime(100);
-    expect(send).toHaveBeenLastCalledWith({ x: 1, y: 0 }, true);
+    expect(send).toHaveBeenLastCalledWith({ x: 1, y: 0 }, { isSprinting: true, isSneaking: false });
     const target = { xMeters: 3, yMeters: 4 };
     input.moveTo(target);
-    expect(onIntentChange).toHaveBeenLastCalledWith({ type: 'target', target, isSprinting: true });
+    expect(onIntentChange).toHaveBeenLastCalledWith({
+        type: 'target',
+        target,
+        isSprinting: true,
+        isSneaking: false,
+    });
     key('ShiftRight');
     key('ShiftLeft', 'keyup');
     vi.advanceTimersByTime(100);
-    expect(sendTarget).toHaveBeenLastCalledWith(target, true);
+    expect(sendTarget).toHaveBeenLastCalledWith(target, { isSprinting: true, isSneaking: false });
     key('ShiftRight', 'keyup');
-    expect(onIntentChange).toHaveBeenLastCalledWith({ type: 'target', target, isSprinting: false });
+    expect(onIntentChange).toHaveBeenLastCalledWith({
+        type: 'target',
+        target,
+        isSprinting: false,
+        isSneaking: false,
+    });
     vi.advanceTimersByTime(100);
-    expect(sendTarget).toHaveBeenLastCalledWith(target, false);
+    expect(sendTarget).toHaveBeenLastCalledWith(target, { isSprinting: false, isSneaking: false });
     input.dispose();
 });
 
@@ -272,13 +307,99 @@ test.each(['blur', 'hidden', 'disconnect'])(
             type: 'direction',
             direction: { x: 0, y: 0 },
             isSprinting: false,
+            isSneaking: false,
         });
-        expect(send).toHaveBeenLastCalledWith({ x: 0, y: 0 }, false);
+        expect(send).toHaveBeenLastCalledWith(
+            { x: 0, y: 0 },
+            { isSprinting: false, isSneaking: false },
+        );
         documentEvents.hidden = false;
         input.setEnabled(true);
         key('KeyD');
         vi.advanceTimersByTime(100);
-        expect(send).toHaveBeenLastCalledWith({ x: 1, y: 0 }, false);
+        expect(send).toHaveBeenLastCalledWith(
+            { x: 1, y: 0 },
+            { isSprinting: false, isSneaking: false },
+        );
+        input.dispose();
+    },
+);
+
+test('both Ctrl keys preserve a destination, accept Ctrl+W and heartbeat while crouched at rest', () => {
+    const send = vi.fn();
+    const sendTarget = vi.fn();
+    const onIntentChange = vi.fn();
+    const input = createMovementInputController(send, { sendTarget, onIntentChange });
+    input.setEnabled(true);
+    key('ControlLeft');
+    vi.advanceTimersByTime(1000);
+    expect(send).toHaveBeenCalledTimes(10);
+    expect(send).toHaveBeenLastCalledWith({ x: 0, y: 0 }, { isSprinting: false, isSneaking: true });
+    // Actual browser key events carry ctrlKey on WASD, including Ctrl+W/A/D.
+    const event = Object.assign(new Event('keydown', { cancelable: true }), {
+        code: 'KeyW',
+        ctrlKey: true,
+        altKey: false,
+        metaKey: false,
+        repeat: false,
+    });
+    windowEvents.dispatchEvent(event);
+    expect(event.defaultPrevented).toBe(true);
+    expect(onIntentChange).toHaveBeenLastCalledWith({
+        type: 'direction',
+        direction: { x: 0, y: -1 },
+        isSprinting: false,
+        isSneaking: true,
+    });
+    const target = { xMeters: 3, yMeters: 4 };
+    input.moveTo(target);
+    key('ShiftLeft');
+    key('ControlRight');
+    key('ControlLeft', 'keyup');
+    vi.advanceTimersByTime(100);
+    expect(sendTarget).toHaveBeenLastCalledWith(target, { isSprinting: true, isSneaking: true });
+    key('ControlRight', 'keyup');
+    expect(onIntentChange).toHaveBeenLastCalledWith({
+        type: 'target',
+        target,
+        isSprinting: true,
+        isSneaking: false,
+    });
+    input.dispose();
+});
+
+test.each(['blur', 'hidden', 'disconnect', 'dispose'])(
+    '%s clears idle stealth and cannot resume it',
+    reason => {
+        const send = vi.fn();
+        const onIntentChange = vi.fn();
+        const input = createMovementInputController(send, { onIntentChange });
+        input.setEnabled(true);
+        key('ControlLeft');
+        key('ControlRight');
+        vi.advanceTimersByTime(100);
+        if (reason === 'blur') windowEvents.dispatchEvent(new Event('blur'));
+        if (reason === 'hidden') {
+            documentEvents.hidden = true;
+            documentEvents.dispatchEvent(new Event('visibilitychange'));
+        }
+        if (reason === 'disconnect') input.setEnabled(false);
+        if (reason === 'dispose') input.dispose();
+        expect(send).toHaveBeenLastCalledWith(
+            { x: 0, y: 0 },
+            { isSprinting: false, isSneaking: false },
+        );
+        expect(onIntentChange).toHaveBeenLastCalledWith({
+            type: 'direction',
+            direction: { x: 0, y: 0 },
+            isSprinting: false,
+            isSneaking: false,
+        });
+        documentEvents.hidden = false;
+        input.setEnabled(true);
+        const count = send.mock.calls.length;
+        vi.advanceTimersByTime(1000);
+        expect(send).toHaveBeenCalledTimes(count);
         input.dispose();
     },
 );

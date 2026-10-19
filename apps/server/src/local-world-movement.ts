@@ -38,6 +38,7 @@ type PlayerInput = {
     target: WorldPosition | null;
     lastInputTick: number;
     isSprinting: boolean;
+    isSneaking: boolean;
 };
 
 // Transport callbacks only stage intentions. Position and acknowledgements change on step().
@@ -65,10 +66,13 @@ export class LocalWorldMovement {
                     playerId,
                     stamina: 1,
                     isExhausted: false,
+                    isSneaking: false,
+                    noiseRadiusMeters: 0,
                     position: { xMeters: this.players.size * 2, yMeters: 0 },
                 },
                 controllerId: null,
                 isSprinting: false,
+                isSneaking: false,
                 direction: { x: 0, y: 0 },
                 target: null,
                 lastInputTick: this.tick,
@@ -132,13 +136,16 @@ export class LocalWorldMovement {
                 command.direction.y !== 0;
             const isController = player.controllerId === sessionId;
 
-            if (isMoving || isController) {
-                player.controllerId = isMoving ? sessionId : null;
+            const isActive = isMoving || command.isSneaking;
+
+            if (isActive || isController) {
+                player.controllerId = isActive ? sessionId : null;
                 player.direction =
                     command.type === 'movement-input' ? command.direction : { x: 0, y: 0 };
                 player.target = command.type === 'movement-target' ? command.target : null;
                 player.lastInputTick = this.tick;
                 player.isSprinting = command.isSprinting;
+                player.isSneaking = command.isSneaking;
             }
 
             session.lastProcessedSequence = command.sequence;
@@ -155,6 +162,7 @@ export class LocalWorldMovement {
             if (!isControllerPresent || isInputExpired) {
                 player.controllerId = null;
                 player.isSprinting = false;
+                player.isSneaking = false;
                 player.direction = { x: 0, y: 0 };
                 player.target = null;
             }
@@ -164,24 +172,31 @@ export class LocalWorldMovement {
                     player.player,
                     player.target,
                     movementStepSeconds,
-                    player.isSprinting,
+                    player,
                 );
             } else {
                 player.player = stepPlayerMovement(
                     player.player,
                     player.direction,
                     movementStepSeconds,
-                    player.isSprinting,
+                    player,
                 );
             }
 
+            const position = resolveMovement(
+                previousPosition,
+                player.player.position,
+                prototypeObstacles,
+            );
+            const hasMoved =
+                Math.hypot(
+                    position.xMeters - previousPosition.xMeters,
+                    position.yMeters - previousPosition.yMeters,
+                ) > 0.000001;
             player.player = {
                 ...player.player,
-                position: resolveMovement(
-                    previousPosition,
-                    player.player.position,
-                    prototypeObstacles,
-                ),
+                position,
+                noiseRadiusMeters: hasMoved ? player.player.noiseRadiusMeters : 0,
             };
         }
     }
