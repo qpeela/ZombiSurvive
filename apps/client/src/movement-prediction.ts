@@ -1,4 +1,3 @@
-import { prototypeObstacles } from '@zombi-survive/content';
 import type { MovementDirection, PlayerMovementState, WorldPosition } from '@zombi-survive/domain';
 import type {
     MovementInputCommand,
@@ -11,6 +10,7 @@ import {
     stepPlayerMovement,
     stepPlayerToward,
 } from '@zombi-survive/simulation';
+import { initialWorldChunk } from '@zombi-survive/worldgen';
 
 export type MovementIntent =
     | {
@@ -240,7 +240,7 @@ export class MovementPrediction {
                     player.position.yMeters +
                     (next.position.yMeters - player.position.yMeters) * fraction,
             };
-            const position = resolveMovement(player.position, desired, prototypeObstacles);
+            const position = resolveMovement(player.position, desired, initialWorldChunk.obstacles);
             const hasMoved =
                 Math.hypot(
                     position.xMeters - player.position.xMeters,

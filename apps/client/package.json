@@ -15,7 +15,8 @@
     "@zombi-survive/domain": "0.0.0",
     "@zombi-survive/protocol": "0.0.0",
     "phaser": "4.2.1",
-    "@zombi-survive/simulation": "0.0.0"
+    "@zombi-survive/simulation": "0.0.0",
+    "@zombi-survive/worldgen": "0.0.0"
   },
   "devDependencies": {
     "vite": "8.3.4"

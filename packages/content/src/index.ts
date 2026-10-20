@@ -1,2 +1,3 @@
 export { movementSettings } from './movement.ts';
-export { collisionSettings, prototypeObstacles } from './obstacles.ts';
+export { collisionSettings, startingRuins } from './obstacles.ts';
+export { worldGenerationSettings } from './world-generation.ts';
