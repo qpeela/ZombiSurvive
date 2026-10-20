@@ -641,7 +641,9 @@ blur/reload; скриншот HUD осмотрен. Unit проверяют ст
 
 ## T011 — один процедурный чанк
 
-Статус: CI_PENDING. DONE только после успешного CI финального коммита и слияния PR.
+Статус: DONE после слияния [PR #16](https://github.com/qpeela/ZombiSurvive/pull/16);
+пока PR открыт — CI_PENDING. Пользователь поручил слияние после успешного
+CI финального коммита.
 Зависимости T007 и T010 выполнены: PR #12 и #15 слиты.
 Ветка: codex/t011-procedural-chunk от origin/main (9b34d59).
 
@@ -674,7 +676,8 @@ blur/reload; скриншот HUD осмотрен. Unit проверяют ст
 .cache/t011-world-origin.png и .cache/t011-procedural-rock.png осматриваются,
 в Git не включены; оба осмотрены. npm run check прошёл: 233 теста без skipped
 (172 unit + 17 tooling + 17 контрактных + 27 smoke), семь сборок, formatter/lint,
-типы и граф. git diff --check проходит. Ожидаются публикация PR и финальный CI.
+типы и граф. git diff --check проходит. PR #16 опубликован; необходимо дождаться
+успешного Quality финального коммита и выполнить слияние.
 
 ## Дальнейшая очередь
 
