@@ -1,6 +1,7 @@
-import { collisionSettings, prototypeObstacles } from '@zombi-survive/content';
+import { collisionSettings } from '@zombi-survive/content';
 import type { WorldObstacle, WorldPosition } from '@zombi-survive/domain';
 import { resolveMovement } from '@zombi-survive/simulation';
+import { initialWorldChunk } from '@zombi-survive/worldgen';
 import { expect, test } from 'vitest';
 
 const wall: WorldObstacle = Object.freeze({
@@ -117,9 +118,9 @@ test('negative-coordinate obstacles and repeated contact do not drift or mutate 
     expect(negative.minXMeters).toBe(-3);
 });
 
-test('all prototype spawn points are outside geometry and content is immutable', () => {
-    expect(Object.isFrozen(prototypeObstacles)).toBe(true);
-    for (const box of prototypeObstacles) {
+test('all generated spawn points are outside geometry and content is immutable', () => {
+    expect(Object.isFrozen(initialWorldChunk.obstacles)).toBe(true);
+    for (const box of initialWorldChunk.obstacles) {
         expect(Object.isFrozen(box)).toBe(true);
         expect(box.maxXMeters).toBeGreaterThan(box.minXMeters);
         expect(box.maxYMeters).toBeGreaterThan(box.minYMeters);
@@ -131,17 +132,19 @@ test('all prototype spawn points are outside geometry and content is immutable',
 test('deterministic sweeps never enter rectangles, accelerate, or depend on array order', () => {
     for (let index = 0; index < 500; index++) {
         const start = position((index % 25) * 0.4 - 5, Math.floor(index / 25) * 0.4 - 4);
-        if (prototypeObstacles.some(box => isOverlapping(start, box))) continue;
+        if (initialWorldChunk.obstacles.some(box => isOverlapping(start, box))) continue;
         const angle = index * 2.399963229728653;
         const desired = position(
             start.xMeters + Math.cos(angle) * 0.2,
             start.yMeters + Math.sin(angle) * 0.2,
         );
-        const next = resolveMovement(start, desired, prototypeObstacles);
-        expect(prototypeObstacles.some(box => isOverlapping(next, box))).toBe(false);
+        const next = resolveMovement(start, desired, initialWorldChunk.obstacles);
+        expect(initialWorldChunk.obstacles.some(box => isOverlapping(next, box))).toBe(false);
         expect(
             Math.hypot(next.xMeters - start.xMeters, next.yMeters - start.yMeters),
         ).toBeLessThanOrEqual(0.2000000001);
-        expect(resolveMovement(start, desired, [...prototypeObstacles].reverse())).toEqual(next);
+        expect(resolveMovement(start, desired, [...initialWorldChunk.obstacles].reverse())).toEqual(
+            next,
+        );
     }
 });

@@ -2,8 +2,8 @@ import type { WorldObstacle } from '@zombi-survive/domain';
 
 export const collisionSettings = Object.freeze({ playerHalfSizeMeters: 0.35 });
 
-// A small static level for the collision prototype; world generation replaces it later.
-export const prototypeObstacles: readonly WorldObstacle[] = Object.freeze([
+// Authored starting ruins, translated into each generated chunk.
+export const startingRuins: readonly WorldObstacle[] = Object.freeze([
     Object.freeze({
         id: 'east-wall',
         minXMeters: 5,

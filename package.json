@@ -25,7 +25,7 @@
     "test:tooling": "node --test tests/tooling/*.test.mjs",
     "test:smoke": "playwright test",
     "build:contracts": "npm run build --workspace @zombi-survive/domain && npm run build --workspace @zombi-survive/protocol",
-    "build:core": "npm run build:contracts && npm run build --workspace @zombi-survive/content && npm run build --workspace @zombi-survive/simulation",
+    "build:core": "npm run build:contracts && npm run build --workspace @zombi-survive/content && npm run build --workspace @zombi-survive/simulation && npm run build --workspace @zombi-survive/worldgen",
     "test:unit": "vitest run"
   },
   "devDependencies": {

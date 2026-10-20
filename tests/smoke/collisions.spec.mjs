@@ -57,7 +57,7 @@ test('visible walls block WASD and clicks; sliding and manual waypoints lead aro
             .locator('canvas')
             .evaluate(canvas => JSON.parse(canvas.dataset.obstacles));
         expect(obstacles).toContainEqual({
-            id: 'east-wall',
+            id: 'v1:0:0:east-wall',
             minXMeters: 5,
             minYMeters: -3,
             maxXMeters: 5.5,

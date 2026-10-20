@@ -15,6 +15,7 @@
     "@zombi-survive/content": "0.0.0",
     "@zombi-survive/domain": "0.0.0",
     "@zombi-survive/protocol": "0.0.0",
-    "@zombi-survive/simulation": "0.0.0"
+    "@zombi-survive/simulation": "0.0.0",
+    "@zombi-survive/worldgen": "0.0.0"
   }
 }

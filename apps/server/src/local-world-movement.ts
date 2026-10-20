@@ -1,4 +1,3 @@
-import { prototypeObstacles } from '@zombi-survive/content';
 import type {
     MovementDirection,
     PlayerMovementState,
@@ -17,6 +16,7 @@ import {
     stepPlayerMovement,
     stepPlayerToward,
 } from '@zombi-survive/simulation';
+import { initialWorldChunk } from '@zombi-survive/worldgen';
 
 import {
     createMovementSnapshot,
@@ -186,7 +186,7 @@ export class LocalWorldMovement {
             const position = resolveMovement(
                 previousPosition,
                 player.player.position,
-                prototypeObstacles,
+                initialWorldChunk.obstacles,
             );
             const hasMoved =
                 Math.hypot(
