@@ -8,6 +8,9 @@ dist/
 *.tsbuildinfo
 .vite/
 .cache/
+.local/
+*.sqlite
+*.sqlite-*
 
 # Local environment files (keep templates)
 .env

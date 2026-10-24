@@ -51,10 +51,22 @@ export class LocalWorldMovement {
     private readonly soloPlayerId: string;
     private readonly worldId: WorldId;
     private chunks: readonly WorldChunk[] = [];
+    private readonly initialPosition: WorldPosition;
 
-    constructor(worldId: WorldId, playerId: string) {
+    constructor(
+        worldId: WorldId,
+        playerId: string,
+        position: WorldPosition = { xMeters: 0, yMeters: 0 },
+    ) {
         this.worldId = worldId;
         this.soloPlayerId = playerId;
+        this.initialPosition = { ...position };
+    }
+
+    soloPosition(): WorldPosition {
+        return {
+            ...(this.players.get(this.soloPlayerId)?.player.position ?? this.initialPosition),
+        };
     }
 
     join(sessionId: string, playerId = this.soloPlayerId): void {
@@ -70,7 +82,10 @@ export class LocalWorldMovement {
                     isExhausted: false,
                     isSneaking: false,
                     noiseRadiusMeters: 0,
-                    position: { xMeters: this.players.size * 2, yMeters: 0 },
+                    position:
+                        playerId === this.soloPlayerId
+                            ? { ...this.initialPosition }
+                            : { xMeters: this.players.size * 2, yMeters: 0 },
                 },
                 controllerId: null,
                 isSprinting: false,

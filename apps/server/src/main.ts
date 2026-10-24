@@ -1,6 +1,9 @@
+import { fileURLToPath } from 'node:url';
+
 import { readHostAddress } from './host-address.ts';
 import { createInvitationFile } from './invitation-file.ts';
 import { startLocalServer } from './local-server.ts';
+import { SoloWorldStore } from './solo-world-store.ts';
 import { WorldAccess } from './world-access.ts';
 
 const port = Number(process.env['PORT'] ?? '3001');
@@ -23,14 +26,21 @@ if (isDevelopment && isCooperative) {
 
 const serverOrigin = `http://${host}:${String(port)}`;
 const defaultClientOrigin = isDevelopment ? 'http://127.0.0.1:5173' : serverOrigin;
-const access = new WorldAccess(isCooperative, port);
+const soloStore = isCooperative
+    ? undefined
+    : new SoloWorldStore(
+          process.env['WORLD_SAVE_PATH'] ??
+              fileURLToPath(new URL('../../../.local/solo.sqlite', import.meta.url)),
+      );
+const access = new WorldAccess(isCooperative, port, Date.now(), soloStore?.initialWorld.playerId);
 const invitationFile = isCooperative ? await createInvitationFile(access, serverOrigin) : null;
 const server = await startLocalServer(
     port,
     process.env['CLIENT_ORIGIN'] ?? defaultClientOrigin,
     isDevelopment ? undefined : new URL('../../client/dist/', import.meta.url),
-    { host, access },
+    { host, access, ...(soloStore === undefined ? {} : { soloStore }) },
 ).catch(async (error: unknown) => {
+    soloStore?.close();
     await invitationFile?.cleanup();
 
     throw error;
