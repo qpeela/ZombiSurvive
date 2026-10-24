@@ -59,8 +59,8 @@ test('held transport shows predicted input before acknowledgement and reconciles
 
     try {
         await expect.poll(() => output).toContain('Local world ready');
-        // A controlled gate preserves packet order and makes the pre-ack assertion
-        // independent of machine speed. No real network latency is assumed.
+        // Hold only outgoing input: fresh authority snapshots must not spend the
+        // 500 ms prediction horizon while the test prepares a click. Input is still unacked.
         await page.routeWebSocket('**', socket => {
             const server = socket.connectToServer();
             const forward = (destination, message) => {
@@ -68,7 +68,7 @@ test('held transport shows predicted input before acknowledgement and reconciles
                 else destination.send(message);
             };
             socket.onMessage(message => forward(server, message));
-            server.onMessage(message => forward(socket, message));
+            server.onMessage(message => socket.send(message));
         });
         await page.addInitScript(() => {
             const Socket = globalThis.WebSocket;

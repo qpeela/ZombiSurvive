@@ -10,6 +10,7 @@ const state = page =>
         tick: Number(element.dataset.tick),
         stamina: Number(element.dataset.stamina),
         isExhausted: element.dataset.exhausted === 'true',
+        noise: Number(element.dataset.noiseRadius),
     }));
 
 const measureSpeed = async (page, metersPerTick) => {
@@ -45,12 +46,24 @@ test('Shift sprints, exhausts, recovers, and supports clicks and reload in the h
         await expect.poll(async () => (await state(page)).stamina).toBeLessThan(0.99);
         await measureSpeed(page, 0.35);
         await expect
-            .poll(async () => (await state(page)).isExhausted, { timeout: 10000 })
-            .toBe(true);
+            .poll(
+                async () => {
+                    const current = await state(page);
+                    return { isExhausted: current.isExhausted, noise: current.noise };
+                },
+                { timeout: 10000 },
+            )
+            .toEqual({ isExhausted: true, noise: 8 });
         await expect(page.locator('#stamina-label')).toContainText('Восстановление до 20%');
-        await measureSpeed(page, 0.2);
+        // A held Shift would resume sprint after recovery during the measurement.
+        // Observe a stopped snapshot before starting a fresh, unmodified walk.
         await page.keyboard.up('w');
         await page.keyboard.up('Shift');
+        await expect.poll(async () => (await state(page)).noise).toBe(0);
+        await page.keyboard.down('w');
+        await expect.poll(async () => (await state(page)).noise).toBe(8);
+        await measureSpeed(page, 0.2);
+        await page.keyboard.up('w');
         const exhausted = await state(page);
         await expect
             .poll(async () => (await state(page)).stamina)

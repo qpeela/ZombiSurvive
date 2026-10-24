@@ -1,6 +1,7 @@
 import type {
     MovementDirection,
     PlayerMovementState,
+    WorldChunk,
     WorldId,
     WorldPosition,
 } from '@zombi-survive/domain';
@@ -16,7 +17,7 @@ import {
     stepPlayerMovement,
     stepPlayerToward,
 } from '@zombi-survive/simulation';
-import { initialWorldChunk } from '@zombi-survive/worldgen';
+import { loadWorldChunks } from '@zombi-survive/worldgen';
 
 import {
     createMovementSnapshot,
@@ -49,6 +50,7 @@ export class LocalWorldMovement {
     private readonly players = new Map<string, PlayerInput>();
     private readonly soloPlayerId: string;
     private readonly worldId: WorldId;
+    private chunks: readonly WorldChunk[] = [];
 
     constructor(worldId: WorldId, playerId: string) {
         this.worldId = worldId;
@@ -152,6 +154,12 @@ export class LocalWorldMovement {
             session.pending = null;
         }
 
+        this.chunks = loadWorldChunks({
+            positions: [...this.players.values()].map(input => input.player.position),
+            previousChunks: this.chunks,
+        });
+        const obstacles = this.chunks.flatMap(chunk => chunk.obstacles);
+
         for (const player of this.players.values()) {
             const previousPosition = player.player.position;
             const isControllerPresent =
@@ -183,11 +191,7 @@ export class LocalWorldMovement {
                 );
             }
 
-            const position = resolveMovement(
-                previousPosition,
-                player.player.position,
-                initialWorldChunk.obstacles,
-            );
+            const position = resolveMovement(previousPosition, player.player.position, obstacles);
             const hasMoved =
                 Math.hypot(
                     position.xMeters - previousPosition.xMeters,
