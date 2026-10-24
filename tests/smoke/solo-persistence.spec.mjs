@@ -134,19 +134,21 @@ test('periodic checkpoint survives SIGKILL and a second host cannot overwrite th
         room = await client.joinById(localWorldRoomId);
         room.reconnection.enabled = false;
         room.onMessage('movement-snapshot', () => undefined);
+        // A one-step move has no intermediate saved position. Observe the file before sending
+        // it so an already completed checkpoint cannot make this wait for another dirty write.
+        const modified = statSync(path, { bigint: true }).mtimeNs;
         room.send('movement-target', {
             type: 'movement-target',
             protocolVersion: 5,
             sequence: 1,
-            target: { xMeters: 0, yMeters: -1 },
+            target: { xMeters: 0, yMeters: -0.1 },
             isSprinting: false,
             isSneaking: false,
         });
         await expect
             .poll(async () => (await room.request(initialStateRequest)).player.position.yMeters)
-            .toBe(-1);
+            .toBe(-0.1);
         const saved = await room.request(initialStateRequest);
-        const modified = statSync(path, { bigint: true }).mtimeNs;
         await expect.poll(() => statSync(path, { bigint: true }).mtimeNs > modified).toBe(true);
         // The request runs after the synchronous checkpoint commits, before killing the host.
         await room.request(initialStateRequest);
