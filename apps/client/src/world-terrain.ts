@@ -29,6 +29,7 @@ export class WorldTerrain {
         });
 
         if (chunks === this.chunks) {
+            this.updateVisibility(position);
             return;
         }
 
@@ -73,10 +74,41 @@ export class WorldTerrain {
         } else {
             canvas.dataset['worldChunk'] = JSON.stringify(chunkMetadata(center));
         }
+
+        this.updateVisibility(position);
     }
 
     destroy(): void {
         this.update(null);
+    }
+
+    private updateVisibility(position: WorldPosition | null): void {
+        if (position === null) {
+            // Phaser may have shut down CameraManager before the scene's cleanup callback.
+            this.scene.game.canvas.dataset['visibleWorldChunkCount'] = '0';
+
+            return;
+        }
+
+        const camera = this.scene.cameras.main;
+        const halfWidthMeters = camera.width / (2 * pixelsPerMeter * camera.zoom);
+        const halfHeightMeters = camera.height / (2 * pixelsPerMeter * camera.zoom);
+
+        for (const chunk of this.chunks) {
+            const isInsideX =
+                chunk.minXMeters <= position.xMeters + halfWidthMeters &&
+                chunk.minXMeters + chunk.sizeMeters >= position.xMeters - halfWidthMeters;
+            const isInsideY =
+                chunk.minYMeters <= position.yMeters + halfHeightMeters &&
+                chunk.minYMeters + chunk.sizeMeters >= position.yMeters - halfHeightMeters;
+            const isInView = isInsideX && isInsideY;
+            // Graphics replays its command buffer every frame, even outside the viewport.
+            this.graphics.get(chunkId(chunk))?.setVisible(isInView);
+        }
+
+        this.scene.game.canvas.dataset['visibleWorldChunkCount'] = String(
+            [...this.graphics.values()].filter(graphics => graphics.visible).length,
+        );
     }
 
     private drawChunk(chunk: WorldChunk): GameObjects.Graphics {

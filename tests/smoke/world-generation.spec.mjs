@@ -130,9 +130,13 @@ test('crossing two seams releases distant chunks and reload restores the same co
         await expect(canvas).toHaveAttribute('data-player-visible', 'true');
         const initial = JSON.parse(await canvas.getAttribute('data-world-chunks'));
         expect(initial).toHaveLength(9);
+        await expect(canvas).toHaveAttribute('data-visible-world-chunk-count', '1');
         await arrive(page, 0, -10);
         await page.keyboard.down('d');
         try {
+            await expect(canvas).toHaveAttribute('data-visible-world-chunk-count', '2', {
+                timeout: 10000,
+            });
             await expect
                 .poll(async () => (await position(page)).x, { timeout: 35000 })
                 .toBeGreaterThan(100);
@@ -157,6 +161,7 @@ test('crossing two seams releases distant chunks and reload restores the same co
         await arrive(page, 115, -10);
         await arrive(page, 128, -10);
         await arrive(page, 128, 0);
+        await expect(canvas).toHaveAttribute('data-visible-world-chunk-count', '1');
         await clickWorld(page, 138, 0);
         const boundary = 128 + 5 - collisionSettings.playerHalfSizeMeters;
         await expect.poll(async () => (await position(page)).x).toBeCloseTo(boundary, 8);
@@ -184,5 +189,6 @@ test('crossing two seams releases distant chunks and reload restores the same co
         await expect(canvas).toHaveAttribute('data-player-visible', 'false');
         await expect(canvas).toHaveAttribute('data-world-chunks', '[]');
         await expect(canvas).toHaveAttribute('data-obstacles', '[]');
+        await expect(canvas).toHaveAttribute('data-visible-world-chunk-count', '0');
     });
 });
