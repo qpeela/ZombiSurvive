@@ -733,7 +733,8 @@ Quality финального коммита и слияние по поруче�
 
 ## T013 — сохранение позиции solo-персонажа
 
-Статус: IN_PROGRESS; реализация и локальные проверки готовы.
+Статус в main после слияния [PR #18](https://github.com/qpeela/ZombiSurvive/pull/18):
+DONE; пока PR открыт — CI_PENDING. Реализация и локальные проверки готовы.
 Зависимости T005/T012 выполнены; PR #17 слит (885378d).
 Ветка: codex/t013-position-persistence от origin/main (885378d).
 
@@ -771,7 +772,7 @@ git diff --check и Quality финального коммита проходят
 **Результат:** полный npm run check прошёл: 281 тест без skipped
 (215 unit + 17 tooling + 18 контрактных + 31 smoke), семь сборок, formatter/lint,
 типы и граф. Новые restart/SIGKILL/error-сценарии также прошли отдельно.
-Markdown-ссылки и git diff --check проходят. Далее — отдельный PR, Quality
+Markdown-ссылки и git diff --check проходят. PR #18 опубликован; требуется Quality
 финального коммита и слияние по поручению пользователя.
 
 ## Дальнейшая очередь
