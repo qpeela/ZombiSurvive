@@ -1,4 +1,9 @@
-import type { MovementDirection, PlayerMovementState, WorldPosition } from '@zombi-survive/domain';
+import type {
+    MovementDirection,
+    PlayerMovementState,
+    WorldChunk,
+    WorldPosition,
+} from '@zombi-survive/domain';
 import type {
     MovementInputCommand,
     MovementSnapshot,
@@ -10,7 +15,7 @@ import {
     stepPlayerMovement,
     stepPlayerToward,
 } from '@zombi-survive/simulation';
-import { initialWorldChunk } from '@zombi-survive/worldgen';
+import { loadWorldChunks } from '@zombi-survive/worldgen';
 
 export type MovementIntent =
     | {
@@ -80,6 +85,7 @@ export class MovementPrediction {
     private acknowledged: InputEntry | null = null;
     private pending: InputEntry[] = [];
     private isSuspended = false;
+    private chunks: readonly WorldChunk[] = [];
 
     reset(): void {
         this.snapshot = null;
@@ -87,6 +93,7 @@ export class MovementPrediction {
         this.acknowledged = null;
         this.oneWayMs = 0;
         this.isSuspended = false;
+        this.chunks = [];
     }
 
     setIntent(intent: MovementIntent, nowMs: number): void {
@@ -196,6 +203,11 @@ export class MovementPrediction {
         const leadMs = Math.max(this.oneWayMs, pendingAgeMs, 0);
         const startMs = this.receivedAtMs - leadMs;
         const endMs = Math.min(nowMs, startMs + horizonMs);
+        this.chunks = loadWorldChunks({
+            positions: [snapshot.player.position],
+            previousChunks: this.chunks,
+        });
+        const obstacles = this.chunks.flatMap(chunk => chunk.obstacles);
         let player = snapshot.player;
         let intent = this.acknowledged?.intent ?? stopped;
         let refreshedAtMs = this.acknowledged?.sentAtMs ?? -Infinity;
@@ -240,7 +252,7 @@ export class MovementPrediction {
                     player.position.yMeters +
                     (next.position.yMeters - player.position.yMeters) * fraction,
             };
-            const position = resolveMovement(player.position, desired, initialWorldChunk.obstacles);
+            const position = resolveMovement(player.position, desired, obstacles);
             const hasMoved =
                 Math.hypot(
                     position.xMeters - player.position.xMeters,

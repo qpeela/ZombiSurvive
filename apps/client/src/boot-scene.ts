@@ -1,6 +1,7 @@
 import type { PlayerMovementState, WorldPosition } from '@zombi-survive/domain';
-import { initialWorldChunk } from '@zombi-survive/worldgen';
 import { type GameObjects, type Input, Scene } from 'phaser';
+
+import { WorldTerrain } from './world-terrain';
 
 const pixelsPerMeter = 24;
 
@@ -9,6 +10,7 @@ export class BootScene extends Scene {
     private marker: GameObjects.Container | null = null;
     private otherPlayers: readonly PlayerMovementState[] = [];
     private readonly otherMarkers = new Map<string, GameObjects.Container>();
+    private terrain: WorldTerrain | null = null;
 
     private grid: GameObjects.Graphics | null = null;
     private aim: GameObjects.Graphics | null = null;
@@ -23,51 +25,8 @@ export class BootScene extends Scene {
     }
 
     create(): void {
-        const terrain = this.add.graphics().setDepth(-2);
-        const terrainColors = { grass: 0x23372a, dirt: 0x3d392b, gravel: 0x38413b };
-        const tilePixels = initialWorldChunk.tileSizeMeters * pixelsPerMeter;
-
-        for (const tile of initialWorldChunk.terrain) {
-            const x = 480 + tile.xMeters * pixelsPerMeter;
-            const y = 270 + tile.yMeters * pixelsPerMeter;
-            terrain.fillStyle(terrainColors[tile.kind]).fillRect(x, y, tilePixels, tilePixels);
-            terrain.fillStyle(0x718065, 0.25).fillRect(x + 8, y + 12, 3, 3);
-            terrain.fillStyle(0x101c15, 0.3).fillRect(x + 30, y + 32, 6, 2);
-        }
-
-        terrain
-            .lineStyle(2, 0x7a8962, 0.6)
-            .strokeRect(
-                480 + initialWorldChunk.minXMeters * pixelsPerMeter,
-                270 + initialWorldChunk.minYMeters * pixelsPerMeter,
-                initialWorldChunk.sizeMeters * pixelsPerMeter,
-                initialWorldChunk.sizeMeters * pixelsPerMeter,
-            );
-        this.game.canvas.dataset['worldChunk'] = JSON.stringify({
-            seed: initialWorldChunk.seed,
-            generatorVersion: initialWorldChunk.generatorVersion,
-            chunkX: initialWorldChunk.chunkX,
-            chunkY: initialWorldChunk.chunkY,
-            terrainTileCount: initialWorldChunk.terrain.length,
-        });
+        this.terrain = new WorldTerrain(this);
         this.grid = this.add.graphics();
-        const obstacles = this.add.graphics();
-
-        for (const obstacle of initialWorldChunk.obstacles) {
-            const x = 480 + obstacle.minXMeters * pixelsPerMeter;
-            const y = 270 + obstacle.minYMeters * pixelsPerMeter;
-            const width = (obstacle.maxXMeters - obstacle.minXMeters) * pixelsPerMeter;
-            const height = (obstacle.maxYMeters - obstacle.minYMeters) * pixelsPerMeter;
-            obstacles
-                .fillStyle(0x465147)
-                .fillRect(x, y, width, height)
-                .lineStyle(2, 0x879779)
-                .strokeRect(x, y, width, height)
-                .lineStyle(2, 0x253529)
-                .lineBetween(x + 3, y + height - 3, x + width - 3, y + height - 3);
-        }
-
-        this.game.canvas.dataset['obstacles'] = JSON.stringify(initialWorldChunk.obstacles);
         this.aim = this.add
             .graphics()
             .lineStyle(2, 0xe3bb70)
@@ -118,6 +77,8 @@ export class BootScene extends Scene {
         this.events.once('shutdown', () => {
             this.input.off('pointerdown', onPointerDown);
             this.game.canvas.removeEventListener('contextmenu', onContextMenu);
+            this.terrain?.destroy();
+            this.terrain = null;
             this.grid = null;
             this.aim = null;
             this.crosshair = null;
@@ -217,6 +178,7 @@ export class BootScene extends Scene {
             return;
         }
 
+        this.terrain?.update(player?.position ?? null);
         this.marker.setVisible(player !== null);
         this.game.canvas.dataset['playerVisible'] = String(player !== null);
 
