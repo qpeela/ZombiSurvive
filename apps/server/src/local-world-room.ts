@@ -5,21 +5,48 @@ import { movementSettings } from '@zombi-survive/content';
 import { initialStateRequest, localWorldRoomId } from '@zombi-survive/protocol';
 
 import { LocalWorldMovement } from './local-world-movement.ts';
+import type { SoloWorldStore } from './solo-world-store.ts';
 import type { WorldAccess } from './world-access.ts';
 
 export class LocalWorldRoom extends Room {
     private movement: LocalWorldMovement | null = null;
     private access: WorldAccess | null = null;
+    private saveTimer: ReturnType<typeof setInterval> | undefined;
+    private isStopping = false;
+    private save: (() => void) | undefined;
 
-    override onCreate(options: { access: WorldAccess }): void {
+    override onCreate(options: {
+        access: WorldAccess;
+        soloStore?: SoloWorldStore;
+        onSaveError: (error: unknown) => void;
+    }): void {
         this.roomId = localWorldRoomId;
         this.autoDispose = false;
         this.maxMessagesPerSecond = 20;
         this.maxClients = 16;
         this.access = options.access;
 
-        const movement = new LocalWorldMovement(randomUUID(), options.access.soloPlayerId);
+        const saved = options.soloStore?.initialWorld;
+        const movement = new LocalWorldMovement(
+            saved?.worldId ?? randomUUID(),
+            options.access.soloPlayerId,
+            saved?.position,
+        );
         this.movement = movement;
+
+        if (options.soloStore !== undefined) {
+            const store = options.soloStore;
+            this.save = () => {
+                try {
+                    store.savePosition(movement.soloPosition());
+                } catch (error) {
+                    this.isStopping = true;
+                    clearInterval(this.saveTimer);
+                    options.onSaveError(error);
+                }
+            };
+            this.saveTimer = setInterval(this.save, 1000);
+        }
 
         this.onMessage(initialStateRequest, client => movement.snapshot(client.sessionId));
         this.onMessage<unknown>('movement-input', (client, value) => {
@@ -29,6 +56,10 @@ export class LocalWorldRoom extends Room {
             movement.receive(client.sessionId, value);
         });
         this.setTimestep(() => {
+            if (this.isStopping) {
+                return;
+            }
+
             movement.step();
 
             for (const client of this.clients) {
@@ -53,5 +84,19 @@ export class LocalWorldRoom extends Room {
 
     override onLeave(client: Client): void {
         this.movement?.leave(client.sessionId);
+    }
+
+    override onBeforeShutdown(): void {
+        if (!this.isStopping) {
+            this.isStopping = true;
+            this.save?.();
+        }
+
+        clearInterval(this.saveTimer);
+        super.onBeforeShutdown();
+    }
+
+    override onDispose(): void {
+        clearInterval(this.saveTimer);
     }
 }

@@ -22,7 +22,7 @@ export default defineConfig({
             gracefulShutdown: { signal: 'SIGTERM', timeout: 5000 },
         },
         {
-            command: 'npm start',
+            command: 'node tests/fixtures/solo-host.mjs',
             url: 'http://127.0.0.1:3101/health',
             env: { PORT: '3101', CLIENT_ORIGIN: 'http://127.0.0.1:4173' },
             name: 'server',

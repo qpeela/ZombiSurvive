@@ -13,16 +13,23 @@ import { localWorldRoomId } from '@zombi-survive/protocol';
 
 import { loadClientBuild } from './client-build.ts';
 import { LocalWorldRoom } from './local-world-room.ts';
+import type { SoloWorldStore } from './solo-world-store.ts';
 import { WorldAccess } from './world-access.ts';
 
 export const startLocalServer = async (
     port: number,
     clientOrigin: string,
     clientDirectory?: URL,
-    options: { readonly host?: string; readonly access?: WorldAccess } = {},
+    options: {
+        readonly host?: string;
+        readonly access?: WorldAccess;
+        readonly soloStore?: SoloWorldStore;
+    } = {},
 ): Promise<Server> => {
     const host = options.host ?? '127.0.0.1';
-    const access = options.access ?? new WorldAccess(false, port);
+    const access =
+        options.access ??
+        new WorldAccess(false, port, Date.now(), options.soloStore?.initialWorld.playerId);
     const clientUrl = new URL(clientOrigin);
     const isClientHostAllowed =
         clientUrl.hostname === host || (host === '127.0.0.1' && clientUrl.hostname === 'localhost');
@@ -150,7 +157,19 @@ export const startLocalServer = async (
             server.listen(port, host),
             new Promise<never>((_, reject) => httpServer.once('error', reject)),
         ]);
-        await matchMaker.createRoom(localWorldRoomId, { access });
+        await matchMaker.createRoom(localWorldRoomId, {
+            access,
+            soloStore: options.soloStore,
+            onSaveError: (error: unknown): void => {
+                const message = error instanceof Error ? error.message : String(error);
+                process.stderr.write(`Solo save failed; stopping host: ${message}\n`);
+                process.exitCode = 1;
+                server.gracefullyShutdown(false).catch((shutdownError: unknown) => {
+                    process.stderr.write(`Host shutdown failed: ${String(shutdownError)}\n`);
+                });
+            },
+        });
+        server.onShutdown(() => options.soloStore?.close());
 
         if (serveClient !== undefined) {
             // The Colyseus response adapter can leave a large response open after

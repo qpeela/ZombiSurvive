@@ -41,7 +41,7 @@ test('host startup rejects invalid Tailscale configuration before opening the wo
 });
 
 test('stopping the host disconnects joined clients and releases the server process', async () => {
-    const host = spawn(process.execPath, ['apps/server/dist/main.js'], {
+    const host = spawn(process.execPath, ['tests/fixtures/solo-host.mjs'], {
         env: { ...process.env, PORT: '3102' },
         stdio: ['ignore', 'pipe', 'pipe'],
     });

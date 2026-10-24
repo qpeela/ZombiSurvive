@@ -35,7 +35,7 @@ test('visible walls block WASD and clicks; sliding and manual waypoints lead aro
     page,
 }) => {
     // Isolated world: existing camera/movement scenarios use their own server on 3101.
-    const host = spawn(process.execPath, ['apps/server/dist/main.js'], {
+    const host = spawn(process.execPath, ['tests/fixtures/solo-host.mjs'], {
         env: { ...process.env, PORT: '3103' },
         stdio: ['ignore', 'pipe', 'pipe'],
     });

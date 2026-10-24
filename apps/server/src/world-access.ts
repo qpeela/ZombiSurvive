@@ -7,14 +7,20 @@ const isToken = (value: unknown): value is string =>
     typeof value === 'string' && /^[a-f0-9]{64}$/.test(value);
 
 export class WorldAccess {
-    readonly soloPlayerId = randomUUID();
+    readonly soloPlayerId: string;
     readonly invitations: readonly string[];
     readonly cookieName: string;
     private readonly pending = new Map<string, { playerId: string; expiresAtMs: number }>();
     private readonly sessions = new Map<string, string>();
     private readonly isCooperative: boolean;
 
-    constructor(isCooperative: boolean, port: number, nowMs = Date.now()) {
+    constructor(
+        isCooperative: boolean,
+        port: number,
+        nowMs = Date.now(),
+        soloPlayerId: string = randomUUID(),
+    ) {
+        this.soloPlayerId = soloPlayerId;
         this.isCooperative = isCooperative;
         this.cookieName = `zombi-session-${String(port)}`;
         this.invitations = isCooperative

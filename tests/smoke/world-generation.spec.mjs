@@ -32,7 +32,7 @@ const arrive = async (page, x, y) => {
 };
 
 const withHost = async callback => {
-    const host = spawn(process.execPath, ['apps/server/dist/main.js'], {
+    const host = spawn(process.execPath, ['tests/fixtures/solo-host.mjs'], {
         env: { ...process.env, PORT: '3108' },
         stdio: ['ignore', 'pipe', 'pipe'],
     });

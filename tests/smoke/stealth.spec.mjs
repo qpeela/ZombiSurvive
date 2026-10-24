@@ -22,7 +22,7 @@ const measureSpeed = async (page, metersPerTick) => {
 test('Ctrl stealth agrees with authority, overrides Shift, supports clicks, and resets on blur/reload', async ({
     page,
 }) => {
-    const host = spawn(process.execPath, ['apps/server/dist/main.js'], {
+    const host = spawn(process.execPath, ['tests/fixtures/solo-host.mjs'], {
         env: { ...process.env, PORT: '3107' },
         stdio: ['ignore', 'pipe', 'pipe'],
     });

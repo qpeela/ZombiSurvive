@@ -38,7 +38,7 @@ const clickWorld = async (page, x, y) => {
 test('held transport shows predicted input before acknowledgement and reconciles at walls', async ({
     page,
 }) => {
-    const host = spawn(process.execPath, ['apps/server/dist/main.js'], {
+    const host = spawn(process.execPath, ['tests/fixtures/solo-host.mjs'], {
         env: { ...process.env, PORT: '3104' },
         stdio: ['ignore', 'pipe', 'pipe'],
     });
