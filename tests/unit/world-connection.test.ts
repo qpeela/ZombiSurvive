@@ -62,6 +62,9 @@ const createRoom = () => {
         publishPickup: (value: unknown) => {
             messages.get('pickup-state')?.(value);
         },
+        publishZombie: (value: unknown) => {
+            messages.get('zombie-state')?.(value);
+        },
         leave: () => {
             onLeave();
         },
@@ -274,5 +277,73 @@ test.each([
     connection.pickUp('item');
     expect(states.at(-1)).toEqual({ status: 'error' });
     expect(fake.room.send).not.toHaveBeenCalled();
+    connection.dispose();
+});
+
+const zombieState = (tick: number) => ({
+    type: 'zombie-state',
+    protocolVersion: 5,
+    zombieVersion: 1,
+    worldId: 'world',
+    tick,
+    zombies: [
+        { zombieId: 'zombie', position: { xMeters: -8, yMeters: 0 }, targetPlayerId: 'player' },
+    ],
+});
+test('zombie updates require readiness and ignore stale ticks and replaced rooms', async () => {
+    const first = createRoom();
+    const second = createRoom();
+    join.mockResolvedValueOnce(first.room).mockResolvedValueOnce(second.room);
+    const onZombie = vi.fn();
+    const connection = createWorldConnection(
+        'http://host',
+        () => {},
+        undefined,
+        undefined,
+        onZombie,
+    );
+    const ready = connection.connect();
+    await vi.waitFor(() => {
+        expect(first.room.request).toHaveBeenCalled();
+    });
+    first.publishZombie(zombieState(0));
+    expect(onZombie).not.toHaveBeenCalled();
+    first.resolveInitial(snapshot(1));
+    await ready;
+    first.publishZombie(zombieState(2));
+    first.publishZombie(zombieState(1));
+    expect(onZombie).toHaveBeenCalledOnce();
+    const retry = connection.connect();
+    await vi.waitFor(() => {
+        expect(second.room.request).toHaveBeenCalled();
+    });
+    second.resolveInitial(snapshot(1));
+    await retry;
+    first.publishZombie(zombieState(100));
+    second.publishZombie(zombieState(1));
+    expect(onZombie).toHaveBeenCalledTimes(2);
+    connection.disconnect();
+    second.publishZombie(zombieState(2));
+    expect(onZombie).toHaveBeenCalledTimes(2);
+    connection.dispose();
+});
+test.each([
+    {},
+    { ...zombieState(2), worldId: 'foreign' },
+    { ...zombieState(2), zombies: [{ zombieId: 'zombie' }] },
+])('invalid zombie updates close the connection', async value => {
+    const fake = createRoom();
+    join.mockResolvedValue(fake.room);
+    const states: WorldConnectionState[] = [];
+    const connection = createWorldConnection('http://host', state => states.push(state));
+    const ready = connection.connect();
+    await vi.waitFor(() => {
+        expect(fake.room.request).toHaveBeenCalled();
+    });
+    fake.resolveInitial(snapshot(1));
+    await ready;
+    fake.publishZombie(value);
+    expect(states.at(-1)).toEqual({ status: 'error' });
+    expect(fake.room.connection.close).toHaveBeenCalledOnce();
     connection.dispose();
 });

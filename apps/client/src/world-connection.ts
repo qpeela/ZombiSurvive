@@ -9,12 +9,14 @@ import {
     initialStateRequest,
     inventoryVersion,
     isPickupSnapshot,
+    isZombieSnapshot,
     localWorldRoomId,
     type MovementInputCommand,
     type MovementSnapshot,
     type MovementTargetCommand,
     type PickupSnapshot,
     protocolVersion,
+    type ZombieSnapshot,
 } from '@zombi-survive/protocol';
 import { placeInventoryItem } from '@zombi-survive/simulation';
 
@@ -56,6 +58,7 @@ export const createWorldConnection = (
     onStateChange: (state: WorldConnectionState) => void,
     onCommandSent?: (command: MovementInputCommand | MovementTargetCommand) => void,
     onPickupChange?: (snapshot: PickupSnapshot) => void,
+    onZombieChange?: (snapshot: ZombieSnapshot) => void,
 ): {
     connect: () => Promise<void>;
     sendMovement: (direction: MovementDirection, modifiers?: MovementModifiers) => void;
@@ -214,6 +217,33 @@ export const createWorldConnection = (
 
                 pickupTick = value.tick;
                 onPickupChange?.(value);
+            });
+            let zombieTick = -1;
+            room.onMessage<unknown>('zombie-state', value => {
+                if (!isActiveRoom() || !isReady || received.snapshot === null) {
+                    return;
+                }
+
+                if (!isZombieSnapshot(value)) {
+                    closeRoom();
+                    onStateChange({ status: 'error' });
+
+                    return;
+                }
+
+                if (value.worldId !== received.snapshot.worldId) {
+                    closeRoom();
+                    onStateChange({ status: 'error' });
+
+                    return;
+                }
+
+                if (value.tick <= zombieTick) {
+                    return;
+                }
+
+                zombieTick = value.tick;
+                onZombieChange?.(value);
             });
             room.onLeave(() => {
                 if (isActiveRoom()) {

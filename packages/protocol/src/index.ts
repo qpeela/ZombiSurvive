@@ -17,3 +17,4 @@ export {
     pickupStateRequest,
 } from './pickup.ts';
 export { type InventoryMoveCommand, inventoryVersion, isInventoryMoveCommand } from './pickup.ts';
+export { isZombieSnapshot, type ZombieSnapshot, zombieVersion } from './zombie.ts';

@@ -157,6 +157,7 @@ const connection = createWorldConnection(
         inventory.textContent = 'Контейнер: —';
         inventoryUi.update(null);
         scene.setGroundItem(null);
+        scene.setZombies([]);
         otherPlayers = [];
         delete status.dataset['worldId'];
         delete status.dataset['playerId'];
@@ -184,6 +185,9 @@ const connection = createWorldConnection(
             snapshot.items.length === 0 ? 'Контейнер: пусто' : 'Контейнер: Бинт × 1';
         inventoryUi.update(snapshot.items);
         updatePickup();
+    },
+    snapshot => {
+        scene.setZombies(snapshot.zombies);
     },
 );
 const session = createWorldSession();

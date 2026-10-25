@@ -1,4 +1,9 @@
-import type { GroundItem, PlayerMovementState, WorldPosition } from '@zombi-survive/domain';
+import type {
+    GroundItem,
+    PlayerMovementState,
+    WorldPosition,
+    ZombieState,
+} from '@zombi-survive/domain';
 import { type GameObjects, type Input, Scene } from 'phaser';
 
 import { WorldTerrain } from './world-terrain';
@@ -10,6 +15,8 @@ export class BootScene extends Scene {
     private marker: GameObjects.Container | null = null;
     private otherPlayers: readonly PlayerMovementState[] = [];
     private readonly otherMarkers = new Map<string, GameObjects.Container>();
+    private zombies: readonly ZombieState[] = [];
+    private readonly zombieMarkers = new Map<string, GameObjects.Container>();
     private terrain: WorldTerrain | null = null;
 
     private groundItem: GroundItem | null = null;
@@ -87,6 +94,7 @@ export class BootScene extends Scene {
             ])
             .setDepth(1);
         this.setGroundItem(this.groundItem);
+        this.setZombies(this.zombies);
         this.marker = this.createMarker(true);
         this.setPlayers(this.player, this.otherPlayers);
         this.events.once('shutdown', () => {
@@ -101,9 +109,53 @@ export class BootScene extends Scene {
             this.marker = null;
             this.itemMarker = null;
             this.otherMarkers.clear();
+            this.zombieMarkers.clear();
         });
         this.game.canvas.dataset['sceneReady'] = 'true';
         this.game.canvas.setAttribute('aria-label', 'Игровое поле ZombiSurvive');
+    }
+
+    setZombies(zombies: readonly ZombieState[]): void {
+        this.zombies = zombies;
+
+        if (this.terrain === null) {
+            return;
+        }
+
+        const ids = new Set(zombies.map(zombie => zombie.zombieId));
+
+        for (const [id, marker] of this.zombieMarkers) {
+            if (!ids.has(id)) {
+                marker.destroy();
+                this.zombieMarkers.delete(id);
+            }
+        }
+
+        for (const zombie of zombies) {
+            const marker =
+                this.zombieMarkers.get(zombie.zombieId) ??
+                this.add
+                    .container(0, 0, [
+                        this.add.ellipse(0, 8, 24, 10, 0x0b100e),
+                        this.add.rectangle(0, 1, 16, 18, 0x905a4c),
+                        this.add.rectangle(0, -11, 10, 10, 0x9caa78),
+                        this.add
+                            .text(0, -36, 'Зомби', {
+                                fontFamily: 'monospace',
+                                fontSize: '12px',
+                                color: '#e1a48b',
+                            })
+                            .setOrigin(0.5),
+                    ])
+                    .setDepth(1);
+            marker.setPosition(
+                480 + zombie.position.xMeters * pixelsPerMeter,
+                270 + zombie.position.yMeters * pixelsPerMeter,
+            );
+            this.zombieMarkers.set(zombie.zombieId, marker);
+        }
+
+        this.game.canvas.dataset['zombies'] = JSON.stringify(zombies);
     }
 
     setGroundItem(item: GroundItem | null): void {
