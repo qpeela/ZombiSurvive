@@ -2,3 +2,4 @@ export { initialGroundItem, inventorySettings, itemDefinitions, pickupSettings }
 export { movementSettings } from './movement.ts';
 export { collisionSettings, startingRuins } from './obstacles.ts';
 export { worldGenerationSettings } from './world-generation.ts';
+export { initialZombie, zombieSettings } from './zombies.ts';
