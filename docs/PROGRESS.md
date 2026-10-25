@@ -7,7 +7,8 @@
   [PR #21](https://github.com/qpeela/ZombiSurvive/pull/21), main: 729f4cd.
   Состояние зависимости подтверждено в GitHub; origin/main обновлён.
 - T005C/T014C: PAUSED, кооператив не возобновляется.
-- T017 — медленный зомби: IN_PROGRESS.
+- T017 — медленный зомби: [PR #22](https://github.com/qpeela/ZombiSurvive/pull/22).
+  Статус в main после слияния: DONE; пока PR открыт — CI_PENDING.
   Ветка codex/t017-slow-zombie от origin/main (729f4cd), исходное дерево чистое.
   Пользователь поручил выполнить задачу и слить PR после успешных проверок.
 - Один зомби появляется в (-8, 0) м: скорость 1.5 м/с, зрение 12 м с проверкой
