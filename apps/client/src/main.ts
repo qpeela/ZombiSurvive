@@ -1,6 +1,7 @@
 import './style.css';
 
-import type { PlayerMovementState } from '@zombi-survive/domain';
+import { pickupSettings } from '@zombi-survive/content';
+import type { GroundItem, PlayerMovementState, WorldPosition } from '@zombi-survive/domain';
 import { AUTO, Game, Scale } from 'phaser';
 
 import { BootScene } from './boot-scene';
@@ -15,8 +16,21 @@ const reconnect = document.querySelector<HTMLButtonElement>('#reconnect');
 const stamina = document.querySelector<HTMLProgressElement>('#stamina');
 const staminaLabel = document.querySelector<HTMLElement>('#stamina-label');
 const movementLabel = document.querySelector<HTMLElement>('#movement-label');
+const groundLabel = document.querySelector<HTMLElement>('#ground-item');
+const inventory = document.querySelector<HTMLElement>('#inventory');
+const pickup = document.querySelector<HTMLButtonElement>('#pickup');
 
-if (!container || !status || !reconnect || !stamina || !staminaLabel || !movementLabel) {
+if (
+    !container ||
+    !status ||
+    !reconnect ||
+    !stamina ||
+    !staminaLabel ||
+    !movementLabel ||
+    !groundLabel ||
+    !inventory ||
+    !pickup
+) {
     throw new Error('Game UI is missing.');
 }
 
@@ -38,6 +52,18 @@ const game = new Game({
 });
 
 const prediction = new MovementPrediction();
+let groundItem: GroundItem | null = null;
+let confirmedPosition: WorldPosition | null = null;
+const updatePickup = (): void => {
+    const distance =
+        groundItem === null || confirmedPosition === null
+            ? Infinity
+            : Math.hypot(
+                  groundItem.position.xMeters - confirmedPosition.xMeters,
+                  groundItem.position.yMeters - confirmedPosition.yMeters,
+              );
+    pickup.disabled = distance > pickupSettings.rangeMeters;
+};
 const messages = {
     connecting: 'Подключение к локальному миру…',
     disconnected: 'Связь с хостом потеряна.',
@@ -86,6 +112,8 @@ const connection = createWorldConnection(
         if (state.status === 'connected') {
             const { snapshot } = state;
             prediction.accept(snapshot, performance.now());
+            confirmedPosition = snapshot.player.position;
+            updatePickup();
             otherPlayers = snapshot.otherPlayers;
             input.updatePosition(snapshot.player.position);
             const { xMeters, yMeters } = snapshot.player.position;
@@ -107,6 +135,12 @@ const connection = createWorldConnection(
         }
 
         prediction.reset();
+        groundItem = null;
+        confirmedPosition = null;
+        pickup.disabled = true;
+        groundLabel.textContent = 'На земле: —';
+        inventory.textContent = 'Контейнер: —';
+        scene.setGroundItem(null);
         otherPlayers = [];
         delete status.dataset['worldId'];
         delete status.dataset['playerId'];
@@ -124,6 +158,15 @@ const connection = createWorldConnection(
     },
     command => {
         prediction.recordSent(command, performance.now());
+    },
+    snapshot => {
+        groundItem = snapshot.groundItem;
+        scene.setGroundItem(groundItem);
+        groundLabel.textContent =
+            groundItem === null ? 'На земле: пусто' : 'На земле: Бинт · 2, 2 м';
+        inventory.textContent =
+            snapshot.items.length === 0 ? 'Контейнер: пусто' : 'Контейнер: Бинт × 1';
+        updatePickup();
     },
 );
 const session = createWorldSession();
@@ -163,6 +206,12 @@ const onPageShow = (event: PageTransitionEvent): void => {
         onConnect();
     }
 };
+const onPickup = (): void => {
+    if (groundItem !== null) {
+        connection.pickUp(groundItem.itemId);
+    }
+};
+pickup.addEventListener('click', onPickup);
 reconnect.addEventListener('click', onConnect);
 window.addEventListener('pagehide', onPageHide);
 window.addEventListener('pageshow', onPageShow);
@@ -175,6 +224,7 @@ if (import.meta.hot) {
         session.cancel();
         input.dispose();
         connection.dispose();
+        pickup.removeEventListener('click', onPickup);
         reconnect.removeEventListener('click', onConnect);
         window.removeEventListener('pagehide', onPageHide);
         window.removeEventListener('pageshow', onPageShow);

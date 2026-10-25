@@ -2,10 +2,13 @@ import { Client, Room } from '@colyseus/sdk';
 import type { MovementDirection, MovementModifiers, WorldPosition } from '@zombi-survive/domain';
 import {
     initialStateRequest,
+    isPickupSnapshot,
     localWorldRoomId,
     type MovementInputCommand,
     type MovementSnapshot,
     type MovementTargetCommand,
+    type PickupSnapshot,
+    protocolVersion,
 } from '@zombi-survive/protocol';
 
 import {
@@ -45,10 +48,12 @@ export const createWorldConnection = (
     origin: string,
     onStateChange: (state: WorldConnectionState) => void,
     onCommandSent?: (command: MovementInputCommand | MovementTargetCommand) => void,
+    onPickupChange?: (snapshot: PickupSnapshot) => void,
 ): {
     connect: () => Promise<void>;
     sendMovement: (direction: MovementDirection, modifiers?: MovementModifiers) => void;
     sendTarget: (target: WorldPosition, modifiers?: MovementModifiers) => void;
+    pickUp: (itemId: string) => void;
     disconnect: () => void;
     dispose: () => void;
 } => {
@@ -160,6 +165,36 @@ export const createWorldConnection = (
                 }
             };
             room.onMessage<unknown>('movement-snapshot', acceptSnapshot);
+            let pickupTick = -1;
+            room.onMessage<unknown>('pickup-state', value => {
+                if (!isActiveRoom() || !isReady || received.snapshot === null) {
+                    return;
+                }
+
+                if (!isPickupSnapshot(value)) {
+                    closeRoom();
+                    onStateChange({ status: 'error' });
+
+                    return;
+                }
+
+                const isSameWorld = value.worldId === received.snapshot.worldId;
+                const isSamePlayer = value.playerId === received.snapshot.player.playerId;
+
+                if (!isSameWorld || !isSamePlayer) {
+                    closeRoom();
+                    onStateChange({ status: 'error' });
+
+                    return;
+                }
+
+                if (value.tick <= pickupTick) {
+                    return;
+                }
+
+                pickupTick = value.tick;
+                onPickupChange?.(value);
+            });
             room.onLeave(() => {
                 if (isActiveRoom()) {
                     activeRoom = null;
@@ -233,10 +268,23 @@ export const createWorldConnection = (
         }
     };
 
+    const pickUp = (itemId: string): void => {
+        if (!isReady || activeRoom === null) {
+            return;
+        }
+
+        try {
+            activeRoom.send('pickup-item', { type: 'pickup-item', protocolVersion, itemId });
+        } catch {
+            closeRoom();
+            onStateChange({ status: 'error' });
+        }
+    };
+
     const dispose = (): void => {
         isDisposed = true;
         disconnect();
     };
 
-    return { connect, sendMovement, sendTarget, disconnect, dispose };
+    return { connect, sendMovement, sendTarget, pickUp, disconnect, dispose };
 };

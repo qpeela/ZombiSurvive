@@ -9,3 +9,10 @@ export {
     type MovementTargetCommand,
     protocolVersion,
 } from './movement.ts';
+export {
+    isPickupCommand,
+    isPickupSnapshot,
+    type PickupCommand,
+    type PickupSnapshot,
+    pickupStateRequest,
+} from './pickup.ts';
