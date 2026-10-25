@@ -6,7 +6,9 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { Client } from '@colyseus/sdk';
 import { expect, test } from '@playwright/test';
+import { collisionSettings } from '@zombi-survive/content';
 import { initialStateRequest, localWorldRoomId } from '@zombi-survive/protocol';
+import { loadWorldChunks } from '@zombi-survive/worldgen';
 
 const entrypoint = resolve('apps/server/dist/main.js');
 const start = (path, port, cwd) => {
@@ -50,12 +52,37 @@ const connect = async (page, port) => {
     await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
     await expect(page.locator('canvas')).toHaveAttribute('data-player-visible', 'true');
 };
+const terrain = page =>
+    page.locator('canvas').evaluate(element => ({
+        chunk: JSON.parse(element.dataset.worldChunk),
+        chunks: JSON.parse(element.dataset.worldChunks),
+        obstacles: JSON.parse(element.dataset.obstacles),
+    }));
+const clickWorld = async (page, position) => {
+    const canvas = page.locator('canvas');
+    await canvas.scrollIntoViewIfNeeded();
+    const camera = await canvas.evaluate(element => ({
+        x: Number(element.dataset.cameraX),
+        y: Number(element.dataset.cameraY),
+    }));
+    const box = await canvas.boundingBox();
+    await page.mouse.click(
+        box.x + (box.width * (480 + position.x * 24 - camera.x)) / 960,
+        box.y + (box.height * (270 + position.y * 24 - camera.y)) / 540,
+    );
+};
+const arrive = async (page, position) => {
+    await clickWorld(page, position);
+    await expect.poll(async () => (await read(page)).x).toBeCloseTo(position.x, 1);
+    await expect.poll(async () => (await read(page)).y).toBeCloseTo(position.y, 1);
+    await expect(page.locator('canvas')).toHaveAttribute('data-target-visible', 'false');
+};
 
-test('solo restart restores a neighbouring chunk in a fresh browser, port and working directory', async ({
+test('solo acceptance: travel, retry and restart restore terrain and working collisions in a fresh browser', async ({
     page,
     browser,
 }) => {
-    test.setTimeout(35000);
+    test.setTimeout(60000);
     const directory = mkdtempSync(join(tmpdir(), 'zombi-restart-'));
     const path = join(directory, 'world.sqlite');
     let running = start(path, 3109);
@@ -67,14 +94,48 @@ test('solo restart restores a neighbouring chunk in a fresh browser, port and wo
         const initial = await read(page);
         await page.getByRole('heading').click();
         await page.keyboard.down('w');
-        await expect.poll(async () => (await read(page)).y, { timeout: 15000 }).toBeLessThan(-34);
-        await page.keyboard.up('w');
+        try {
+            // Stop before the neighbouring ruins, then go around their south wall.
+            await expect
+                .poll(async () => (await read(page)).y, { timeout: 20000 })
+                .toBeLessThan(-48);
+        } finally {
+            await page.keyboard.up('w');
+        }
         const released = await read(page);
         await expect.poll(async () => (await read(page)).tick).toBeGreaterThan(released.tick + 4);
+        await arrive(page, { x: 4, y: -54 });
+        await arrive(page, { x: 4, y: -64 });
+        await arrive(page, { x: 0, y: -64 });
         const saved = await read(page);
         expect(saved.worldId).toBe(initial.worldId);
+        const savedTerrain = await terrain(page);
+        expect(savedTerrain.chunk).toMatchObject({ chunkX: 0, chunkY: -1 });
+        expect(savedTerrain.chunks).toHaveLength(9);
+        expect(savedTerrain.chunks.every(chunk => chunk.chunkY <= 0)).toBe(true);
+        expect(savedTerrain.obstacles).toEqual(
+            loadWorldChunks({
+                positions: [{ xMeters: saved.x, yMeters: saved.y }],
+                previousChunks: [],
+            }).flatMap(chunk => chunk.obstacles),
+        );
+        await page.context().setOffline(true);
+        await expect(page.getByRole('status')).toHaveAttribute('data-status', 'disconnected');
+        await expect(page.locator('canvas')).toHaveAttribute('data-world-chunks', '[]');
+        await page.context().setOffline(false);
+        await page.getByRole('button', { name: 'Подключиться снова' }).click();
+        await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
+        await expect(page.locator('canvas')).toHaveAttribute('data-player-visible', 'true');
+        expect(await read(page)).toMatchObject({
+            worldId: saved.worldId,
+            playerId: saved.playerId,
+            x: saved.x,
+            y: saved.y,
+        });
+        expect(await terrain(page)).toEqual(savedTerrain);
         expect(await stop(running, 'SIGINT')).toEqual({ code: 0, signal: null });
         await expect(page.getByRole('status')).toHaveAttribute('data-status', 'disconnected');
+        await expect(page.locator('canvas')).toHaveAttribute('data-player-visible', 'false');
         running = start(path, 3110, tmpdir());
         await expect.poll(running.output).toContain('Local world ready');
         fresh = await browser.newContext();
@@ -88,18 +149,73 @@ test('solo restart restores a neighbouring chunk in a fresh browser, port and wo
             y: saved.y,
         });
         expect(restored.ack).toBe('null');
+        expect(await terrain(restoredPage)).toEqual(savedTerrain);
+        await expect(restoredPage.locator('canvas')).toHaveAttribute(
+            'data-target-visible',
+            'false',
+        );
         await expect
             .poll(async () => (await read(restoredPage)).tick)
             .toBeGreaterThan(restored.tick + 5);
         expect(await read(restoredPage)).toMatchObject({ x: saved.x, y: saved.y });
         await restoredPage.reload();
         await expect(restoredPage.getByRole('status')).toHaveAttribute('data-status', 'connected');
+        await expect(restoredPage.locator('canvas')).toHaveAttribute('data-player-visible', 'true');
         expect(await read(restoredPage)).toMatchObject({
             worldId: saved.worldId,
             playerId: saved.playerId,
             x: saved.x,
             y: saved.y,
         });
+        expect(await terrain(restoredPage)).toEqual(savedTerrain);
+        // Both server movement and the visible predicted marker must use restored colliders.
+        const wall = savedTerrain.obstacles.find(obstacle => obstacle.id === 'v1:0:-1:east-wall');
+        expect(wall).toBeDefined();
+        const boundary = wall.minXMeters - collisionSettings.playerHalfSizeMeters;
+        await restoredPage.getByRole('heading').click();
+        await restoredPage.keyboard.down('d');
+        try {
+            await expect.poll(async () => (await read(restoredPage)).x).toBe(boundary);
+            const blocked = await read(restoredPage);
+            await expect
+                .poll(async () => (await read(restoredPage)).tick)
+                .toBeGreaterThan(blocked.tick + 10);
+            expect((await read(restoredPage)).x).toBe(boundary);
+            await expect(restoredPage.locator('canvas')).toHaveAttribute(
+                'data-player-x',
+                String(480 + boundary * 24),
+            );
+        } finally {
+            await restoredPage.keyboard.up('d');
+        }
+        await clickWorld(restoredPage, { x: wall.maxXMeters + 1, y: saved.y });
+        await expect(restoredPage.locator('canvas')).toHaveAttribute('data-target-visible', 'true');
+        const clicked = await read(restoredPage);
+        await expect
+            .poll(async () => (await read(restoredPage)).tick)
+            .toBeGreaterThan(clicked.tick + 10);
+        expect((await read(restoredPage)).x).toBe(boundary);
+        await expect(restoredPage.locator('canvas')).toHaveAttribute(
+            'data-player-x',
+            String(480 + boundary * 24),
+        );
+        await restoredPage.screenshot({
+            path: test.info().outputPath('solo-restored-wall.png'),
+            fullPage: true,
+        });
+        // Cancelling the blocked target must still permit movement after restoration.
+        await restoredPage.keyboard.down('a');
+        try {
+            await expect(restoredPage.locator('canvas')).toHaveAttribute(
+                'data-target-visible',
+                'false',
+            );
+            await expect
+                .poll(async () => (await read(restoredPage)).x)
+                .toBeLessThan(boundary - 0.5);
+        } finally {
+            await restoredPage.keyboard.up('a');
+        }
         for (const route of ['/.local/solo.sqlite', '/world.sqlite']) {
             expect((await restoredPage.request.get(`http://127.0.0.1:3110${route}`)).status()).toBe(
                 404,
