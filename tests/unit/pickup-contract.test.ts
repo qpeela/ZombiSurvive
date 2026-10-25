@@ -1,5 +1,6 @@
 import { initialGroundItem } from '@zombi-survive/content';
 import {
+    isInventoryMoveCommand,
     isPickupCommand,
     isPickupSnapshot,
     type PickupSnapshot,
@@ -9,6 +10,7 @@ import { expect, test } from 'vitest';
 
 const state: PickupSnapshot = {
     type: 'pickup-state',
+    inventoryVersion: 1,
     protocolVersion,
     worldId: 'world',
     playerId: 'player',
@@ -34,7 +36,7 @@ test('pickup command accepts an ID intent and rejects malformed or incompatible 
 });
 test('pickup states validate identity, tick, item kind, coordinates and single-item ownership', () => {
     expect(isPickupSnapshot(JSON.parse(JSON.stringify(state)))).toBe(true);
-    const item = { itemId: 'item', kind: 'bandage' };
+    const item = { itemId: 'item', kind: 'bandage', cell: { column: 0, row: 0 } };
     expect(isPickupSnapshot({ ...state, groundItem: null, items: [item] })).toBe(true);
     expect(isPickupSnapshot({ ...state, groundItem: null })).toBe(true);
     for (const value of [
@@ -55,4 +57,46 @@ test('pickup states validate identity, tick, item kind, coordinates and single-i
     ]) {
         expect(isPickupSnapshot(value)).toBe(false);
     }
+});
+
+test('inventory moves validate version, ID and finite integer cells before simulation', () => {
+    const command = {
+        type: 'inventory-move',
+        protocolVersion,
+        inventoryVersion: 1,
+        itemId: 'item',
+        cell: { column: 2, row: 2 },
+    };
+    expect(isInventoryMoveCommand(JSON.parse(JSON.stringify(command)))).toBe(true);
+    for (const value of [
+        null,
+        [],
+        {},
+        { ...command, itemId: '' },
+        { ...command, protocolVersion: 4 },
+        { ...command, inventoryVersion: 2 },
+        { ...command, type: 'pickup-item' },
+        { ...command, cell: null },
+        { ...command, cell: {} },
+        { ...command, cell: { column: -1, row: 0 } },
+        { ...command, cell: { column: 0.5, row: 0 } },
+        { ...command, cell: { column: 0, row: Infinity } },
+        { ...command, cell: { column: 32, row: 0 } },
+        { ...command, cell: { column: '0', row: 0 } },
+    ])
+        expect(isInventoryMoveCommand(value)).toBe(false);
+});
+
+test('inventory snapshots reject unsupported versions and missing or invalid placement', () => {
+    const contained = {
+        ...state,
+        groundItem: null,
+        items: [{ itemId: 'item', kind: 'bandage', cell: { column: 0, row: 0 } }],
+    };
+    for (const value of [
+        { ...contained, inventoryVersion: 0 },
+        { ...contained, items: [{ itemId: 'item', kind: 'bandage' }] },
+        { ...contained, items: [{ ...contained.items[0], cell: { column: NaN, row: 0 } }] },
+    ])
+        expect(isPickupSnapshot(value)).toBe(false);
 });

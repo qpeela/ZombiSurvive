@@ -5,6 +5,7 @@ import type { GroundItem, PlayerMovementState, WorldPosition } from '@zombi-surv
 import { AUTO, Game, Scale } from 'phaser';
 
 import { BootScene } from './boot-scene';
+import { createInventoryGrid } from './inventory-grid';
 import { createMovementInputController } from './movement-input';
 import { MovementPrediction } from './movement-prediction';
 import { createWorldConnection } from './world-connection';
@@ -19,6 +20,9 @@ const movementLabel = document.querySelector<HTMLElement>('#movement-label');
 const groundLabel = document.querySelector<HTMLElement>('#ground-item');
 const inventory = document.querySelector<HTMLElement>('#inventory');
 const pickup = document.querySelector<HTMLButtonElement>('#pickup');
+const inventoryGrid = document.querySelector<HTMLElement>('#inventory-grid');
+const inventorySelector = document.querySelector<HTMLButtonElement>('#inventory-select');
+const inventoryMessage = document.querySelector<HTMLElement>('#inventory-message');
 
 if (
     !container ||
@@ -29,7 +33,10 @@ if (
     !movementLabel ||
     !groundLabel ||
     !inventory ||
-    !pickup
+    !pickup ||
+    !inventoryGrid ||
+    !inventorySelector ||
+    !inventoryMessage
 ) {
     throw new Error('Game UI is missing.');
 }
@@ -51,6 +58,14 @@ const game = new Game({
     scene: [scene],
 });
 
+const inventoryUi = createInventoryGrid({
+    grid: inventoryGrid,
+    selector: inventorySelector,
+    message: inventoryMessage,
+    onMove: (itemId, cell) => {
+        connection.moveItem(itemId, cell);
+    },
+});
 const prediction = new MovementPrediction();
 let groundItem: GroundItem | null = null;
 let confirmedPosition: WorldPosition | null = null;
@@ -140,6 +155,7 @@ const connection = createWorldConnection(
         pickup.disabled = true;
         groundLabel.textContent = 'На земле: —';
         inventory.textContent = 'Контейнер: —';
+        inventoryUi.update(null);
         scene.setGroundItem(null);
         otherPlayers = [];
         delete status.dataset['worldId'];
@@ -166,6 +182,7 @@ const connection = createWorldConnection(
             groundItem === null ? 'На земле: пусто' : 'На земле: Бинт · 2, 2 м';
         inventory.textContent =
             snapshot.items.length === 0 ? 'Контейнер: пусто' : 'Контейнер: Бинт × 1';
+        inventoryUi.update(snapshot.items);
         updatePickup();
     },
 );
@@ -223,6 +240,7 @@ if (import.meta.hot) {
         connectAttempt++;
         session.cancel();
         input.dispose();
+        inventoryUi.dispose();
         connection.dispose();
         pickup.removeEventListener('click', onPickup);
         reconnect.removeEventListener('click', onConnect);

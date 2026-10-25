@@ -192,12 +192,13 @@ test('mouse and keyboard share sequence numbers and cannot send before readiness
 
 const pickupState = (tick: number): PickupSnapshot => ({
     type: 'pickup-state',
+    inventoryVersion: 1,
     protocolVersion: 5,
     worldId: 'world',
     playerId: 'player',
     tick,
     groundItem: null,
-    items: [{ itemId: 'item', kind: 'bandage' }],
+    items: [{ itemId: 'item', kind: 'bandage', cell: { column: 0, row: 0 } }],
 });
 test('pickup waits for readiness, ignores stale and replaced rooms, and stops sending on disconnect', async () => {
     const first = createRoom();
@@ -206,6 +207,7 @@ test('pickup waits for readiness, ignores stale and replaced rooms, and stops se
     const onPickup = vi.fn();
     const connection = createWorldConnection('http://host', () => {}, undefined, onPickup);
     connection.pickUp('item');
+    connection.moveItem('item', { column: 2, row: 2 });
     const connected = connection.connect();
     await vi.waitFor(() => {
         expect(first.room.request).toHaveBeenCalled();
@@ -219,6 +221,14 @@ test('pickup waits for readiness, ignores stale and replaced rooms, and stops se
         type: 'pickup-item',
         protocolVersion: 5,
         itemId: 'item',
+    });
+    connection.moveItem('item', { column: 2, row: 2 });
+    expect(first.room.send).toHaveBeenCalledWith('inventory-move', {
+        type: 'inventory-move',
+        protocolVersion: 5,
+        inventoryVersion: 1,
+        itemId: 'item',
+        cell: { column: 2, row: 2 },
     });
     first.publishPickup(pickupState(2));
     first.publishPickup(pickupState(1));
@@ -234,29 +244,35 @@ test('pickup waits for readiness, ignores stale and replaced rooms, and stops se
     expect(onPickup).toHaveBeenCalledTimes(2);
     connection.disconnect();
     connection.pickUp('item');
+    connection.moveItem('item', { column: 2, row: 2 });
     second.publishPickup(pickupState(2));
     expect(second.room.send).not.toHaveBeenCalled();
     expect(onPickup).toHaveBeenCalledTimes(2);
     connection.dispose();
 });
 
-test.each([{}, { ...pickupState(2), worldId: 'other' }, { ...pickupState(2), playerId: 'other' }])(
-    'invalid or foreign pickup state closes the connection',
-    async value => {
-        const fake = createRoom();
-        join.mockResolvedValue(fake.room);
-        const states: WorldConnectionState[] = [];
-        const connection = createWorldConnection('http://host', state => states.push(state));
-        const connected = connection.connect();
-        await vi.waitFor(() => {
-            expect(fake.room.request).toHaveBeenCalled();
-        });
-        fake.resolveInitial(snapshot(1));
-        await connected;
-        fake.publishPickup(value);
-        connection.pickUp('item');
-        expect(states.at(-1)).toEqual({ status: 'error' });
-        expect(fake.room.send).not.toHaveBeenCalled();
-        connection.dispose();
+test.each([
+    {},
+    { ...pickupState(2), worldId: 'other' },
+    { ...pickupState(2), playerId: 'other' },
+    {
+        ...pickupState(2),
+        items: [{ itemId: 'item', kind: 'bandage', cell: { column: 3, row: 0 } }],
     },
-);
+])('invalid or foreign pickup state closes the connection', async value => {
+    const fake = createRoom();
+    join.mockResolvedValue(fake.room);
+    const states: WorldConnectionState[] = [];
+    const connection = createWorldConnection('http://host', state => states.push(state));
+    const connected = connection.connect();
+    await vi.waitFor(() => {
+        expect(fake.room.request).toHaveBeenCalled();
+    });
+    fake.resolveInitial(snapshot(1));
+    await connected;
+    fake.publishPickup(value);
+    connection.pickUp('item');
+    expect(states.at(-1)).toEqual({ status: 'error' });
+    expect(fake.room.send).not.toHaveBeenCalled();
+    connection.dispose();
+});

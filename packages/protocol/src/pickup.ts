@@ -1,6 +1,15 @@
-import type { GroundItem, Item } from '@zombi-survive/domain';
+import type { GroundItem, InventoryCell, InventoryItem, Item } from '@zombi-survive/domain';
 
 import { protocolVersion } from './movement.ts';
+
+export const inventoryVersion = 1;
+export type InventoryMoveCommand = {
+    readonly type: 'inventory-move';
+    readonly protocolVersion: typeof protocolVersion;
+    readonly inventoryVersion: typeof inventoryVersion;
+    readonly itemId: string;
+    readonly cell: InventoryCell;
+};
 
 export const pickupStateRequest = 'pickup-state-request';
 export type PickupCommand = {
@@ -10,12 +19,13 @@ export type PickupCommand = {
 };
 export type PickupSnapshot = {
     readonly type: 'pickup-state';
+    readonly inventoryVersion: typeof inventoryVersion;
     readonly protocolVersion: typeof protocolVersion;
     readonly worldId: string;
     readonly playerId: string;
     readonly tick: number;
     readonly groundItem: GroundItem | null;
-    readonly items: readonly Item[];
+    readonly items: readonly InventoryItem[];
 };
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -33,6 +43,30 @@ const isItem = (value: unknown): value is Item => {
 
     return isId(value['itemId']) && value['kind'] === 'bandage';
 };
+const isCell = (value: unknown): value is InventoryCell => {
+    if (!isRecord(value)) {
+        return false;
+    }
+
+    const isIndex = (index: unknown): boolean =>
+        typeof index === 'number' && Number.isSafeInteger(index) && index >= 0 && index < 32;
+
+    return isIndex(value['column']) && isIndex(value['row']);
+};
+
+export const isInventoryMoveCommand = (value: unknown): value is InventoryMoveCommand => {
+    if (!isRecord(value)) {
+        return false;
+    }
+
+    const isType = value['type'] === 'inventory-move';
+    const isVersion =
+        value['protocolVersion'] === protocolVersion &&
+        value['inventoryVersion'] === inventoryVersion;
+
+    return isType && isVersion && isId(value['itemId']) && isCell(value['cell']);
+};
+
 export const isPickupCommand = (value: unknown): value is PickupCommand => {
     if (!isRecord(value)) {
         return false;
@@ -49,7 +83,9 @@ export const isPickupSnapshot = (value: unknown): value is PickupSnapshot => {
     }
 
     const isType = value['type'] === 'pickup-state';
-    const isVersion = value['protocolVersion'] === protocolVersion;
+    const isVersion =
+        value['protocolVersion'] === protocolVersion &&
+        value['inventoryVersion'] === inventoryVersion;
     const isWorld = isId(value['worldId']);
     const isPlayer = isId(value['playerId']);
     const tick = value['tick'];
@@ -61,7 +97,10 @@ export const isPickupSnapshot = (value: unknown): value is PickupSnapshot => {
         return false;
     }
 
-    if (items.length > 1 || !items.every(isItem)) {
+    if (
+        items.length > 1 ||
+        !items.every((item: unknown) => isRecord(item) && isCell(item['cell']) && isItem(item))
+    ) {
         return false;
     }
 

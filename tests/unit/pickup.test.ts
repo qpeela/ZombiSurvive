@@ -18,6 +18,7 @@ test('pickup is one immutable transfer; duplicates and another player cannot acq
     const location = pickUpItem({ location: ground, player, itemId, obstacles: [] });
     expect(location).toEqual({
         type: 'container',
+        cell: { column: 0, row: 0 },
         item: { itemId, kind: 'bandage' },
         playerId: 'player',
     });

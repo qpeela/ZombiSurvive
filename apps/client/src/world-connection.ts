@@ -1,7 +1,13 @@
 import { Client, Room } from '@colyseus/sdk';
-import type { MovementDirection, MovementModifiers, WorldPosition } from '@zombi-survive/domain';
+import type {
+    InventoryCell,
+    MovementDirection,
+    MovementModifiers,
+    WorldPosition,
+} from '@zombi-survive/domain';
 import {
     initialStateRequest,
+    inventoryVersion,
     isPickupSnapshot,
     localWorldRoomId,
     type MovementInputCommand,
@@ -10,6 +16,7 @@ import {
     type PickupSnapshot,
     protocolVersion,
 } from '@zombi-survive/protocol';
+import { placeInventoryItem } from '@zombi-survive/simulation';
 
 import {
     createMovementInput,
@@ -54,6 +61,7 @@ export const createWorldConnection = (
     sendMovement: (direction: MovementDirection, modifiers?: MovementModifiers) => void;
     sendTarget: (target: WorldPosition, modifiers?: MovementModifiers) => void;
     pickUp: (itemId: string) => void;
+    moveItem: (itemId: string, cell: InventoryCell) => void;
     disconnect: () => void;
     dispose: () => void;
 } => {
@@ -178,6 +186,18 @@ export const createWorldConnection = (
                     return;
                 }
 
+                const isValidInventory = value.items.every(
+                    item =>
+                        placeInventoryItem({ items: value.items, item, cell: item.cell }) !== null,
+                );
+
+                if (!isValidInventory) {
+                    closeRoom();
+                    onStateChange({ status: 'error' });
+
+                    return;
+                }
+
                 const isSameWorld = value.worldId === received.snapshot.worldId;
                 const isSamePlayer = value.playerId === received.snapshot.player.playerId;
 
@@ -281,10 +301,29 @@ export const createWorldConnection = (
         }
     };
 
+    const moveItem = (itemId: string, cell: InventoryCell): void => {
+        if (!isReady || activeRoom === null) {
+            return;
+        }
+
+        try {
+            activeRoom.send('inventory-move', {
+                type: 'inventory-move',
+                protocolVersion,
+                inventoryVersion,
+                itemId,
+                cell,
+            });
+        } catch {
+            closeRoom();
+            onStateChange({ status: 'error' });
+        }
+    };
+
     const dispose = (): void => {
         isDisposed = true;
         disconnect();
     };
 
-    return { connect, sendMovement, sendTarget, pickUp, disconnect, dispose };
+    return { connect, sendMovement, sendTarget, pickUp, moveItem, disconnect, dispose };
 };
