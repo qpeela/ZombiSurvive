@@ -16,3 +16,4 @@ export {
     type PickupSnapshot,
     pickupStateRequest,
 } from './pickup.ts';
+export { type InventoryMoveCommand, inventoryVersion, isInventoryMoveCommand } from './pickup.ts';

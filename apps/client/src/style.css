@@ -93,3 +93,42 @@ button:disabled {
     opacity: 0.5;
     cursor: default;
 }
+
+#inventory-grid {
+    display: grid;
+    grid-template-columns: repeat(var(--inventory-columns), 48px);
+    gap: 4px;
+    margin-top: 12px;
+}
+
+#inventory-grid button {
+    width: 48px;
+    height: 48px;
+    padding: 0;
+}
+
+#inventory-grid button[data-occupied='true'],
+#inventory-select[aria-pressed='true'] {
+    background: #536344;
+    border-color: #d8e3c9;
+}
+
+button:focus-visible {
+    outline: 2px solid #d8e3c9;
+    outline-offset: 2px;
+}
+
+.inventory-item:not([hidden]) {
+    display: grid;
+    place-items: center;
+    z-index: 1;
+    pointer-events: none;
+    border: 1px solid #d8e3c9;
+    background: #536344;
+}
+
+#inventory-grid button:focus-visible {
+    position: relative;
+    z-index: 2;
+    background: transparent;
+}

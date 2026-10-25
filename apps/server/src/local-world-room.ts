@@ -57,6 +57,9 @@ export class LocalWorldRoom extends Room {
         this.onMessage<unknown>('pickup-item', (client, value) => {
             this.pickup.receive(client.sessionId, value);
         });
+        this.onMessage<unknown>('inventory-move', (client, value) => {
+            this.pickup.receiveMove(client.sessionId, value);
+        });
         this.onMessage<unknown>('movement-input', (client, value) => {
             movement.receive(client.sessionId, value);
         });

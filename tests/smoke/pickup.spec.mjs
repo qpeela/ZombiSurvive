@@ -27,7 +27,7 @@ const clickWorld = async (page, x, y) => {
     );
 };
 
-test('pickup is server-confirmed, cannot be forged or duplicated, and survives browser reconnect', async ({
+test('pickup and grid moves are server-confirmed, reject invalid placement and survive reconnect', async ({
     page,
     context,
 }) => {
@@ -101,10 +101,68 @@ test('pickup is server-confirmed, cannot be forged or duplicated, and survives b
             .toBeGreaterThan(pickedAt.tick + 2);
         const state = await room.request(pickupStateRequest);
         expect(state.groundItem).toBeNull();
-        expect(state.items).toEqual([{ itemId: initialGroundItem.itemId, kind: 'bandage' }]);
+        expect(state.items).toEqual([
+            { itemId: initialGroundItem.itemId, kind: 'bandage', cell: { column: 0, row: 0 } },
+        ]);
+        const grid = page.locator('#inventory-grid');
+        const selector = page.getByRole('button', { name: 'Переместить бинт' });
+        await expect(grid.locator('[data-occupied="true"]')).toHaveCount(2);
+        await expect(page.locator('#inventory-message')).toHaveText('Масса: 100 / 2000 г');
+        await selector.click();
+        await page.getByRole('button', { name: 'Ячейка 4, 1', exact: true }).click();
+        await expect(page.locator('#inventory-message')).toContainText('Недостаточно места');
+        expect((await room.request(pickupStateRequest)).items[0].cell).toEqual({
+            column: 0,
+            row: 0,
+        });
+        // Keyboard and pointer use the same accessible cell buttons.
+        await page.getByRole('button', { name: 'Ячейка 3, 3', exact: true }).focus();
+        await page.keyboard.press('Enter');
+        await expect(grid.locator('[data-column="2"][data-row="2"]')).toHaveAttribute(
+            'data-occupied',
+            'true',
+        );
+        await expect(grid.locator('[data-column="0"][data-row="0"]')).toHaveAttribute(
+            'data-occupied',
+            'false',
+        );
+        await expect(grid.locator('[data-occupied="true"]')).toHaveCount(2);
+        await expect(selector).toHaveAttribute('aria-pressed', 'false');
+        const move = {
+            type: 'inventory-move',
+            protocolVersion: 5,
+            inventoryVersion: 1,
+            itemId: initialGroundItem.itemId,
+            cell: { column: 2, row: 2 },
+        };
+        const invalidMoveAt = await room.request(initialStateRequest);
+        // Forged dimensions/weight/owner cannot make the two-cell item fit at the edge.
+        room.send('inventory-move', {
+            ...move,
+            cell: { column: 3, row: 0 },
+            columns: 1,
+            weightGrams: 0,
+            playerId: 'forged',
+        });
+        await expect
+            .poll(async () => (await room.request(initialStateRequest)).tick)
+            .toBeGreaterThan(invalidMoveAt.tick + 2);
+        expect((await room.request(pickupStateRequest)).items[0].cell).toEqual(move.cell);
+        const repeatAt = await room.request(initialStateRequest);
+        for (let count = 0; count < 3; count++) room.send('inventory-move', move);
+        await expect
+            .poll(async () => (await room.request(initialStateRequest)).tick)
+            .toBeGreaterThan(repeatAt.tick + 2);
+        expect((await room.request(pickupStateRequest)).items).toEqual([
+            { itemId: move.itemId, kind: 'bandage', cell: move.cell },
+        ]);
+        await page.screenshot({ path: '.cache/t016-inventory-grid.png', fullPage: true });
         await context.setOffline(true);
         await expect(page.getByRole('status')).toHaveAttribute('data-status', 'disconnected');
         await expect(page.locator('#inventory')).toHaveText('Контейнер: —');
+        await expect(selector).toBeDisabled();
+        await expect(grid.locator('[data-occupied="true"]')).toHaveCount(0);
+        await expect(grid.locator('button:enabled')).toHaveCount(0);
         await expect(page.getByRole('button', { name: 'Подобрать бинт' })).toBeDisabled();
         await context.setOffline(false);
         await page.getByRole('button', { name: 'Подключиться снова' }).click();
@@ -112,7 +170,12 @@ test('pickup is server-confirmed, cannot be forged or duplicated, and survives b
         await page.reload();
         await expect(page.locator('#inventory')).toHaveText('Контейнер: Бинт × 1');
         await expect(page.locator('#ground-item')).toHaveText('На земле: пусто');
-        await page.screenshot({ path: '.cache/t015-picked-up.png', fullPage: true });
+        await expect(grid.locator('[data-column="2"][data-row="2"]')).toHaveAttribute(
+            'data-occupied',
+            'true',
+        );
+        await expect(grid.locator('[data-occupied="true"]')).toHaveCount(2);
+        await page.screenshot({ path: '.cache/t016-reloaded.png', fullPage: true });
         expect(errors).toEqual([]);
     } finally {
         room?.connection.close();

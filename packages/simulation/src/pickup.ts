@@ -2,6 +2,7 @@ import { pickupSettings } from '@zombi-survive/content';
 import type { ItemLocation, PlayerMovementState, WorldObstacle } from '@zombi-survive/domain';
 
 import { resolveMovement } from './collisions.ts';
+import { findInventorySpace } from './inventory.ts';
 
 /** A single synchronous transition removes the ground item and assigns its owner. */
 export const pickUpItem = ({
@@ -37,8 +38,15 @@ export const pickUpItem = ({
         return location;
     }
 
+    const cell = findInventorySpace({ items: [], item: location.item });
+
+    if (cell === null) {
+        return location;
+    }
+
     return {
         type: 'container',
+        cell,
         item: { itemId: location.item.itemId, kind: location.item.kind },
         playerId: player.playerId,
     };
