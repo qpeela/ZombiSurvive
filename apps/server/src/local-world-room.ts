@@ -2,13 +2,15 @@ import { randomUUID } from 'node:crypto';
 
 import { type AuthContext, type Client, Room } from '@colyseus/core';
 import { movementSettings } from '@zombi-survive/content';
-import { initialStateRequest, localWorldRoomId } from '@zombi-survive/protocol';
+import { initialStateRequest, localWorldRoomId, pickupStateRequest } from '@zombi-survive/protocol';
 
 import { LocalWorldMovement } from './local-world-movement.ts';
+import { LocalWorldPickup } from './local-world-pickup.ts';
 import type { SoloWorldStore } from './solo-world-store.ts';
 import type { WorldAccess } from './world-access.ts';
 
 export class LocalWorldRoom extends Room {
+    private readonly pickup = new LocalWorldPickup();
     private movement: LocalWorldMovement | null = null;
     private access: WorldAccess | null = null;
     private saveTimer: ReturnType<typeof setInterval> | undefined;
@@ -49,6 +51,12 @@ export class LocalWorldRoom extends Room {
         }
 
         this.onMessage(initialStateRequest, client => movement.snapshot(client.sessionId));
+        this.onMessage(pickupStateRequest, client =>
+            this.pickup.snapshot(movement.snapshot(client.sessionId)),
+        );
+        this.onMessage<unknown>('pickup-item', (client, value) => {
+            this.pickup.receive(client.sessionId, value);
+        });
         this.onMessage<unknown>('movement-input', (client, value) => {
             movement.receive(client.sessionId, value);
         });
@@ -62,8 +70,18 @@ export class LocalWorldRoom extends Room {
 
             movement.step();
 
+            const snapshots = new Map(
+                this.clients.map(client => [client.sessionId, movement.snapshot(client.sessionId)]),
+            );
+            this.pickup.step(snapshots);
+
             for (const client of this.clients) {
-                client.send('movement-snapshot', movement.snapshot(client.sessionId));
+                const snapshot = snapshots.get(client.sessionId);
+
+                if (snapshot !== undefined) {
+                    client.send('movement-snapshot', snapshot);
+                    client.send('pickup-state', this.pickup.snapshot(snapshot));
+                }
             }
         }, 1000 / movementSettings.ticksPerSecond);
     }
@@ -84,6 +102,7 @@ export class LocalWorldRoom extends Room {
 
     override onLeave(client: Client): void {
         this.movement?.leave(client.sessionId);
+        this.pickup.leave(client.sessionId);
     }
 
     override onBeforeShutdown(): void {

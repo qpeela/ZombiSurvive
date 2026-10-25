@@ -1,3 +1,4 @@
+export type { GroundItem, Item, ItemLocation } from './item.ts';
 export type {
     MovementAxis,
     MovementDirection,

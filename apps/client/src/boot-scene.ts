@@ -1,4 +1,4 @@
-import type { PlayerMovementState, WorldPosition } from '@zombi-survive/domain';
+import type { GroundItem, PlayerMovementState, WorldPosition } from '@zombi-survive/domain';
 import { type GameObjects, type Input, Scene } from 'phaser';
 
 import { WorldTerrain } from './world-terrain';
@@ -12,6 +12,8 @@ export class BootScene extends Scene {
     private readonly otherMarkers = new Map<string, GameObjects.Container>();
     private terrain: WorldTerrain | null = null;
 
+    private groundItem: GroundItem | null = null;
+    private itemMarker: GameObjects.Container | null = null;
     private grid: GameObjects.Graphics | null = null;
     private aim: GameObjects.Graphics | null = null;
     private crosshair: GameObjects.Graphics | null = null;
@@ -72,6 +74,19 @@ export class BootScene extends Scene {
         };
         this.game.canvas.addEventListener('contextmenu', onContextMenu);
         this.input.on('pointerdown', onPointerDown);
+        this.itemMarker = this.add
+            .container(0, 0, [
+                this.add.rectangle(0, 0, 18, 12, 0xe0d6bd).setStrokeStyle(2, 0x8f846b),
+                this.add
+                    .text(0, -24, 'Бинт', {
+                        fontFamily: 'monospace',
+                        fontSize: '12px',
+                        color: '#e0d6bd',
+                    })
+                    .setOrigin(0.5),
+            ])
+            .setDepth(1);
+        this.setGroundItem(this.groundItem);
         this.marker = this.createMarker(true);
         this.setPlayers(this.player, this.otherPlayers);
         this.events.once('shutdown', () => {
@@ -84,10 +99,23 @@ export class BootScene extends Scene {
             this.crosshair = null;
             this.destinationMarker = null;
             this.marker = null;
+            this.itemMarker = null;
             this.otherMarkers.clear();
         });
         this.game.canvas.dataset['sceneReady'] = 'true';
         this.game.canvas.setAttribute('aria-label', 'Игровое поле ZombiSurvive');
+    }
+
+    setGroundItem(item: GroundItem | null): void {
+        this.groundItem = item;
+        this.itemMarker?.setVisible(item !== null);
+
+        if (item !== null) {
+            this.itemMarker?.setPosition(
+                480 + item.position.xMeters * pixelsPerMeter,
+                270 + item.position.yMeters * pixelsPerMeter,
+            );
+        }
     }
 
     setDestination(position: WorldPosition | null): void {
