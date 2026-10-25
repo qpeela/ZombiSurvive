@@ -817,7 +817,8 @@ Runtime-код не потребовал изменений. PR #19 слит, Qu
 
 ## T015 — подбор одного предмета
 
-Статус: CI_PENDING; локальные проверки готовы.
+Статус в main после слияния [PR #20](https://github.com/qpeela/ZombiSurvive/pull/20):
+DONE; пока PR открыт — CI_PENDING. Локальные проверки готовы.
 Зависимость T014 выполнена: PR #19 слит.
 Ветка: codex/t015-item-pickup от origin/main (f4d0ac2).
 
