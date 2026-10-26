@@ -15,14 +15,14 @@ import { stepZombieAttack } from '@zombi-survive/simulation';
 
 export class LocalWorldCombat {
     private readonly players = new Map<string, PlayerHealth>();
-    private attack: ZombieAttackState = { targetPlayerId: null, ticksUntilHit: 0 };
+    private readonly attacks = new Map<string, ZombieAttackState>();
 
     step({
-        zombie,
+        zombies,
         snapshots,
         obstacles,
     }: {
-        zombie: ZombieState;
+        zombies: readonly ZombieState[];
         snapshots: ReadonlyMap<string, MovementSnapshot>;
         obstacles: readonly WorldObstacle[];
     }): void {
@@ -35,20 +35,27 @@ export class LocalWorldCombat {
             }
         }
 
-        const target = [...snapshots.values()].find(
-            snapshot => snapshot.player.playerId === zombie.targetPlayerId,
-        )?.player;
-        const result = stepZombieAttack({
-            zombie,
-            attack: this.attack,
-            target,
-            health: target === undefined ? undefined : this.players.get(target.playerId),
-            obstacles,
-        });
-        this.attack = result.attack;
-
-        if (result.health !== undefined) {
-            this.players.set(result.health.playerId, result.health);
+        const ids = new Set(zombies.map(zombie => zombie.zombieId));
+        for (const id of this.attacks.keys()) {
+            if (!ids.has(id)) this.attacks.delete(id);
+        }
+        for (const zombie of zombies) {
+            const target = [...snapshots.values()].find(
+                snapshot => snapshot.player.playerId === zombie.targetPlayerId,
+            )?.player;
+            const result = stepZombieAttack({
+                zombie,
+                attack: this.attacks.get(zombie.zombieId) ?? {
+                    targetPlayerId: null,
+                    ticksUntilHit: 0,
+                },
+                target,
+                health: target === undefined ? undefined : this.players.get(target.playerId),
+                obstacles,
+            });
+            this.attacks.set(zombie.zombieId, result.attack);
+            if (result.health !== undefined)
+                this.players.set(result.health.playerId, result.health);
         }
     }
 

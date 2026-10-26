@@ -40,3 +40,17 @@ test.each([
 ])('rejects malformed zombie state: %j', value => {
     expect(isZombieSnapshot(value)).toBe(false);
 });
+
+test('multiple distinct zombies are valid; oversized interest snapshots are rejected', () => {
+    const zombies = Array.from({ length: 256 }, (_, index) => ({
+        ...initialZombie,
+        zombieId: `z-${String(index)}`,
+    }));
+    expect(isZombieSnapshot({ ...snapshot, zombies })).toBe(true);
+    expect(
+        isZombieSnapshot({
+            ...snapshot,
+            zombies: [...zombies, { ...initialZombie, zombieId: 'extra' }],
+        }),
+    ).toBe(false);
+});

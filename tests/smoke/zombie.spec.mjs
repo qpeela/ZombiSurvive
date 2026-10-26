@@ -10,7 +10,13 @@ import { loadWorldChunks } from '@zombi-survive/worldgen';
 
 const origin = 'http://127.0.0.1:3112';
 const readZombies = page =>
-    page.locator('canvas').evaluate(element => JSON.parse(element.dataset.zombies ?? '[]'));
+    page
+        .locator('canvas')
+        .evaluate(element =>
+            JSON.parse(element.dataset.zombies ?? '[]').filter(
+                zombie => zombie.zombieId === 'slow-zombie-1',
+            ),
+        );
 const clickWorld = async (page, x, y) => {
     const canvas = page.locator('canvas');
     await canvas.scrollIntoViewIfNeeded();

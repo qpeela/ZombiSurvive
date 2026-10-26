@@ -17,7 +17,7 @@ const setup = () => {
     };
     const snapshots = new Map(['first', 'tab', 'friend'].map(id => [id, movement.snapshot(id)]));
     const step = () => {
-        combat.step({ zombie, snapshots, obstacles: [] });
+        combat.step({ zombies: [zombie], snapshots, obstacles: [] });
     };
 
     return { movement, combat, zombie, snapshots, step };
@@ -38,15 +38,28 @@ test('tabs share health and cannot multiply hits; other players are unaffected',
 test('disconnect cancels windup without healing and reconnect requires a full attack delay', () => {
     const { movement, combat, zombie, step } = setup();
     for (let tick = 0; tick < 39; tick++) step();
-    combat.step({ zombie, snapshots: new Map(), obstacles: [] });
+    combat.step({ zombies: [zombie], snapshots: new Map(), obstacles: [] });
     movement.leave('first');
     movement.leave('tab');
     movement.join('rejoined');
     const connected = new Map([['rejoined', movement.snapshot('rejoined')]]);
     expect(combat.snapshot(movement.snapshot('rejoined')).health).toBe(90);
     for (let tick = 0; tick < 19; tick++)
-        combat.step({ zombie, snapshots: connected, obstacles: [] });
+        combat.step({ zombies: [zombie], snapshots: connected, obstacles: [] });
     expect(combat.snapshot(movement.snapshot('rejoined')).health).toBe(90);
-    combat.step({ zombie, snapshots: connected, obstacles: [] });
+    combat.step({ zombies: [zombie], snapshots: connected, obstacles: [] });
     expect(combat.snapshot(movement.snapshot('rejoined')).health).toBe(80);
+});
+
+test('each zombie has an independent attack interval and damage accumulates without negative HP', () => {
+    const { combat, movement, zombie, snapshots } = setup();
+    const zombies = Array.from({ length: 12 }, (_, index) => ({
+        ...zombie,
+        zombieId: `z-${String(index)}`,
+    }));
+    for (let tick = 0; tick < 20; tick++) combat.step({ zombies, snapshots, obstacles: [] });
+    expect(combat.snapshot(movement.snapshot('first')).health).toBe(0);
+    combat.step({ zombies: [], snapshots, obstacles: [] });
+    combat.step({ zombies, snapshots, obstacles: [] });
+    expect(combat.snapshot(movement.snapshot('first')).health).toBe(0);
 });

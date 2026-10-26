@@ -5,8 +5,8 @@ import test from 'node:test';
 const scenario = `
 import assert from 'node:assert/strict';
 import { combatSettings } from '@zombi-survive/content';
-import { isHealthSnapshot, healthVersion, protocolVersion } from '@zombi-survive/protocol';
-import { stepZombieAttack } from '@zombi-survive/simulation';
+import { isHealthSnapshot, healthVersion, protocolVersion, isMeleeCommand, isMeleeSnapshot, meleeVersion } from '@zombi-survive/protocol';
+import { stepZombieAttack, findMeleeTarget } from '@zombi-survive/simulation';
 const target = {
     playerId: 'player', position: { xMeters: 0.9, yMeters: 0 },
     stamina: 1, isExhausted: false, isSneaking: false, noiseRadiusMeters: 0,
@@ -22,6 +22,9 @@ const snapshot = {
     ...state.health, maxHealth: combatSettings.maxHealth,
 };
 assert.ok(isHealthSnapshot(JSON.parse(JSON.stringify(snapshot))));
+assert.equal(findMeleeTarget({ position: target.position, zombies: [zombie], obstacles: [] }), zombie);
+assert.ok(isMeleeCommand({ type: 'melee-attack', protocolVersion, meleeVersion }));
+assert.ok(isMeleeSnapshot({ type: 'melee-state', protocolVersion, meleeVersion, worldId: 'world', playerId: 'player', tick: 1, weapon: 'club' }));
 `;
 for (const mode of ['built', 'development']) {
     test(`combat public APIs work together in ${mode} mode`, () => {

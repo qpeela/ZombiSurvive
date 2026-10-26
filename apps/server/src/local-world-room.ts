@@ -5,6 +5,7 @@ import { movementSettings } from '@zombi-survive/content';
 import { initialStateRequest, localWorldRoomId, pickupStateRequest } from '@zombi-survive/protocol';
 
 import { LocalWorldCombat } from './local-world-combat.ts';
+import { LocalWorldMelee } from './local-world-melee.ts';
 import { LocalWorldMovement } from './local-world-movement.ts';
 import { LocalWorldPickup } from './local-world-pickup.ts';
 import { LocalWorldZombie } from './local-world-zombie.ts';
@@ -15,6 +16,7 @@ export class LocalWorldRoom extends Room {
     private readonly pickup = new LocalWorldPickup();
     private readonly zombie = new LocalWorldZombie();
     private readonly combat = new LocalWorldCombat();
+    private readonly melee = new LocalWorldMelee();
     private movement: LocalWorldMovement | null = null;
     private access: WorldAccess | null = null;
     private saveTimer: ReturnType<typeof setInterval> | undefined;
@@ -58,6 +60,11 @@ export class LocalWorldRoom extends Room {
         this.onMessage(pickupStateRequest, client =>
             this.pickup.snapshot(movement.snapshot(client.sessionId)),
         );
+        for (const type of ['equip-club', 'melee-attack']) {
+            this.onMessage<unknown>(type, (client, value) => {
+                this.melee.receive(client.sessionId, value);
+            });
+        }
         this.onMessage<unknown>('pickup-item', (client, value) => {
             this.pickup.receive(client.sessionId, value);
         });
@@ -82,7 +89,16 @@ export class LocalWorldRoom extends Room {
             );
             this.pickup.step(snapshots);
             const zombie = this.zombie.step(snapshots);
-            this.combat.step({ ...zombie, snapshots });
+            this.melee.step({
+                ...zombie,
+                snapshots,
+                health: snapshot => this.combat.snapshot(snapshot).health,
+                damage: id => {
+                    this.zombie.damage(id);
+                },
+            });
+            const living = zombie.zombies.filter(state => this.zombie.isAlive(state.zombieId));
+            this.combat.step({ ...zombie, zombies: living, snapshots });
 
             for (const client of this.clients) {
                 const snapshot = snapshots.get(client.sessionId);
@@ -92,6 +108,7 @@ export class LocalWorldRoom extends Room {
                     client.send('pickup-state', this.pickup.snapshot(snapshot));
                     client.send('zombie-state', this.zombie.snapshot(snapshot));
                     client.send('health-state', this.combat.snapshot(snapshot));
+                    client.send('melee-state', this.melee.snapshot(snapshot));
                 }
             }
         }, 1000 / movementSettings.ticksPerSecond);
@@ -114,6 +131,7 @@ export class LocalWorldRoom extends Room {
     override onLeave(client: Client): void {
         this.movement?.leave(client.sessionId);
         this.pickup.leave(client.sessionId);
+        this.melee.leave(client.sessionId);
     }
 
     override onBeforeShutdown(): void {

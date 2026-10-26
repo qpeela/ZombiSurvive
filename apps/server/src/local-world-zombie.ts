@@ -1,20 +1,36 @@
-import { initialZombie, zombieSettings } from '@zombi-survive/content';
+import { combatSettings, initialZombie, zombieSettings } from '@zombi-survive/content';
 import type { WorldChunk, WorldObstacle, ZombieState } from '@zombi-survive/domain';
 import {
     type MovementSnapshot,
     protocolVersion,
     type ZombieSnapshot,
+    zombieSnapshotLimit,
     zombieVersion,
 } from '@zombi-survive/protocol';
 import { movementStepSeconds, stepZombie } from '@zombi-survive/simulation';
 import { loadWorldChunks } from '@zombi-survive/worldgen';
 
 export class LocalWorldZombie {
-    private zombie: ZombieState = { ...initialZombie, position: { ...initialZombie.position } };
+    private readonly zombies = new Map<string, ZombieState>([
+        [initialZombie.zombieId, initialZombie],
+    ]);
+    private readonly health = new Map<string, number>();
+    private readonly populatedChunks = new Set<string>();
+
     private chunks: readonly WorldChunk[] = [];
 
+    damage(zombieId: string): void {
+        if (!this.zombies.has(zombieId)) return;
+
+        const health =
+            (this.health.get(zombieId) ?? combatSettings.zombieHealth) - combatSettings.clubDamage;
+        this.health.set(zombieId, health);
+
+        if (health <= 0) this.zombies.delete(zombieId);
+    }
+
     step(snapshots: ReadonlyMap<string, MovementSnapshot>): {
-        zombie: ZombieState;
+        zombies: readonly ZombieState[];
         obstacles: readonly WorldObstacle[];
     } {
         // One player may have multiple tabs; disconnected characters are absent.
@@ -26,43 +42,74 @@ export class LocalWorldZombie {
                 ]),
             ).values(),
         ];
-        const activePlayers = players.filter(
-            player =>
-                Math.hypot(
-                    player.position.xMeters - this.zombie.position.xMeters,
-                    player.position.yMeters - this.zombie.position.yMeters,
-                ) <= zombieSettings.pursuitRangeMeters,
-        );
-
-        if (activePlayers.length === 0) {
-            this.chunks = [];
-            this.zombie = { ...this.zombie, targetPlayerId: null };
-
-            return { zombie: this.zombie, obstacles: [] };
-        }
-
         this.chunks = loadWorldChunks({
-            positions: [this.zombie.position, ...activePlayers.map(player => player.position)],
+            positions: players.map(player => player.position),
             previousChunks: this.chunks,
         });
-        const obstacles = this.chunks.flatMap(chunk => chunk.obstacles);
-        this.zombie = stepZombie({
-            zombie: this.zombie,
-            players: activePlayers,
-            obstacles,
-            stepSeconds: movementStepSeconds,
-        });
+        for (const chunk of this.chunks) {
+            const key = `${String(chunk.chunkX)},${String(chunk.chunkY)}`;
+            if (this.populatedChunks.has(key)) continue;
 
-        return { zombie: this.zombie, obstacles };
+            this.populatedChunks.add(key);
+            for (const x of zombieSettings.spawnOffsetsMeters) {
+                for (const y of zombieSettings.spawnOffsetsMeters) {
+                    const isCenter = x === 0 && y === 0;
+                    const isStartingZombie = isCenter && chunk.chunkX === 0 && chunk.chunkY === 0;
+                    if (isStartingZombie) continue;
+
+                    const zombieId = `slow:${key}:${String(x)},${String(y)}`;
+                    this.zombies.set(zombieId, {
+                        zombieId,
+                        position: {
+                            xMeters:
+                                chunk.chunkX * chunk.sizeMeters +
+                                (isCenter ? initialZombie.position.xMeters : x),
+                            yMeters: chunk.chunkY * chunk.sizeMeters + y,
+                        },
+                        targetPlayerId: null,
+                    });
+                }
+            }
+        }
+        const obstacles = this.chunks.flatMap(chunk => chunk.obstacles);
+        const activeZombies: ZombieState[] = [];
+        for (const [id, zombie] of this.zombies) {
+            const activePlayers = players.filter(
+                player =>
+                    Math.hypot(
+                        player.position.xMeters - zombie.position.xMeters,
+                        player.position.yMeters - zombie.position.yMeters,
+                    ) <= zombieSettings.pursuitRangeMeters,
+            );
+            const next =
+                activePlayers.length === 0
+                    ? { ...zombie, targetPlayerId: null }
+                    : stepZombie({
+                          zombie,
+                          players: activePlayers,
+                          obstacles,
+                          stepSeconds: movementStepSeconds,
+                      });
+            this.zombies.set(id, next);
+            if (activePlayers.length > 0) activeZombies.push(next);
+        }
+
+        return { zombies: activeZombies, obstacles };
+    }
+
+    isAlive(id: string): boolean {
+        return this.zombies.has(id);
     }
 
     snapshot(movement: MovementSnapshot): ZombieSnapshot {
-        const distance = Math.hypot(
-            movement.player.position.xMeters - this.zombie.position.xMeters,
-            movement.player.position.yMeters - this.zombie.position.yMeters,
+        const nearby = [...this.zombies.values()].filter(
+            zombie =>
+                Math.hypot(
+                    movement.player.position.xMeters - zombie.position.xMeters,
+                    movement.player.position.yMeters - zombie.position.yMeters,
+                ) <=
+                zombieSettings.pursuitRangeMeters + zombieSettings.navigationMarginMeters,
         );
-        const isNearby =
-            distance <= zombieSettings.pursuitRangeMeters + zombieSettings.navigationMarginMeters;
 
         return {
             type: 'zombie-state',
@@ -70,7 +117,9 @@ export class LocalWorldZombie {
             zombieVersion,
             worldId: movement.worldId,
             tick: movement.tick,
-            zombies: isNearby ? [{ ...this.zombie, position: { ...this.zombie.position } }] : [],
+            zombies: nearby
+                .slice(0, zombieSnapshotLimit)
+                .map(zombie => ({ ...zombie, position: { ...zombie.position } })),
         };
     }
 }

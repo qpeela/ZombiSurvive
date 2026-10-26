@@ -65,6 +65,9 @@ const createRoom = () => {
         publishZombie: (value: unknown) => {
             messages.get('zombie-state')?.(value);
         },
+        publishMelee: (value: unknown) => {
+            messages.get('melee-state')?.(value);
+        },
         publishHealth: (value: unknown) => {
             messages.get('health-state')?.(value);
         },
@@ -421,5 +424,83 @@ test.each([
     fake.publishHealth(value);
     expect(states.at(-1)).toEqual({ status: 'error' });
     expect(fake.room.connection.close).toHaveBeenCalledOnce();
+    connection.dispose();
+});
+
+const meleeState = (tick: number) => ({
+    type: 'melee-state',
+    protocolVersion: 5,
+    meleeVersion: 1,
+    worldId: 'world',
+    playerId: 'player',
+    tick,
+    weapon: 'club',
+});
+test('melee waits for readiness, ignores stale rooms/ticks and cannot send after disconnect', async () => {
+    const first = createRoom();
+    const second = createRoom();
+    join.mockResolvedValueOnce(first.room).mockResolvedValueOnce(second.room);
+    const onMelee = vi.fn();
+    const connection = createWorldConnection(
+        'http://host',
+        () => {},
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        onMelee,
+    );
+    connection.sendMelee('equip-club');
+    const ready = connection.connect();
+    await vi.waitFor(() => {
+        expect(first.room.request).toHaveBeenCalled();
+    });
+    first.publishMelee(meleeState(0));
+    expect(onMelee).not.toHaveBeenCalled();
+    first.resolveInitial(snapshot(1));
+    await ready;
+    connection.sendMelee('equip-club');
+    expect(first.room.send).toHaveBeenCalledWith('equip-club', {
+        type: 'equip-club',
+        protocolVersion: 5,
+        meleeVersion: 1,
+    });
+    first.publishMelee(meleeState(2));
+    first.publishMelee(meleeState(1));
+    expect(onMelee).toHaveBeenCalledOnce();
+    const retry = connection.connect();
+    await vi.waitFor(() => {
+        expect(second.room.request).toHaveBeenCalled();
+    });
+    second.resolveInitial(snapshot(1));
+    await retry;
+    first.publishMelee(meleeState(99));
+    second.publishMelee(meleeState(1));
+    expect(onMelee).toHaveBeenCalledTimes(2);
+    connection.disconnect();
+    second.publishMelee(meleeState(2));
+    connection.sendMelee('melee-attack');
+    expect(onMelee).toHaveBeenCalledTimes(2);
+    expect(second.room.send).not.toHaveBeenCalled();
+    connection.dispose();
+});
+test.each([
+    {},
+    { ...meleeState(2), worldId: 'foreign' },
+    { ...meleeState(2), playerId: 'foreign' },
+    { ...meleeState(2), weapon: 'gun' },
+])('invalid or foreign melee state closes the room: %j', async value => {
+    const fake = createRoom();
+    join.mockResolvedValue(fake.room);
+    const states: WorldConnectionState[] = [];
+    const connection = createWorldConnection('http://host', state => states.push(state));
+    const ready = connection.connect();
+    await vi.waitFor(() => {
+        expect(fake.room.request).toHaveBeenCalled();
+    });
+    fake.resolveInitial(snapshot(1));
+    await ready;
+    fake.publishMelee(value);
+    expect(states.at(-1)).toEqual({ status: 'error' });
     connection.dispose();
 });
