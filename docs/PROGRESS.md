@@ -6,7 +6,9 @@
 - S001/S002, T001–T018, включая T005A/T005B: DONE. T018 слита через
   [PR #23](https://github.com/qpeela/ZombiSurvive/pull/23), main: a61cb4e.
 - T005C/T014C: PAUSED, кооператив не возобновляется.
-- T019 — ближний бой и зомби в каждой области карты: CI_PENDING.
+- T019 — ближний бой и зомби в каждой области карты:
+  [PR #24](https://github.com/qpeela/ZombiSurvive/pull/24).
+  Статус в main после слияния: DONE; пока PR открыт — CI_PENDING.
   Ветка codex/t019-melee-and-zombie-population от origin/main (a61cb4e).
   Пользователь поручил выполнить следующую задачу, увеличить популяцию
   и слить PR после успешных проверок.
