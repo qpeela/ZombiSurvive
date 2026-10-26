@@ -1,6 +1,7 @@
 import type { ZombieState } from '@zombi-survive/domain';
 
 export const zombieSettings = Object.freeze({
+    spawnOffsetsMeters: Object.freeze([-24, 0, 24]),
     speedMetersPerSecond: 1.5,
     sightRangeMeters: 12,
     pursuitRangeMeters: 18,

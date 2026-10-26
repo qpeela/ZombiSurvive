@@ -13,6 +13,9 @@ import { createWorldSession } from './world-session';
 
 const container = document.querySelector<HTMLElement>('#game');
 const status = document.querySelector<HTMLElement>('#connection-status');
+const equipClub = document.querySelector<HTMLButtonElement>('#equip-club');
+const attack = document.querySelector<HTMLButtonElement>('#melee-attack');
+const weaponLabel = document.querySelector<HTMLElement>('#weapon-label');
 const reconnect = document.querySelector<HTMLButtonElement>('#reconnect');
 const stamina = document.querySelector<HTMLProgressElement>('#stamina');
 const staminaLabel = document.querySelector<HTMLElement>('#stamina-label');
@@ -27,6 +30,9 @@ const inventorySelector = document.querySelector<HTMLButtonElement>('#inventory-
 const inventoryMessage = document.querySelector<HTMLElement>('#inventory-message');
 
 if (
+    !equipClub ||
+    !attack ||
+    !weaponLabel ||
     !container ||
     !status ||
     !reconnect ||
@@ -164,6 +170,9 @@ const connection = createWorldConnection(
         inventoryUi.update(null);
         scene.setGroundItem(null);
         scene.setZombies([]);
+        equipClub.disabled = true;
+        attack.disabled = true;
+        weaponLabel.textContent = 'Оружие: —';
         otherPlayers = [];
         delete status.dataset['worldId'];
         delete status.dataset['playerId'];
@@ -196,9 +205,16 @@ const connection = createWorldConnection(
         scene.setZombies(snapshot.zombies);
     },
     snapshot => {
+        attack.disabled = attack.disabled || snapshot.health <= 0;
         health.max = snapshot.maxHealth;
         health.value = snapshot.health;
         healthLabel.textContent = `Здоровье: ${String(snapshot.health)} / ${String(snapshot.maxHealth)}`;
+    },
+    snapshot => {
+        const isEquipped = snapshot.weapon === 'club';
+        equipClub.disabled = isEquipped || health.value <= 0;
+        attack.disabled = !isEquipped || health.value <= 0;
+        weaponLabel.textContent = isEquipped ? 'Оружие: дубинка' : 'Оружие: в руках пусто';
     },
 );
 const session = createWorldSession();
@@ -243,6 +259,27 @@ const onPickup = (): void => {
         connection.pickUp(groundItem.itemId);
     }
 };
+const onEquipClub = (): void => {
+    connection.sendMelee('equip-club');
+};
+const onAttack = (): void => {
+    if (!attack.disabled) connection.sendMelee('melee-attack');
+};
+const onAttackKey = (event: KeyboardEvent): void => {
+    const target = event.target;
+    const isEditing =
+        target instanceof HTMLElement &&
+        (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+    const isAttackKey =
+        event.code === 'KeyF' && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey;
+    if (isAttackKey && !isEditing) {
+        event.preventDefault();
+        onAttack();
+    }
+};
+equipClub.addEventListener('click', onEquipClub);
+attack.addEventListener('click', onAttack);
+window.addEventListener('keydown', onAttackKey);
 pickup.addEventListener('click', onPickup);
 reconnect.addEventListener('click', onConnect);
 window.addEventListener('pagehide', onPageHide);
@@ -257,6 +294,9 @@ if (import.meta.hot) {
         input.dispose();
         inventoryUi.dispose();
         connection.dispose();
+        equipClub.removeEventListener('click', onEquipClub);
+        attack.removeEventListener('click', onAttack);
+        window.removeEventListener('keydown', onAttackKey);
         pickup.removeEventListener('click', onPickup);
         reconnect.removeEventListener('click', onConnect);
         window.removeEventListener('pagehide', onPageHide);

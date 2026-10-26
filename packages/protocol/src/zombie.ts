@@ -3,6 +3,7 @@ import type { ZombieState } from '@zombi-survive/domain';
 import { protocolVersion } from './movement.ts';
 
 export const zombieVersion = 1;
+export const zombieSnapshotLimit = 256;
 export type ZombieSnapshot = {
     readonly type: 'zombie-state';
     readonly protocolVersion: typeof protocolVersion;
@@ -53,5 +54,9 @@ export const isZombieSnapshot = (value: unknown): value is ZombieSnapshot => {
         return false;
     }
 
-    return zombies.length <= 1 && zombies.every(isZombie);
+    return (
+        zombies.length <= zombieSnapshotLimit &&
+        zombies.every(isZombie) &&
+        new Set(zombies.map(zombie => zombie.zombieId)).size === zombies.length
+    );
 };

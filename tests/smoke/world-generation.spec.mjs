@@ -14,6 +14,18 @@ const position = page =>
 const clickWorld = async (page, x, y) => {
     const canvas = page.locator('canvas');
     await canvas.scrollIntoViewIfNeeded();
+    // A screen-space click needs a stationary camera after a preceding WASD release.
+    await expect
+        .poll(async () => Number(await page.getByRole('status').getAttribute('data-noise-radius')))
+        .toBe(0);
+    await expect
+        .poll(async () =>
+            Math.abs(
+                (Number(await canvas.getAttribute('data-player-x')) - 480) / 24 -
+                    (await position(page)).x,
+            ),
+        )
+        .toBeLessThan(0.001);
     const camera = await canvas.evaluate(element => ({
         x: Number(element.dataset.cameraX),
         y: Number(element.dataset.cameraY),

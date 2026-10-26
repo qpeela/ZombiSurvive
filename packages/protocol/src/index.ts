@@ -1,6 +1,13 @@
 export { initialStateRequest, localWorldRoomId } from './connection.ts';
 export { type HealthSnapshot, healthVersion, isHealthSnapshot } from './health.ts';
 export {
+    isMeleeCommand,
+    isMeleeSnapshot,
+    type MeleeCommand,
+    type MeleeSnapshot,
+    meleeVersion,
+} from './melee.ts';
+export {
     isMovementInputCommand,
     isMovementSnapshot,
     isMovementTargetCommand,
@@ -18,4 +25,9 @@ export {
     pickupStateRequest,
 } from './pickup.ts';
 export { type InventoryMoveCommand, inventoryVersion, isInventoryMoveCommand } from './pickup.ts';
-export { isZombieSnapshot, type ZombieSnapshot, zombieVersion } from './zombie.ts';
+export {
+    isZombieSnapshot,
+    type ZombieSnapshot,
+    zombieSnapshotLimit,
+    zombieVersion,
+} from './zombie.ts';

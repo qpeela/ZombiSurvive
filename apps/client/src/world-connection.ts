@@ -10,9 +10,12 @@ import {
     initialStateRequest,
     inventoryVersion,
     isHealthSnapshot,
+    isMeleeSnapshot,
     isPickupSnapshot,
     isZombieSnapshot,
     localWorldRoomId,
+    type MeleeSnapshot,
+    meleeVersion,
     type MovementInputCommand,
     type MovementSnapshot,
     type MovementTargetCommand,
@@ -62,8 +65,10 @@ export const createWorldConnection = (
     onPickupChange?: (snapshot: PickupSnapshot) => void,
     onZombieChange?: (snapshot: ZombieSnapshot) => void,
     onHealthChange?: (snapshot: HealthSnapshot) => void,
+    onMeleeChange?: (snapshot: MeleeSnapshot) => void,
 ): {
     connect: () => Promise<void>;
+    sendMelee: (type: 'equip-club' | 'melee-attack') => void;
     sendMovement: (direction: MovementDirection, modifiers?: MovementModifiers) => void;
     sendTarget: (target: WorldPosition, modifiers?: MovementModifiers) => void;
     pickUp: (itemId: string) => void;
@@ -248,6 +253,27 @@ export const createWorldConnection = (
                 zombieTick = value.tick;
                 onZombieChange?.(value);
             });
+            let meleeTick = -1;
+            room.onMessage<unknown>('melee-state', value => {
+                if (!isActiveRoom() || !isReady || received.snapshot === null) return;
+
+                if (!isMeleeSnapshot(value)) {
+                    closeRoom();
+                    onStateChange({ status: 'error' });
+                    return;
+                }
+                const isSameWorld = value.worldId === received.snapshot.worldId;
+                const isSamePlayer = value.playerId === received.snapshot.player.playerId;
+                if (!isSameWorld || !isSamePlayer) {
+                    closeRoom();
+                    onStateChange({ status: 'error' });
+                    return;
+                }
+                if (value.tick <= meleeTick) return;
+
+                meleeTick = value.tick;
+                onMeleeChange?.(value);
+            });
             let healthTick = -1;
             room.onMessage<unknown>('health-state', value => {
                 if (!isActiveRoom() || !isReady || received.snapshot === null) {
@@ -383,10 +409,21 @@ export const createWorldConnection = (
         }
     };
 
+    const sendMelee = (type: 'equip-club' | 'melee-attack'): void => {
+        if (!isReady || activeRoom === null) return;
+
+        try {
+            activeRoom.send(type, { type, protocolVersion, meleeVersion });
+        } catch {
+            closeRoom();
+            onStateChange({ status: 'error' });
+        }
+    };
+
     const dispose = (): void => {
         isDisposed = true;
         disconnect();
     };
 
-    return { connect, sendMovement, sendTarget, pickUp, moveItem, disconnect, dispose };
+    return { connect, sendMelee, sendMovement, sendTarget, pickUp, moveItem, disconnect, dispose };
 };
