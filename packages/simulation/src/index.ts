@@ -3,3 +3,4 @@ export { findInventorySpace, inventoryWeightGrams, placeInventoryItem } from './
 export { movementStepSeconds, stepPlayerMovement, stepPlayerToward } from './movement.ts';
 export { pickUpItem } from './pickup.ts';
 export { stepZombie } from './zombie.ts';
+export { stepZombieAttack } from './zombie-attack.ts';

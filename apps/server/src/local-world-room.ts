@@ -4,6 +4,7 @@ import { type AuthContext, type Client, Room } from '@colyseus/core';
 import { movementSettings } from '@zombi-survive/content';
 import { initialStateRequest, localWorldRoomId, pickupStateRequest } from '@zombi-survive/protocol';
 
+import { LocalWorldCombat } from './local-world-combat.ts';
 import { LocalWorldMovement } from './local-world-movement.ts';
 import { LocalWorldPickup } from './local-world-pickup.ts';
 import { LocalWorldZombie } from './local-world-zombie.ts';
@@ -13,6 +14,7 @@ import type { WorldAccess } from './world-access.ts';
 export class LocalWorldRoom extends Room {
     private readonly pickup = new LocalWorldPickup();
     private readonly zombie = new LocalWorldZombie();
+    private readonly combat = new LocalWorldCombat();
     private movement: LocalWorldMovement | null = null;
     private access: WorldAccess | null = null;
     private saveTimer: ReturnType<typeof setInterval> | undefined;
@@ -79,7 +81,8 @@ export class LocalWorldRoom extends Room {
                 this.clients.map(client => [client.sessionId, movement.snapshot(client.sessionId)]),
             );
             this.pickup.step(snapshots);
-            this.zombie.step(snapshots);
+            const zombie = this.zombie.step(snapshots);
+            this.combat.step({ ...zombie, snapshots });
 
             for (const client of this.clients) {
                 const snapshot = snapshots.get(client.sessionId);
@@ -88,6 +91,7 @@ export class LocalWorldRoom extends Room {
                     client.send('movement-snapshot', snapshot);
                     client.send('pickup-state', this.pickup.snapshot(snapshot));
                     client.send('zombie-state', this.zombie.snapshot(snapshot));
+                    client.send('health-state', this.combat.snapshot(snapshot));
                 }
             }
         }, 1000 / movementSettings.ticksPerSecond);

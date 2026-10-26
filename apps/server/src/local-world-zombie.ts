@@ -1,5 +1,5 @@
 import { initialZombie, zombieSettings } from '@zombi-survive/content';
-import type { WorldChunk, ZombieState } from '@zombi-survive/domain';
+import type { WorldChunk, WorldObstacle, ZombieState } from '@zombi-survive/domain';
 import {
     type MovementSnapshot,
     protocolVersion,
@@ -13,7 +13,10 @@ export class LocalWorldZombie {
     private zombie: ZombieState = { ...initialZombie, position: { ...initialZombie.position } };
     private chunks: readonly WorldChunk[] = [];
 
-    step(snapshots: ReadonlyMap<string, MovementSnapshot>): void {
+    step(snapshots: ReadonlyMap<string, MovementSnapshot>): {
+        zombie: ZombieState;
+        obstacles: readonly WorldObstacle[];
+    } {
         // One player may have multiple tabs; disconnected characters are absent.
         const players = [
             ...new Map(
@@ -35,19 +38,22 @@ export class LocalWorldZombie {
             this.chunks = [];
             this.zombie = { ...this.zombie, targetPlayerId: null };
 
-            return;
+            return { zombie: this.zombie, obstacles: [] };
         }
 
         this.chunks = loadWorldChunks({
             positions: [this.zombie.position, ...activePlayers.map(player => player.position)],
             previousChunks: this.chunks,
         });
+        const obstacles = this.chunks.flatMap(chunk => chunk.obstacles);
         this.zombie = stepZombie({
             zombie: this.zombie,
             players: activePlayers,
-            obstacles: this.chunks.flatMap(chunk => chunk.obstacles),
+            obstacles,
             stepSeconds: movementStepSeconds,
         });
+
+        return { zombie: this.zombie, obstacles };
     }
 
     snapshot(movement: MovementSnapshot): ZombieSnapshot {
