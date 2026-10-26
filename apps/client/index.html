@@ -33,6 +33,8 @@
             </section>
             <section id="game" aria-label="Игровое поле">
                 <div class="stamina-hud">
+                    <label id="health-label" for="health">Здоровье: —</label>
+                    <progress id="health" max="100" value="0"></progress>
                     <label id="stamina-label" for="stamina">Выносливость: —</label>
                     <progress id="stamina" max="1" value="0"></progress>
                     <span id="movement-label">Режим: —</span>
@@ -44,6 +46,10 @@
             </p>
             <p class="caption">
                 Исследуйте мир: соседние участки загружаются при движении, дальние освобождаются.
+            </p>
+            <p class="caption">
+                Зомби бьёт вблизи раз в секунду. Здоровье хранится до остановки сервера. При 0 HP
+                можно двигаться; смерть и возрождение появятся позже.
             </p>
         </main>
         <script type="module" src="/src/main.ts"></script>

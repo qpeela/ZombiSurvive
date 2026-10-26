@@ -6,8 +6,10 @@ import type {
     WorldPosition,
 } from '@zombi-survive/domain';
 import {
+    type HealthSnapshot,
     initialStateRequest,
     inventoryVersion,
+    isHealthSnapshot,
     isPickupSnapshot,
     isZombieSnapshot,
     localWorldRoomId,
@@ -59,6 +61,7 @@ export const createWorldConnection = (
     onCommandSent?: (command: MovementInputCommand | MovementTargetCommand) => void,
     onPickupChange?: (snapshot: PickupSnapshot) => void,
     onZombieChange?: (snapshot: ZombieSnapshot) => void,
+    onHealthChange?: (snapshot: HealthSnapshot) => void,
 ): {
     connect: () => Promise<void>;
     sendMovement: (direction: MovementDirection, modifiers?: MovementModifiers) => void;
@@ -244,6 +247,36 @@ export const createWorldConnection = (
 
                 zombieTick = value.tick;
                 onZombieChange?.(value);
+            });
+            let healthTick = -1;
+            room.onMessage<unknown>('health-state', value => {
+                if (!isActiveRoom() || !isReady || received.snapshot === null) {
+                    return;
+                }
+
+                if (!isHealthSnapshot(value)) {
+                    closeRoom();
+                    onStateChange({ status: 'error' });
+
+                    return;
+                }
+
+                const isSameWorld = value.worldId === received.snapshot.worldId;
+                const isSamePlayer = value.playerId === received.snapshot.player.playerId;
+
+                if (!isSameWorld || !isSamePlayer) {
+                    closeRoom();
+                    onStateChange({ status: 'error' });
+
+                    return;
+                }
+
+                if (value.tick <= healthTick) {
+                    return;
+                }
+
+                healthTick = value.tick;
+                onHealthChange?.(value);
             });
             room.onLeave(() => {
                 if (isActiveRoom()) {

@@ -65,6 +65,9 @@ const createRoom = () => {
         publishZombie: (value: unknown) => {
             messages.get('zombie-state')?.(value);
         },
+        publishHealth: (value: unknown) => {
+            messages.get('health-state')?.(value);
+        },
         leave: () => {
             onLeave();
         },
@@ -343,6 +346,79 @@ test.each([
     fake.resolveInitial(snapshot(1));
     await ready;
     fake.publishZombie(value);
+    expect(states.at(-1)).toEqual({ status: 'error' });
+    expect(fake.room.connection.close).toHaveBeenCalledOnce();
+    connection.dispose();
+});
+
+const healthState = (tick: number, health = 90) => ({
+    type: 'health-state',
+    protocolVersion: 5,
+    healthVersion: 1,
+    worldId: 'world',
+    playerId: 'player',
+    tick,
+    health,
+    maxHealth: 100,
+});
+test('health requires readiness and cannot be overwritten by stale ticks, rooms or disconnect', async () => {
+    const first = createRoom();
+    const second = createRoom();
+    join.mockResolvedValueOnce(first.room).mockResolvedValueOnce(second.room);
+    const onHealth = vi.fn();
+    const connection = createWorldConnection(
+        'http://host',
+        () => {},
+        undefined,
+        undefined,
+        undefined,
+        onHealth,
+    );
+    const ready = connection.connect();
+    await vi.waitFor(() => {
+        expect(first.room.request).toHaveBeenCalled();
+    });
+    first.publishHealth(healthState(0));
+    expect(onHealth).not.toHaveBeenCalled();
+    first.resolveInitial(snapshot(1));
+    await ready;
+    first.publishHealth(healthState(2));
+    first.publishHealth(healthState(1, 100));
+    first.publishHealth(healthState(2, 100));
+    expect(onHealth).toHaveBeenCalledOnce();
+    expect(onHealth).toHaveBeenLastCalledWith(healthState(2));
+    const retry = connection.connect();
+    await vi.waitFor(() => {
+        expect(second.room.request).toHaveBeenCalled();
+    });
+    second.resolveInitial(snapshot(1));
+    await retry;
+    first.publishHealth(healthState(100, 100));
+    second.publishHealth(healthState(1, 80));
+    expect(onHealth).toHaveBeenCalledTimes(2);
+    expect(onHealth).toHaveBeenLastCalledWith(healthState(1, 80));
+    connection.disconnect();
+    second.publishHealth(healthState(2));
+    expect(onHealth).toHaveBeenCalledTimes(2);
+    connection.dispose();
+});
+test.each([
+    {},
+    { ...healthState(2), worldId: 'foreign' },
+    { ...healthState(2), playerId: 'foreign' },
+    { ...healthState(2), health: 101 },
+])('invalid or foreign health updates close the connection: %j', async value => {
+    const fake = createRoom();
+    join.mockResolvedValue(fake.room);
+    const states: WorldConnectionState[] = [];
+    const connection = createWorldConnection('http://host', state => states.push(state));
+    const ready = connection.connect();
+    await vi.waitFor(() => {
+        expect(fake.room.request).toHaveBeenCalled();
+    });
+    fake.resolveInitial(snapshot(1));
+    await ready;
+    fake.publishHealth(value);
     expect(states.at(-1)).toEqual({ status: 'error' });
     expect(fake.room.connection.close).toHaveBeenCalledOnce();
     connection.dispose();

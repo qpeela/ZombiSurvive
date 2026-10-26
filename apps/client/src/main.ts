@@ -16,6 +16,8 @@ const status = document.querySelector<HTMLElement>('#connection-status');
 const reconnect = document.querySelector<HTMLButtonElement>('#reconnect');
 const stamina = document.querySelector<HTMLProgressElement>('#stamina');
 const staminaLabel = document.querySelector<HTMLElement>('#stamina-label');
+const health = document.querySelector<HTMLProgressElement>('#health');
+const healthLabel = document.querySelector<HTMLElement>('#health-label');
 const movementLabel = document.querySelector<HTMLElement>('#movement-label');
 const groundLabel = document.querySelector<HTMLElement>('#ground-item');
 const inventory = document.querySelector<HTMLElement>('#inventory');
@@ -30,6 +32,8 @@ if (
     !reconnect ||
     !stamina ||
     !staminaLabel ||
+    !health ||
+    !healthLabel ||
     !movementLabel ||
     !groundLabel ||
     !inventory ||
@@ -150,6 +154,8 @@ const connection = createWorldConnection(
         }
 
         prediction.reset();
+        health.value = 0;
+        healthLabel.textContent = 'Здоровье: —';
         groundItem = null;
         confirmedPosition = null;
         pickup.disabled = true;
@@ -188,6 +194,11 @@ const connection = createWorldConnection(
     },
     snapshot => {
         scene.setZombies(snapshot.zombies);
+    },
+    snapshot => {
+        health.max = snapshot.maxHealth;
+        health.value = snapshot.health;
+        healthLabel.textContent = `Здоровье: ${String(snapshot.health)} / ${String(snapshot.maxHealth)}`;
     },
 );
 const session = createWorldSession();

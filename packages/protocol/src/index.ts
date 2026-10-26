@@ -1,4 +1,5 @@
 export { initialStateRequest, localWorldRoomId } from './connection.ts';
+export { type HealthSnapshot, healthVersion, isHealthSnapshot } from './health.ts';
 export {
     isMovementInputCommand,
     isMovementSnapshot,
