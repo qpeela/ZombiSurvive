@@ -18,7 +18,7 @@ const snapshot = {
 };
 test('melee messages survive JSON and reject malformed versions, ticks and equipment', () => {
     expect(isMeleeCommand(JSON.parse(JSON.stringify(command)))).toBe(true);
-    expect(isMeleeCommand({ ...command, type: 'equip-club' })).toBe(true);
+    expect(isMeleeCommand({ ...command, type: 'equip-weapon', weapon: 'club' })).toBe(true);
     expect(isMeleeSnapshot(snapshot)).toBe(true);
     expect(isMeleeSnapshot({ ...snapshot, weapon: 'club' })).toBe(true);
     for (const value of [
@@ -26,7 +26,7 @@ test('melee messages survive JSON and reject malformed versions, ticks and equip
         [],
         {},
         { ...command, protocolVersion: 4 },
-        { ...command, meleeVersion: 2 },
+        { ...command, meleeVersion: 1 },
         { ...command, type: 'kill' },
     ]) {
         expect(isMeleeCommand(value)).toBe(false);
@@ -38,8 +38,22 @@ test('melee messages survive JSON and reject malformed versions, ticks and equip
         { worldId: '' },
         { playerId: ' ' },
         { weapon: 'gun' },
-        { meleeVersion: 2 },
+        { meleeVersion: 1 },
     ]) {
         expect(isMeleeSnapshot({ ...snapshot, ...fields })).toBe(false);
     }
 });
+
+test.each(['club', 'knife', 'crowbar', 'axe'])('%s equipment survives the wire', weapon => {
+    const equip = { ...command, type: 'equip-weapon', weapon };
+    expect(isMeleeCommand(JSON.parse(JSON.stringify(equip)))).toBe(true);
+    expect(isMeleeSnapshot(JSON.parse(JSON.stringify({ ...snapshot, weapon })))).toBe(true);
+});
+
+test.each([undefined, null, '', 'gun', 'toString', '__proto__', {}, 1])(
+    'unknown equipment is rejected: %j',
+    weapon => {
+        expect(isMeleeCommand({ ...command, type: 'equip-weapon', weapon })).toBe(false);
+        if (weapon !== null) expect(isMeleeSnapshot({ ...snapshot, weapon })).toBe(false);
+    },
+);

@@ -430,7 +430,7 @@ test.each([
 const meleeState = (tick: number) => ({
     type: 'melee-state',
     protocolVersion: 5,
-    meleeVersion: 1,
+    meleeVersion: 2,
     worldId: 'world',
     playerId: 'player',
     tick,
@@ -450,7 +450,7 @@ test('melee waits for readiness, ignores stale rooms/ticks and cannot send after
         undefined,
         onMelee,
     );
-    connection.sendMelee('equip-club');
+    connection.sendMelee({ type: 'equip-weapon', weapon: 'axe' });
     const ready = connection.connect();
     await vi.waitFor(() => {
         expect(first.room.request).toHaveBeenCalled();
@@ -459,11 +459,12 @@ test('melee waits for readiness, ignores stale rooms/ticks and cannot send after
     expect(onMelee).not.toHaveBeenCalled();
     first.resolveInitial(snapshot(1));
     await ready;
-    connection.sendMelee('equip-club');
-    expect(first.room.send).toHaveBeenCalledWith('equip-club', {
-        type: 'equip-club',
+    connection.sendMelee({ type: 'equip-weapon', weapon: 'axe' });
+    expect(first.room.send).toHaveBeenCalledWith('equip-weapon', {
+        type: 'equip-weapon',
+        weapon: 'axe',
         protocolVersion: 5,
-        meleeVersion: 1,
+        meleeVersion: 2,
     });
     first.publishMelee(meleeState(2));
     first.publishMelee(meleeState(1));
@@ -479,7 +480,7 @@ test('melee waits for readiness, ignores stale rooms/ticks and cannot send after
     expect(onMelee).toHaveBeenCalledTimes(2);
     connection.disconnect();
     second.publishMelee(meleeState(2));
-    connection.sendMelee('melee-attack');
+    connection.sendMelee({ type: 'melee-attack' });
     expect(onMelee).toHaveBeenCalledTimes(2);
     expect(second.room.send).not.toHaveBeenCalled();
     connection.dispose();

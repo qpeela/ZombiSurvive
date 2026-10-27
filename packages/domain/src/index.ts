@@ -10,6 +10,7 @@ export type {
     WorldId,
     WorldPosition,
 } from './movement.ts';
+export { isMeleeWeaponId, type MeleeWeaponId } from './weapon.ts';
 export type { TerrainKind, TerrainTile, WorldChunk, WorldChunkKey } from './world-chunk.ts';
 export type { WorldObstacle } from './world-obstacle.ts';
 export type { ZombieState } from './zombie.ts';

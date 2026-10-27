@@ -361,13 +361,19 @@ HP от клиента нет. Unknown проходит runtime-проверку
 Retry/reload получают HP того же процесса. Сохранение здоровья на диск
 и смерть пока не реализованы; после рестарта хоста снова 100 HP.
 
-## Ближний бой и популяция (T019)
+## Ближний бой и популяция (T019/T020)
 
-Команды equip-club / melee-attack: type, protocolVersion=5, meleeVersion=1.
+Команды equip-weapon / melee-attack: type, protocolVersion=5, meleeVersion=2.
+Для equip-weapon обязательно weapon: club / knife / crowbar / axe; неизвестные
+ID и meleeVersion=1 отклоняются. Старый equip-club больше не поддерживается.
+MeleeIntent описывает намерение без версий, сетевой адаптер добавляет версии.
 Клиент не задаёт урон, дистанцию, здоровье, позицию или владельца. Сервер
 выбирает ближайшего достижимого зомби и применяет cooldown по playerId.
-Ответ melee-state: type, protocolVersion=5, meleeVersion=1, worldId, playerId,
-целый неотрицательный tick и weapon (null либо club). Неизвестная версия,
+Ответ melee-state: type, protocolVersion=5, meleeVersion=2, worldId, playerId,
+целый неотрицательный tick и weapon (null либо один из четырёх ID).
+Баланс задан в content/meleeWeapons; клиент показывает его, сервер применяет.
+Смена оружия не обнуляет cooldown предыдущего взмаха. Экипировка общая
+для вкладок, сохраняется при reload/retry и сбрасывается при рестарте хоста. Неизвестная версия,
 неверное оружие, чужой мир/персонаж закрывают подключение; устаревшие тики,
 предыдущие комнаты и сообщения до готовности игнорируются.
 Zombie-state теперь допускает до 256 уникальных ID в радиусе интереса 22 м.

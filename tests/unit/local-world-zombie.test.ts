@@ -1,4 +1,4 @@
-import { initialZombie } from '@zombi-survive/content';
+import { initialZombie, meleeWeapons } from '@zombi-survive/content';
 import { isZombieSnapshot } from '@zombi-survive/protocol';
 import { expect, test } from 'vitest';
 
@@ -90,9 +90,10 @@ test('three hits kill a zombie and revisiting the chunk does not respawn it', ()
     const movement = new LocalWorldMovement('world', 'solo');
     movement.join('session');
     const zombies = new LocalWorldZombie();
-    for (let hit = 0; hit < 2; hit++) zombies.damage(initialZombie.zombieId);
+    for (let hit = 0; hit < 2; hit++)
+        zombies.damage(initialZombie.zombieId, meleeWeapons.club.damage);
     expect(zombies.isAlive(initialZombie.zombieId)).toBe(true);
-    zombies.damage(initialZombie.zombieId);
+    zombies.damage(initialZombie.zombieId, meleeWeapons.club.damage);
     expect(zombies.isAlive(initialZombie.zombieId)).toBe(false);
     const snapshots = new Map([['session', movement.snapshot('session')]]);
     zombies.step(snapshots);
@@ -103,4 +104,28 @@ test('three hits kill a zombie and revisiting the chunk does not respawn it', ()
             .snapshot(movement.snapshot('session'))
             .zombies.some(zombie => zombie.zombieId === initialZombie.zombieId),
     ).toBe(false);
+});
+
+test.each([
+    ['club', 3],
+    ['knife', 5],
+    ['crowbar', 3],
+    ['axe', 2],
+] as const)('%s kills a 100 HP zombie in %i hits', (weapon, hits) => {
+    const zombies = new LocalWorldZombie();
+    for (let hit = 1; hit < hits; hit++) {
+        zombies.damage(initialZombie.zombieId, meleeWeapons[weapon].damage);
+        expect(zombies.isAlive(initialZombie.zombieId)).toBe(true);
+    }
+    zombies.damage(initialZombie.zombieId, meleeWeapons[weapon].damage);
+    expect(zombies.isAlive(initialZombie.zombieId)).toBe(false);
+});
+
+test('damage from different weapons accumulates on the same zombie', () => {
+    const zombies = new LocalWorldZombie();
+    zombies.damage(initialZombie.zombieId, meleeWeapons.axe.damage);
+    zombies.damage(initialZombie.zombieId, meleeWeapons.knife.damage);
+    expect(zombies.isAlive(initialZombie.zombieId)).toBe(true);
+    zombies.damage(initialZombie.zombieId, meleeWeapons.knife.damage);
+    expect(zombies.isAlive(initialZombie.zombieId)).toBe(false);
 });

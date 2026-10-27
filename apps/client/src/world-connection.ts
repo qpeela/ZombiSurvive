@@ -14,6 +14,7 @@ import {
     isPickupSnapshot,
     isZombieSnapshot,
     localWorldRoomId,
+    type MeleeIntent,
     type MeleeSnapshot,
     meleeVersion,
     type MovementInputCommand,
@@ -68,7 +69,7 @@ export const createWorldConnection = (
     onMeleeChange?: (snapshot: MeleeSnapshot) => void,
 ): {
     connect: () => Promise<void>;
-    sendMelee: (type: 'equip-club' | 'melee-attack') => void;
+    sendMelee: (intent: MeleeIntent) => void;
     sendMovement: (direction: MovementDirection, modifiers?: MovementModifiers) => void;
     sendTarget: (target: WorldPosition, modifiers?: MovementModifiers) => void;
     pickUp: (itemId: string) => void;
@@ -409,11 +410,11 @@ export const createWorldConnection = (
         }
     };
 
-    const sendMelee = (type: 'equip-club' | 'melee-attack'): void => {
+    const sendMelee = (intent: MeleeIntent): void => {
         if (!isReady || activeRoom === null) return;
 
         try {
-            activeRoom.send(type, { type, protocolVersion, meleeVersion });
+            activeRoom.send(intent.type, { ...intent, protocolVersion, meleeVersion });
         } catch {
             closeRoom();
             onStateChange({ status: 'error' });

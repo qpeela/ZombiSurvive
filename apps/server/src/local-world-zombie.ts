@@ -19,11 +19,10 @@ export class LocalWorldZombie {
 
     private chunks: readonly WorldChunk[] = [];
 
-    damage(zombieId: string): void {
+    damage(zombieId: string, amount: number): void {
         if (!this.zombies.has(zombieId)) return;
 
-        const health =
-            (this.health.get(zombieId) ?? combatSettings.zombieHealth) - combatSettings.clubDamage;
+        const health = (this.health.get(zombieId) ?? combatSettings.zombieHealth) - amount;
         this.health.set(zombieId, health);
 
         if (health <= 0) this.zombies.delete(zombieId);

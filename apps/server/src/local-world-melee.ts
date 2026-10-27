@@ -1,5 +1,5 @@
-import { combatSettings } from '@zombi-survive/content';
-import type { WorldObstacle, ZombieState } from '@zombi-survive/domain';
+import { meleeWeapons } from '@zombi-survive/content';
+import type { MeleeWeaponId, WorldObstacle, ZombieState } from '@zombi-survive/domain';
 import {
     isMeleeCommand,
     type MeleeCommand,
@@ -11,7 +11,7 @@ import {
 import { findMeleeTarget } from '@zombi-survive/simulation';
 
 export class LocalWorldMelee {
-    private readonly equipped = new Set<string>();
+    private readonly equipped = new Map<string, MeleeWeaponId>();
     private readonly nextAttackTick = new Map<string, number>();
     private readonly pending = new Map<string, MeleeCommand>();
 
@@ -31,7 +31,7 @@ export class LocalWorldMelee {
         snapshots: ReadonlyMap<string, MovementSnapshot>;
         zombies: readonly ZombieState[];
         obstacles: readonly WorldObstacle[];
-        damage: (id: string) => void;
+        damage: (id: string, amount: number) => void;
         health: (snapshot: MovementSnapshot) => number;
     }): void {
         for (const [sessionId, command] of this.pending) {
@@ -39,18 +39,24 @@ export class LocalWorldMelee {
             if (snapshot === undefined || health(snapshot) <= 0) continue;
 
             const { player, tick } = snapshot;
-            if (command.type === 'equip-club') {
-                this.equipped.add(player.playerId);
+            if (command.type === 'equip-weapon') {
+                this.equipped.set(player.playerId, command.weapon);
                 continue;
             }
-            const isEquipped = this.equipped.has(player.playerId);
+            const weapon = this.equipped.get(player.playerId);
             const isReady = tick >= (this.nextAttackTick.get(player.playerId) ?? 0);
-            if (!isEquipped || !isReady) continue;
+            if (weapon === undefined || !isReady) continue;
 
             // A miss also consumes a swing; tabs share this cooldown.
-            this.nextAttackTick.set(player.playerId, tick + combatSettings.meleeCooldownTicks);
-            const target = findMeleeTarget({ position: player.position, zombies, obstacles });
-            if (target !== undefined) damage(target.zombieId);
+            const definition = meleeWeapons[weapon];
+            this.nextAttackTick.set(player.playerId, tick + definition.cooldownTicks);
+            const target = findMeleeTarget({
+                position: player.position,
+                zombies,
+                obstacles,
+                weapon,
+            });
+            if (target !== undefined) damage(target.zombieId, definition.damage);
         }
         this.pending.clear();
     }
@@ -62,7 +68,7 @@ export class LocalWorldMelee {
             worldId: movement.worldId,
             playerId: movement.player.playerId,
             tick: movement.tick,
-            weapon: this.equipped.has(movement.player.playerId) ? 'club' : null,
+            weapon: this.equipped.get(movement.player.playerId) ?? null,
         };
     }
 }
