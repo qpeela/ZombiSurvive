@@ -6,7 +6,9 @@
 - S001/S002, T001–T019, включая T005A/T005B: DONE. T019 слита через
   [PR #24](https://github.com/qpeela/ZombiSurvive/pull/24), main: 154d454; Quality прошёл.
 - T005C/T014C: PAUSED, кооператив не возобновляется.
-- T020 — выбор стартового оружия: CI_PENDING.
+- T020 — выбор стартового оружия:
+  [PR #25](https://github.com/qpeela/ZombiSurvive/pull/25).
+  Статус в main после слияния: DONE; пока PR открыт — CI_PENDING.
   Ветка codex/t020-more-melee-weapons от origin/main (154d454).
   Пользователь поручил добавить больше оружия и слить PR после успешных проверок.
 - К дубинке добавлены нож, лом и топор с отдельными уроном, дальностью и паузой.
