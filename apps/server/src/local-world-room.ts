@@ -60,7 +60,7 @@ export class LocalWorldRoom extends Room {
         this.onMessage(pickupStateRequest, client =>
             this.pickup.snapshot(movement.snapshot(client.sessionId)),
         );
-        for (const type of ['equip-club', 'melee-attack']) {
+        for (const type of ['equip-weapon', 'melee-attack']) {
             this.onMessage<unknown>(type, (client, value) => {
                 this.melee.receive(client.sessionId, value);
             });
@@ -93,8 +93,8 @@ export class LocalWorldRoom extends Room {
                 ...zombie,
                 snapshots,
                 health: snapshot => this.combat.snapshot(snapshot).health,
-                damage: id => {
-                    this.zombie.damage(id);
+                damage: (id, amount) => {
+                    this.zombie.damage(id, amount);
                 },
             });
             const living = zombie.zombies.filter(state => this.zombie.isAlive(state.zombieId));

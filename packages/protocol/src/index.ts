@@ -4,6 +4,7 @@ export {
     isMeleeCommand,
     isMeleeSnapshot,
     type MeleeCommand,
+    type MeleeIntent,
     type MeleeSnapshot,
     meleeVersion,
 } from './melee.ts';

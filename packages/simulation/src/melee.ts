@@ -1,5 +1,10 @@
-import { combatSettings } from '@zombi-survive/content';
-import type { WorldObstacle, WorldPosition, ZombieState } from '@zombi-survive/domain';
+import { meleeWeapons } from '@zombi-survive/content';
+import type {
+    MeleeWeaponId,
+    WorldObstacle,
+    WorldPosition,
+    ZombieState,
+} from '@zombi-survive/domain';
 
 import { distanceBetween, isSegmentClear } from './zombie-navigation.ts';
 
@@ -8,15 +13,17 @@ export const findMeleeTarget = ({
     position,
     zombies,
     obstacles,
+    weapon,
 }: {
     position: WorldPosition;
     zombies: readonly ZombieState[];
     obstacles: readonly WorldObstacle[];
+    weapon: MeleeWeaponId;
 }): ZombieState | undefined =>
     zombies
         .filter(zombie => {
             const isInRange =
-                distanceBetween(position, zombie.position) <= combatSettings.meleeRangeMeters;
+                distanceBetween(position, zombie.position) <= meleeWeapons[weapon].rangeMeters;
 
             return (
                 isInRange && isSegmentClear({ start: position, end: zombie.position, obstacles })

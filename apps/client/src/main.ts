@@ -1,6 +1,6 @@
 import './style.css';
 
-import { pickupSettings } from '@zombi-survive/content';
+import { meleeWeapons, movementSettings, pickupSettings } from '@zombi-survive/content';
 import type { GroundItem, PlayerMovementState, WorldPosition } from '@zombi-survive/domain';
 import { AUTO, Game, Scale } from 'phaser';
 
@@ -13,7 +13,8 @@ import { createWorldSession } from './world-session';
 
 const container = document.querySelector<HTMLElement>('#game');
 const status = document.querySelector<HTMLElement>('#connection-status');
-const equipClub = document.querySelector<HTMLButtonElement>('#equip-club');
+const weaponOptions = document.querySelector<HTMLElement>('#weapon-options');
+const weaponStats = document.querySelector<HTMLElement>('#weapon-stats');
 const attack = document.querySelector<HTMLButtonElement>('#melee-attack');
 const weaponLabel = document.querySelector<HTMLElement>('#weapon-label');
 const reconnect = document.querySelector<HTMLButtonElement>('#reconnect');
@@ -30,7 +31,8 @@ const inventorySelector = document.querySelector<HTMLButtonElement>('#inventory-
 const inventoryMessage = document.querySelector<HTMLElement>('#inventory-message');
 
 if (
-    !equipClub ||
+    !weaponOptions ||
+    !weaponStats ||
     !attack ||
     !weaponLabel ||
     !container ||
@@ -75,6 +77,20 @@ const inventoryUi = createInventoryGrid({
     onMove: (itemId, cell) => {
         connection.moveItem(itemId, cell);
     },
+});
+const equipmentButtons = Object.values(meleeWeapons).map(weapon => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.textContent = weapon.equipLabel;
+    button.disabled = true;
+    button.setAttribute('aria-pressed', 'false');
+    const onEquip = (): void => {
+        connection.sendMelee({ type: 'equip-weapon', weapon: weapon.id });
+    };
+    button.addEventListener('click', onEquip);
+    weaponOptions.append(button);
+
+    return { weapon: weapon.id, button, onEquip };
 });
 const prediction = new MovementPrediction();
 let groundItem: GroundItem | null = null;
@@ -170,9 +186,13 @@ const connection = createWorldConnection(
         inventoryUi.update(null);
         scene.setGroundItem(null);
         scene.setZombies([]);
-        equipClub.disabled = true;
+        for (const { button } of equipmentButtons) {
+            button.disabled = true;
+            button.setAttribute('aria-pressed', 'false');
+        }
         attack.disabled = true;
         weaponLabel.textContent = 'Оружие: —';
+        weaponStats.textContent = 'Характеристики: —';
         otherPlayers = [];
         delete status.dataset['worldId'];
         delete status.dataset['playerId'];
@@ -211,10 +231,21 @@ const connection = createWorldConnection(
         healthLabel.textContent = `Здоровье: ${String(snapshot.health)} / ${String(snapshot.maxHealth)}`;
     },
     snapshot => {
-        const isEquipped = snapshot.weapon === 'club';
-        equipClub.disabled = isEquipped || health.value <= 0;
+        const isEquipped = snapshot.weapon !== null;
+        for (const { weapon, button } of equipmentButtons) {
+            const isSelected = snapshot.weapon === weapon;
+            button.disabled = isSelected || health.value <= 0;
+            button.setAttribute('aria-pressed', String(isSelected));
+        }
         attack.disabled = !isEquipped || health.value <= 0;
-        weaponLabel.textContent = isEquipped ? 'Оружие: дубинка' : 'Оружие: в руках пусто';
+        const definition = snapshot.weapon === null ? null : meleeWeapons[snapshot.weapon];
+        weaponLabel.textContent =
+            definition === null ? 'Оружие: в руках пусто' : `Оружие: ${definition.name}`;
+        const formatNumber = (value: number): string => value.toLocaleString('ru-RU');
+        weaponStats.textContent =
+            definition === null
+                ? 'Выберите стартовое оружие.'
+                : `Урон: ${String(definition.damage)} · Дальность: ${formatNumber(definition.rangeMeters)} м · Пауза: ${formatNumber(definition.cooldownTicks / movementSettings.ticksPerSecond)} с`;
     },
 );
 const session = createWorldSession();
@@ -259,11 +290,8 @@ const onPickup = (): void => {
         connection.pickUp(groundItem.itemId);
     }
 };
-const onEquipClub = (): void => {
-    connection.sendMelee('equip-club');
-};
 const onAttack = (): void => {
-    if (!attack.disabled) connection.sendMelee('melee-attack');
+    if (!attack.disabled) connection.sendMelee({ type: 'melee-attack' });
 };
 const onAttackKey = (event: KeyboardEvent): void => {
     const target = event.target;
@@ -277,7 +305,6 @@ const onAttackKey = (event: KeyboardEvent): void => {
         onAttack();
     }
 };
-equipClub.addEventListener('click', onEquipClub);
 attack.addEventListener('click', onAttack);
 window.addEventListener('keydown', onAttackKey);
 pickup.addEventListener('click', onPickup);
@@ -294,7 +321,10 @@ if (import.meta.hot) {
         input.dispose();
         inventoryUi.dispose();
         connection.dispose();
-        equipClub.removeEventListener('click', onEquipClub);
+        for (const { button, onEquip } of equipmentButtons) {
+            button.removeEventListener('click', onEquip);
+            button.remove();
+        }
         attack.removeEventListener('click', onAttack);
         window.removeEventListener('keydown', onAttackKey);
         pickup.removeEventListener('click', onPickup);

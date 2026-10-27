@@ -44,6 +44,8 @@ test('server attacks reduce shared health on fixed ticks; zero, movement and rec
         await expect(page.locator('#health-label')).toHaveText(/Здоровье: \d+ \/ 100/);
         await page.screenshot({ path: '.cache/t018-zombie-damage.png', fullPage: true });
         await expect(health).toHaveJSProperty('value', 0, { timeout: 16000 });
+        await expect(page.locator('#weapon-options button:enabled')).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Ударить (F)' })).toBeDisabled();
         const hits = healthSamples.filter(
             (sample, index) => index > 0 && sample.health < healthSamples[index - 1].health,
         );
