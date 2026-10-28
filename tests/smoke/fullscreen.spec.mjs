@@ -7,27 +7,51 @@ const open = async page => {
 };
 const assertPointer = async page => {
     const canvas = page.locator('canvas');
+    const status = page.getByRole('status');
+    // Cancel prior intent and wait for its authoritative stop before measuring the origin.
+    await page.evaluate(() => globalThis.dispatchEvent(new Event('blur')));
+    const stopTick = Number(await status.getAttribute('data-tick'));
+    await expect
+        .poll(async () => Number(await status.getAttribute('data-tick')))
+        .toBeGreaterThan(stopTick + 2);
+    await expect
+        .poll(() =>
+            page.evaluate(() => {
+                const field = globalThis.document.querySelector('canvas');
+                const connection = globalThis.document.querySelector('#connection-status');
+                return Math.hypot(
+                    (Number(field.dataset.playerX) - 480) / 24 - Number(connection.dataset.xMeters),
+                    (Number(field.dataset.playerY) - 270) / 24 - Number(connection.dataset.yMeters),
+                );
+            }),
+        )
+        .toBeLessThan(0.000001);
     const box = await canvas.boundingBox();
     await page.mouse.move(box.x + box.width * 0.65, box.y + box.height * 0.4);
     await expect(canvas).toHaveAttribute('data-aim-visible', 'true');
     await expect
         .poll(async () => Number(await canvas.getAttribute('data-aim-angle')))
         .toBeCloseTo(Math.atan2(-54, 144), 1);
-    await page.mouse.click(box.x + box.width * 0.55, box.y + box.height * 0.5);
+    // The click starts movement: the origin must be captured before that action.
+    const origin = await canvas.evaluate(element => ({
+        x: (Number(element.dataset.playerX) - 480) / 24,
+        y: (Number(element.dataset.playerY) - 270) / 24,
+    }));
+    const clickTick = Number(await status.getAttribute('data-tick'));
+    await page.mouse.click(box.x + box.width * 0.7, box.y + box.height * 0.5);
     await expect(canvas).toHaveAttribute('data-target-visible', 'true');
+    // Deliberately allow server movement before inspecting the target. CI scheduling
+    // must not make the expected coordinates depend on the player's later position.
+    await expect
+        .poll(async () => Number(await status.getAttribute('data-tick')))
+        .toBeGreaterThan(clickTick + 2);
     const coordinates = await canvas.evaluate(element => ({
         targetX: Number(element.dataset.targetX),
-        playerX: Number(element.dataset.playerX),
         targetY: Number(element.dataset.targetY),
-        playerY: Number(element.dataset.playerY),
     }));
-    const tolerance = 960 / box.width / 24 + 0.25;
-    expect(Math.abs(coordinates.targetX - ((coordinates.playerX - 480) / 24 + 2))).toBeLessThan(
-        tolerance,
-    );
-    expect(Math.abs(coordinates.targetY - (coordinates.playerY - 270) / 24)).toBeLessThan(
-        tolerance,
-    );
+    const tolerance = 960 / box.width / 24 + 0.01;
+    expect(Math.abs(coordinates.targetX - (origin.x + 8))).toBeLessThan(tolerance);
+    expect(Math.abs(coordinates.targetY - origin.y)).toBeLessThan(tolerance);
     await page.evaluate(() => globalThis.dispatchEvent(new Event('blur')));
     await expect(canvas).toHaveAttribute('data-target-visible', 'false');
 };
