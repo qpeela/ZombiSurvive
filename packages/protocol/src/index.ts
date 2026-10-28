@@ -6,6 +6,7 @@ export {
     isMeleeSnapshot,
     type MeleeAction,
     type MeleeCommand,
+    type MeleeImpact,
     type MeleeIntent,
     type MeleeSnapshot,
     meleeVersion,

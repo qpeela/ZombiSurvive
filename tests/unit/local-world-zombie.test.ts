@@ -129,3 +129,10 @@ test('damage from different weapons accumulates on the same zombie', () => {
     zombies.damage(initialZombie.zombieId, meleeWeapons.knife.damage);
     expect(zombies.isAlive(initialZombie.zombieId)).toBe(false);
 });
+
+test('damage reports only applied HP and one killing blow', () => {
+    const zombies = new LocalWorldZombie();
+    expect(zombies.damage(initialZombie.zombieId, 60)).toEqual({ damage: 60, isKilled: false });
+    expect(zombies.damage(initialZombie.zombieId, 60)).toEqual({ damage: 40, isKilled: true });
+    expect(zombies.damage(initialZombie.zombieId, 60)).toBeNull();
+});

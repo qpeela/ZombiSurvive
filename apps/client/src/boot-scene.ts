@@ -10,6 +10,7 @@ import { type GameObjects, type Input, Scene } from 'phaser';
 
 import { drawHeldWeapon } from './held-weapon';
 import { MeleeAnimation } from './melee-animation';
+import { meleeEffectDurationMs, MeleeFeedback } from './melee-feedback';
 import { WorldTerrain } from './world-terrain';
 
 const pixelsPerMeter = 24;
@@ -21,6 +22,8 @@ export class BootScene extends Scene {
     private weaponImage: GameObjects.Graphics | null = null;
     private facingAngle = 0;
     private readonly animation = new MeleeAnimation();
+    private readonly feedback = new MeleeFeedback();
+    private readonly effects = new Map<number, { text: GameObjects.Text; ring: GameObjects.Arc }>();
     private otherPlayers: readonly PlayerMovementState[] = [];
     private readonly otherMarkers = new Map<string, GameObjects.Container>();
     private zombies: readonly ZombieState[] = [];
@@ -126,6 +129,8 @@ export class BootScene extends Scene {
             this.crosshair = null;
             this.destinationMarker = null;
             this.marker = null;
+            this.feedback.clear();
+            this.clearEffects();
             this.animation.setWeapon(null);
             this.weaponImage = null;
             this.game.canvas.dataset['weaponAnimation'] = 'idle';
@@ -207,9 +212,82 @@ export class BootScene extends Scene {
     }
 
     playAttack(action: MeleeAction): void {
+        this.feedback.accept(action);
+
         if (this.animation.accept(action)) {
             this.updateWeapon();
         }
+    }
+
+    private clearEffects(): void {
+        for (const effect of this.effects.values()) {
+            effect.text.destroy();
+            effect.ring.destroy();
+        }
+
+        this.effects.clear();
+        this.game.canvas.dataset['meleeEffects'] = '[]';
+    }
+
+    private updateFeedback(deltaMs: number): void {
+        this.feedback.advance({
+            deltaMs,
+            isLoaded: position => this.terrain?.contains(position) ?? false,
+        });
+        const retained = new Set(this.feedback.effects.map(effect => effect.tick));
+
+        for (const [tick, effect] of this.effects) {
+            if (!retained.has(tick)) {
+                effect.text.destroy();
+                effect.ring.destroy();
+                this.effects.delete(tick);
+            }
+        }
+
+        for (const marker of this.zombieMarkers.values()) {
+            marker.setAlpha(1);
+        }
+
+        for (const effect of this.feedback.effects) {
+            const { impact } = effect;
+            const x = 480 + impact.position.xMeters * pixelsPerMeter;
+            const y = 270 + impact.position.yMeters * pixelsPerMeter;
+            let visuals = this.effects.get(effect.tick);
+
+            if (visuals === undefined) {
+                const colors = { miss: 0xadb9a5, hit: 0xe7a07b, kill: 0xf3d16b };
+                const color = colors[impact.outcome];
+                const suffix = impact.outcome === 'kill' ? ' · Убит' : '';
+                const label =
+                    impact.outcome === 'miss' ? 'Промах' : `−${String(impact.damage)}${suffix}`;
+                visuals = {
+                    text: this.add
+                        .text(x, y - 25, label, {
+                            fontFamily: 'monospace',
+                            fontSize: '14px',
+                            color: '#ffffff',
+                            backgroundColor: '#111a14',
+                        })
+                        .setOrigin(0.5)
+                        .setDepth(5),
+                    ring: this.add
+                        .circle(x, y, 15, color, 0.2)
+                        .setStrokeStyle(2, color)
+                        .setDepth(4),
+                };
+                this.effects.set(effect.tick, visuals);
+            }
+
+            const progress = effect.ageMs / meleeEffectDurationMs;
+            visuals.text.setPosition(x, y - 25 - progress * 20).setAlpha(1 - progress);
+            visuals.ring.setScale(1 + progress).setAlpha(1 - progress);
+
+            if (impact.outcome === 'hit' && effect.ageMs < 150) {
+                this.zombieMarkers.get(impact.zombieId)?.setAlpha(0.4);
+            }
+        }
+
+        this.game.canvas.dataset['meleeEffects'] = JSON.stringify(this.feedback.effects);
     }
 
     private updateWeapon(deltaMs = 0): void {
@@ -288,6 +366,7 @@ export class BootScene extends Scene {
         }
 
         this.updateWeapon(deltaMs);
+        this.updateFeedback(deltaMs);
 
         // Only the visible grid is drawn; moving away from the origin never exhausts it.
         const grid = this.grid;
@@ -340,6 +419,8 @@ export class BootScene extends Scene {
         this.game.canvas.dataset['playerVisible'] = String(player !== null);
 
         if (player === null) {
+            this.feedback.clear();
+            this.clearEffects();
             this.facingAngle = 0;
             this.updateWeapon();
         }

@@ -98,9 +98,7 @@ export class LocalWorldRoom extends Room {
                 ...zombie,
                 snapshots,
                 health: snapshot => this.combat.snapshot(snapshot).health,
-                damage: (id, amount) => {
-                    this.zombie.damage(id, amount);
-                },
+                damage: (id, amount) => this.zombie.damage(id, amount),
             });
             const living = zombie.zombies.filter(state => this.zombie.isAlive(state.zombieId));
             this.combat.step({ ...zombie, zombies: living, snapshots });
