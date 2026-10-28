@@ -78,6 +78,18 @@ export class WorldTerrain {
         this.updateVisibility(position);
     }
 
+    contains(position: WorldPosition): boolean {
+        return this.chunks.some(chunk => {
+            const isInsideX =
+                position.xMeters >= chunk.minXMeters &&
+                position.xMeters < chunk.minXMeters + chunk.sizeMeters;
+            const isInsideY =
+                position.yMeters >= chunk.minYMeters &&
+                position.yMeters < chunk.minYMeters + chunk.sizeMeters;
+            return isInsideX && isInsideY;
+        });
+    }
+
     destroy(): void {
         this.update(null);
     }

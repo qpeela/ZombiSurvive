@@ -1,4 +1,4 @@
-import { isMeleeWeaponId, type MeleeWeaponId } from '@zombi-survive/domain';
+import { isMeleeWeaponId, type MeleeWeaponId, type WorldPosition } from '@zombi-survive/domain';
 
 import { protocolVersion } from './movement.ts';
 
@@ -52,9 +52,50 @@ export const isMeleeSnapshot = (value: unknown): value is MeleeSnapshot => {
     );
 };
 
+export type MeleeImpact =
+    | { readonly outcome: 'miss'; readonly position: WorldPosition }
+    | {
+          readonly outcome: 'hit' | 'kill';
+          readonly position: WorldPosition;
+          readonly zombieId: string;
+          readonly damage: number;
+      };
+
+const isMeleeImpact = (value: unknown): value is MeleeImpact => {
+    if (!isRecord(value) || !isRecord(value['position'])) {
+        return false;
+    }
+
+    const position = value['position'];
+    const isCoordinate = (coordinate: unknown): boolean =>
+        typeof coordinate === 'number' &&
+        Number.isFinite(coordinate) &&
+        Math.abs(coordinate) <= 64_000_000;
+    const isPosition = isCoordinate(position['xMeters']) && isCoordinate(position['yMeters']);
+
+    if (!isPosition) {
+        return false;
+    }
+
+    if (value['outcome'] === 'miss') {
+        return value['damage'] === undefined && value['zombieId'] === undefined;
+    }
+
+    const damage = value['damage'];
+    const isDamage =
+        typeof damage === 'number' &&
+        Number.isSafeInteger(damage) &&
+        damage > 0 &&
+        damage <= 1_000_000;
+    const isHit = value['outcome'] === 'hit' || value['outcome'] === 'kill';
+
+    return isHit && isDamage && isId(value['zombieId']);
+};
+
 /** Emitted only on the server step that accepts an attack, including misses. */
 export type MeleeAction = {
     readonly type: 'melee-action';
+    readonly impact?: MeleeImpact;
     readonly protocolVersion: typeof protocolVersion;
     readonly meleeVersion: typeof meleeVersion;
     readonly worldId: string;
@@ -72,6 +113,7 @@ export const isMeleeAction = (value: unknown): value is MeleeAction => {
 
     return (
         value['type'] === 'melee-action' &&
+        (value['impact'] === undefined || isMeleeImpact(value['impact'])) &&
         isVersion(value) &&
         isTick &&
         isMeleeWeaponId(value['weapon']) &&

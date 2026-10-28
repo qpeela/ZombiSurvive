@@ -19,13 +19,16 @@ export class LocalWorldZombie {
 
     private chunks: readonly WorldChunk[] = [];
 
-    damage(zombieId: string, amount: number): void {
-        if (!this.zombies.has(zombieId)) return;
+    damage(zombieId: string, amount: number): { damage: number; isKilled: boolean } | null {
+        if (!this.zombies.has(zombieId)) return null;
 
-        const health = (this.health.get(zombieId) ?? combatSettings.zombieHealth) - amount;
+        const previousHealth = this.health.get(zombieId) ?? combatSettings.zombieHealth;
+        const health = previousHealth - amount;
         this.health.set(zombieId, health);
 
         if (health <= 0) this.zombies.delete(zombieId);
+
+        return { damage: Math.min(previousHealth, amount), isKilled: health <= 0 };
     }
 
     step(snapshots: ReadonlyMap<string, MovementSnapshot>): {

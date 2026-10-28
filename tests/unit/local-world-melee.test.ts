@@ -1,5 +1,5 @@
 import { meleeWeapons } from '@zombi-survive/content';
-import type { MeleeWeaponId } from '@zombi-survive/domain';
+import type { MeleeWeaponId, WorldObstacle } from '@zombi-survive/domain';
 import { isMeleeSnapshot, meleeVersion, protocolVersion } from '@zombi-survive/protocol';
 import { expect, test, vi } from 'vitest';
 
@@ -12,7 +12,13 @@ const setup = () => {
     movement.join('first');
     movement.join('tab');
     movement.join('friend', 'friend');
-    const damage = vi.fn();
+    const damage = vi.fn(
+        (_id: string, amount: number): { damage: number; isKilled: boolean } | null => ({
+            damage: amount,
+            isKilled: false,
+        }),
+    );
+    const obstacles: WorldObstacle[] = [];
     const health = vi.fn(() => 100);
     const zombies = [
         { zombieId: 'zombie', position: { xMeters: 1, yMeters: 0 }, targetPlayerId: null },
@@ -29,12 +35,12 @@ const setup = () => {
         melee.step({
             snapshots: new Map(['first', 'tab', 'friend'].map(id => [id, movement.snapshot(id)])),
             zombies,
-            obstacles: [],
+            obstacles,
             damage,
             health,
         });
     };
-    return { melee, movement, damage, health, zombies, command, step };
+    return { melee, movement, damage, health, zombies, obstacles, command, step };
 };
 test('equipment is server-owned, shared across tabs, and required to hit', () => {
     const { melee, movement, command, step, damage } = setup();
@@ -49,6 +55,11 @@ test('equipment is server-owned, shared across tabs, and required to hit', () =>
     command('tab', 'melee-attack');
     step();
     expect(damage).toHaveBeenCalledExactlyOnceWith('zombie', 34);
+    expect(melee.action(movement.snapshot('first'))?.impact).toMatchObject({
+        outcome: 'hit',
+        zombieId: 'zombie',
+        damage: 34,
+    });
 });
 test('spam, duplicate tabs and reconnect cannot bypass the shared cooldown', () => {
     const { melee, command, step, damage } = setup();
@@ -199,4 +210,32 @@ test('only accepted attacks publish an action, once per player and only on their
     command('first', 'melee-attack');
     step();
     expect(read()).toBeNull();
+});
+
+test('confirmed impacts report actual damage and kills; walls and stale dead targets are misses', () => {
+    const { melee, movement, command, step, damage, obstacles } = setup();
+    const impact = () => melee.action(movement.snapshot('first'))?.impact;
+    command('first', 'equip-weapon', 'axe');
+    step();
+    damage.mockReturnValueOnce({ damage: 40, isKilled: true });
+    command('first', 'melee-attack');
+    step();
+    expect(impact()).toMatchObject({ outcome: 'kill', zombieId: 'zombie', damage: 40 });
+    for (let index = 0; index < meleeWeapons.axe.cooldownTicks; index++) step();
+    damage.mockReturnValueOnce(null);
+    command('first', 'melee-attack');
+    step();
+    expect(impact()).toEqual({ outcome: 'miss', position: { xMeters: 0, yMeters: 0 } });
+    for (let index = 0; index < meleeWeapons.axe.cooldownTicks; index++) step();
+    obstacles.push({
+        id: 'wall',
+        minXMeters: 0.4,
+        maxXMeters: 0.6,
+        minYMeters: -2,
+        maxYMeters: 2,
+    });
+    command('first', 'melee-attack');
+    step();
+    expect(impact()?.outcome).toBe('miss');
+    expect(damage).toHaveBeenCalledTimes(2);
 });

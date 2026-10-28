@@ -76,3 +76,34 @@ test('action events require an equipped known weapon, identity and safe server t
         expect(isMeleeAction({ ...event, ...fields })).toBe(false);
     }
 });
+
+test('optional impact data validates outcome, identity, damage and world coordinates', () => {
+    const event = { ...snapshot, type: 'melee-action', weapon: 'club' };
+    const position = { xMeters: 1, yMeters: 0 };
+    for (const outcome of ['hit', 'kill']) {
+        expect(
+            isMeleeAction({
+                ...event,
+                impact: { outcome, position, zombieId: 'zombie', damage: 34 },
+            }),
+        ).toBe(true);
+    }
+    expect(isMeleeAction({ ...event, impact: { outcome: 'miss', position } })).toBe(true);
+    for (const impact of [
+        null,
+        {},
+        { outcome: 'hit', position, zombieId: '', damage: 34 },
+        { outcome: 'hit', position, zombieId: 'zombie', damage: -1 },
+        {
+            outcome: 'kill',
+            position: { xMeters: Infinity, yMeters: 0 },
+            zombieId: 'zombie',
+            damage: 1,
+        },
+        { outcome: 'miss', position, damage: 34 },
+        { outcome: 'heal', position },
+        { outcome: 'hit', position, zombieId: 'zombie', damage: 0.5 },
+    ]) {
+        expect(isMeleeAction({ ...event, impact })).toBe(false);
+    }
+});
