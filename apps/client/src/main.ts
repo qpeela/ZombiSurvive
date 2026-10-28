@@ -158,9 +158,15 @@ const fullscreen = createFullscreenControls({
     message: fullscreenMessage,
     onChange: () => {
         input.reset();
+        game.scale.getParentBounds();
         game.scale.refresh();
     },
 });
+const gameResize = new ResizeObserver(() => {
+    game.scale.getParentBounds();
+    game.scale.refresh();
+});
+gameResize.observe(container);
 scene.onMove = position => {
     input.moveTo(position);
 };
@@ -359,6 +365,7 @@ if (import.meta.hot) {
         isPageActive = false;
         connectAttempt++;
         session.cancel();
+        gameResize.disconnect();
         fullscreen.dispose();
         input.dispose();
         profileUi.dispose();

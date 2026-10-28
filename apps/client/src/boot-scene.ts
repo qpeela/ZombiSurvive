@@ -84,6 +84,12 @@ export class BootScene extends Scene {
                 event.preventDefault();
             }
         };
+        const onPointerPosition = (): void => {
+            // HTML UI reflow can move the canvas without a window resize.
+            this.game.scale.updateBounds();
+        };
+        this.game.canvas.addEventListener('mousemove', onPointerPosition, true);
+        this.game.canvas.addEventListener('mousedown', onPointerPosition, true);
         this.game.canvas.addEventListener('contextmenu', onContextMenu);
         this.input.on('pointerdown', onPointerDown);
         this.itemMarker = this.add
@@ -107,6 +113,8 @@ export class BootScene extends Scene {
         this.setPlayers(this.player, this.otherPlayers);
         this.events.once('shutdown', () => {
             this.input.off('pointerdown', onPointerDown);
+            this.game.canvas.removeEventListener('mousemove', onPointerPosition, true);
+            this.game.canvas.removeEventListener('mousedown', onPointerPosition, true);
             this.game.canvas.removeEventListener('contextmenu', onContextMenu);
             this.terrain?.destroy();
             this.terrain = null;
