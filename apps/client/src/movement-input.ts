@@ -106,6 +106,16 @@ export const createMovementInputController = (
             notifyIntent();
         }
     };
+    const onFocusIn = (event: FocusEvent): void => {
+        const target = event.target;
+        const isEditing =
+            target instanceof HTMLElement &&
+            (target.isContentEditable || target.matches('input, textarea, select'));
+
+        if (isEditing) {
+            clear();
+        }
+    };
     const onVisibilityChange = (): void => {
         if (document.hidden) {
             clear();
@@ -138,6 +148,7 @@ export const createMovementInputController = (
     window.addEventListener('keyup', onKeyUp);
     window.addEventListener('blur', clear);
     document.addEventListener('visibilitychange', onVisibilityChange);
+    document.addEventListener('focusin', onFocusIn);
 
     const setEnabled = (value: boolean): void => {
         if (value === isEnabled) {
@@ -154,6 +165,7 @@ export const createMovementInputController = (
         window.removeEventListener('keyup', onKeyUp);
         window.removeEventListener('blur', clear);
         document.removeEventListener('visibilitychange', onVisibilityChange);
+        document.removeEventListener('focusin', onFocusIn);
     };
 
     const moveTo = (value: WorldPosition): void => {

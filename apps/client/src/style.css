@@ -206,3 +206,23 @@ button:focus-visible {
     min-height: 240px;
     aspect-ratio: auto;
 }
+
+#player-profile {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+#display-name {
+    width: 180px;
+    padding: 8px;
+    color: #d8e3c9;
+    background: #17221c;
+    border: 1px solid #879779;
+    font: inherit;
+}
+
+#profile-message {
+    max-width: 420px;
+}

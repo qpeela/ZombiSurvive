@@ -4,13 +4,15 @@ import { dirname, isAbsolute } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import { collisionSettings, worldGenerationSettings } from '@zombi-survive/content';
-import type { WorldPosition } from '@zombi-survive/domain';
+import { isDisplayName, type WorldPosition } from '@zombi-survive/domain';
 import { loadWorldChunks } from '@zombi-survive/worldgen';
 
 export type SavedSoloWorld = {
     readonly worldId: string;
     readonly playerId: string;
     readonly position: WorldPosition;
+    readonly displayName: string;
+    readonly nameRevision: number;
 };
 
 const validatePosition = (position: WorldPosition): void => {
@@ -43,6 +45,7 @@ export class SoloWorldStore {
     readonly initialWorld: SavedSoloWorld;
     private readonly database: DatabaseSync;
     private isClosed = false;
+    private profile: { readonly displayName: string; readonly nameRevision: number };
 
     constructor(path: string) {
         if (!isAbsolute(path)) {
@@ -92,17 +95,54 @@ export class SoloWorldStore {
                         worldGenerationSettings.initialSeed,
                         worldGenerationSettings.generatorVersion,
                     );
-            } else if (version !== 1) {
+            } else if (version !== 1 && version !== 2) {
                 throw new Error('Unsupported solo save schema version.');
             }
 
+            if (version === 0 || version === 1) {
+                this.database.exec(`
+                    ALTER TABLE solo_world ADD COLUMN display_name TEXT NOT NULL DEFAULT 'Выживший';
+                    ALTER TABLE solo_world ADD COLUMN name_revision INTEGER NOT NULL DEFAULT 0;
+                    PRAGMA user_version = 2;
+                `);
+            }
+
             this.initialWorld = this.readWorld();
+            this.profile = {
+                displayName: this.initialWorld.displayName,
+                nameRevision: this.initialWorld.nameRevision,
+            };
             this.database.exec('COMMIT');
         } catch (error) {
             this.database.close();
 
             throw error;
         }
+    }
+
+    currentProfile(): { readonly displayName: string; readonly nameRevision: number } {
+        return this.profile;
+    }
+
+    saveDisplayName(displayName: string): void {
+        if (!isDisplayName(displayName)) {
+            throw new Error('Invalid display name.');
+        }
+
+        if (displayName === this.profile.displayName) {
+            return;
+        }
+
+        const nameRevision = this.profile.nameRevision + 1;
+
+        if (!Number.isSafeInteger(nameRevision)) {
+            throw new Error('Profile revision limit reached.');
+        }
+
+        this.database
+            .prepare('UPDATE solo_world SET display_name = ?, name_revision = ? WHERE id = 1')
+            .run(displayName, nameRevision);
+        this.profile = { displayName, nameRevision };
     }
 
     savePosition(position: WorldPosition): void {
@@ -150,6 +190,17 @@ export class SoloWorldStore {
         const position = { xMeters, yMeters };
         validatePosition(position);
 
-        return { worldId, playerId, position };
+        const displayName = saved['display_name'];
+        const nameRevision = saved['name_revision'];
+        const isRevision =
+            typeof nameRevision === 'number' &&
+            Number.isSafeInteger(nameRevision) &&
+            nameRevision >= 0;
+
+        if (!isDisplayName(displayName) || !isRevision) {
+            throw new Error('Solo save contains an invalid profile.');
+        }
+
+        return { worldId, playerId, position, displayName, nameRevision };
     }
 }

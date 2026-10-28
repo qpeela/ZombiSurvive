@@ -403,3 +403,28 @@ test.each(['blur', 'hidden', 'disconnect', 'dispose'])(
         input.dispose();
     },
 );
+
+test('focusing a text field cancels held sprint/movement and a click destination', () => {
+    const send = vi.fn();
+    const onTargetChange = vi.fn();
+    const input = createMovementInputController(send, { sendTarget: vi.fn(), onTargetChange });
+    input.setEnabled(true);
+    key('KeyD');
+    key('ShiftLeft');
+    vi.advanceTimersByTime(100);
+    input.moveTo({ xMeters: 10, yMeters: 0 });
+    const field = new HTMLElement();
+    Object.defineProperty(field, 'isContentEditable', { value: true });
+    const event = new Event('focusin');
+    Object.defineProperty(event, 'target', { value: field });
+    documentEvents.dispatchEvent(event);
+    expect(send).toHaveBeenLastCalledWith(
+        { x: 0, y: 0 },
+        { isSprinting: false, isSneaking: false },
+    );
+    expect(onTargetChange).toHaveBeenLastCalledWith(null);
+    const count = send.mock.calls.length;
+    vi.advanceTimersByTime(1000);
+    expect(send).toHaveBeenCalledTimes(count);
+    input.dispose();
+});
