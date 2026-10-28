@@ -227,6 +227,7 @@ const connection = createWorldConnection(
             button.setAttribute('aria-pressed', 'false');
         }
         attack.disabled = true;
+        scene.setWeapon(null);
         weaponLabel.textContent = 'Оружие: —';
         weaponStats.textContent = 'Характеристики: —';
         otherPlayers = [];
@@ -267,6 +268,7 @@ const connection = createWorldConnection(
         healthLabel.textContent = `Здоровье: ${String(snapshot.health)} / ${String(snapshot.maxHealth)}`;
     },
     snapshot => {
+        scene.setWeapon(snapshot.weapon);
         const isEquipped = snapshot.weapon !== null;
         for (const { weapon, button } of equipmentButtons) {
             const isSelected = snapshot.weapon === weapon;

@@ -1,11 +1,13 @@
 import type {
     GroundItem,
+    MeleeWeaponId,
     PlayerMovementState,
     WorldPosition,
     ZombieState,
 } from '@zombi-survive/domain';
 import { type GameObjects, type Input, Scene } from 'phaser';
 
+import { drawHeldWeapon } from './held-weapon';
 import { WorldTerrain } from './world-terrain';
 
 const pixelsPerMeter = 24;
@@ -13,6 +15,9 @@ const pixelsPerMeter = 24;
 export class BootScene extends Scene {
     private player: PlayerMovementState | null = null;
     private marker: GameObjects.Container | null = null;
+    private weapon: MeleeWeaponId | null = null;
+    private weaponImage: GameObjects.Graphics | null = null;
+    private facingAngle = 0;
     private otherPlayers: readonly PlayerMovementState[] = [];
     private readonly otherMarkers = new Map<string, GameObjects.Container>();
     private zombies: readonly ZombieState[] = [];
@@ -96,6 +101,9 @@ export class BootScene extends Scene {
         this.setGroundItem(this.groundItem);
         this.setZombies(this.zombies);
         this.marker = this.createMarker(true);
+        this.weaponImage = this.add.graphics().setDepth(2);
+        drawHeldWeapon(this.weaponImage, this.weapon);
+        this.updateWeapon();
         this.setPlayers(this.player, this.otherPlayers);
         this.events.once('shutdown', () => {
             this.input.off('pointerdown', onPointerDown);
@@ -107,6 +115,9 @@ export class BootScene extends Scene {
             this.crosshair = null;
             this.destinationMarker = null;
             this.marker = null;
+            this.weaponImage = null;
+            this.game.canvas.dataset['weaponVisible'] = 'false';
+            delete this.game.canvas.dataset['weapon'];
             this.itemMarker = null;
             this.otherMarkers.clear();
             this.zombieMarkers.clear();
@@ -170,6 +181,39 @@ export class BootScene extends Scene {
         }
     }
 
+    setWeapon(weapon: MeleeWeaponId | null): void {
+        const isChanged = this.weapon !== weapon;
+        this.weapon = weapon;
+
+        if (this.weaponImage !== null && isChanged) {
+            drawHeldWeapon(this.weaponImage, weapon);
+        }
+
+        this.updateWeapon();
+    }
+
+    private updateWeapon(): void {
+        const image = this.weaponImage;
+
+        if (image === null) {
+            return;
+        }
+
+        const isPlayerVisible = this.player !== null && this.marker !== null;
+        image.setVisible(isPlayerVisible && this.weapon !== null);
+
+        if (this.marker !== null) {
+            image.setPosition(this.marker.x, this.marker.y).setRotation(this.facingAngle);
+        }
+
+        const canvas = this.game.canvas;
+        canvas.dataset['weaponVisible'] = String(image.visible);
+        canvas.dataset['weapon'] = this.weapon ?? '';
+        canvas.dataset['weaponX'] = String(image.x);
+        canvas.dataset['weaponY'] = String(image.y);
+        canvas.dataset['weaponAngle'] = String(image.rotation);
+    }
+
     setDestination(position: WorldPosition | null): void {
         this.destination = position;
     }
@@ -180,7 +224,8 @@ export class BootScene extends Scene {
         const canvas = this.game.canvas;
         const pointer = this.input.activePointer;
         const isAiming = this.player !== null && this.input.manager.isOver;
-        this.aim?.setVisible(isAiming);
+        const isEmptyHands = this.weapon === null;
+        this.aim?.setVisible(isAiming && isEmptyHands);
         this.crosshair?.setVisible(isAiming);
         const hasDestination = this.destination !== null && this.player !== null;
         this.destinationMarker?.setVisible(hasDestination);
@@ -205,12 +250,15 @@ export class BootScene extends Scene {
             const x = pointer.x + camera.scrollX;
             const y = pointer.y + camera.scrollY;
             const angle = Math.atan2(y - this.marker.y, x - this.marker.x);
+            this.facingAngle = angle;
             this.aim?.setPosition(this.marker.x, this.marker.y).setRotation(angle);
             this.crosshair?.setPosition(pointer.x, pointer.y);
             canvas.dataset['aimAngle'] = String(angle);
             canvas.dataset['aimX'] = String((x - 480) / pixelsPerMeter);
             canvas.dataset['aimY'] = String((y - 270) / pixelsPerMeter);
         }
+
+        this.updateWeapon();
 
         // Only the visible grid is drawn; moving away from the origin never exhausts it.
         const grid = this.grid;
@@ -261,6 +309,11 @@ export class BootScene extends Scene {
         this.terrain?.update(player?.position ?? null);
         this.marker.setVisible(player !== null);
         this.game.canvas.dataset['playerVisible'] = String(player !== null);
+
+        if (player === null) {
+            this.facingAngle = 0;
+            this.updateWeapon();
+        }
 
         if (player !== null) {
             const x = 480 + player.position.xMeters * pixelsPerMeter;
