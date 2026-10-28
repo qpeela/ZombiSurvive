@@ -117,7 +117,9 @@ test('held transport shows predicted input before acknowledgement and reconciles
         await page.screenshot({ path: '.cache/t008-prediction.png', fullPage: true });
         release();
         await expect.poll(async () => (await state(page)).confirmedX).toBe(4.65);
-        await converge(page);
+        await expect.poll(async () => (await state(page)).visibleX).toBeCloseTo(4.65, 10);
+        // A click rounded to CSS pixels can keep sliding along the wall. Prediction
+        // intentionally leads that active intent; stop it before exact reconciliation.
         await page.evaluate(() => globalThis.dispatchEvent(new Event('blur')));
         await expect(page.locator('canvas')).toHaveAttribute('data-target-visible', 'false');
         await converge(page);

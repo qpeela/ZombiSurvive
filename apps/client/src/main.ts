@@ -158,9 +158,15 @@ const fullscreen = createFullscreenControls({
     message: fullscreenMessage,
     onChange: () => {
         input.reset();
+        game.scale.getParentBounds();
         game.scale.refresh();
     },
 });
+const gameResize = new ResizeObserver(() => {
+    game.scale.getParentBounds();
+    game.scale.refresh();
+});
+gameResize.observe(container);
 scene.onMove = position => {
     input.moveTo(position);
 };
@@ -227,6 +233,7 @@ const connection = createWorldConnection(
             button.setAttribute('aria-pressed', 'false');
         }
         attack.disabled = true;
+        scene.setWeapon(null);
         weaponLabel.textContent = 'Оружие: —';
         weaponStats.textContent = 'Характеристики: —';
         otherPlayers = [];
@@ -267,6 +274,7 @@ const connection = createWorldConnection(
         healthLabel.textContent = `Здоровье: ${String(snapshot.health)} / ${String(snapshot.maxHealth)}`;
     },
     snapshot => {
+        scene.setWeapon(snapshot.weapon);
         const isEquipped = snapshot.weapon !== null;
         for (const { weapon, button } of equipmentButtons) {
             const isSelected = snapshot.weapon === weapon;
@@ -357,6 +365,7 @@ if (import.meta.hot) {
         isPageActive = false;
         connectAttempt++;
         session.cancel();
+        gameResize.disconnect();
         fullscreen.dispose();
         input.dispose();
         profileUi.dispose();

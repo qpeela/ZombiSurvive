@@ -32,26 +32,47 @@ const assertPointer = async page => {
     await expect
         .poll(async () => Number(await canvas.getAttribute('data-aim-angle')))
         .toBeCloseTo(Math.atan2(-54, 144), 1);
-    // The click starts movement: the origin must be captured before that action.
-    const origin = await canvas.evaluate(element => ({
-        x: (Number(element.dataset.playerX) - 480) / 24,
-        y: (Number(element.dataset.playerY) - 270) / 24,
-    }));
+    // Capture the coordinate contract at the native event. Fullscreen/focus scrolling
+    // may change the canvas rectangle between earlier observations and this click.
+    await canvas.evaluate(element => {
+        element.addEventListener(
+            'mousedown',
+            event => {
+                const bounds = element.getBoundingClientRect();
+                element.dataset.testClickX = String(
+                    (((event.clientX - bounds.left) * element.width) / bounds.width +
+                        Number(element.dataset.cameraX) -
+                        480) /
+                        24,
+                );
+                element.dataset.testClickY = String(
+                    (((event.clientY - bounds.top) * element.height) / bounds.height +
+                        Number(element.dataset.cameraY) -
+                        270) /
+                        24,
+                );
+            },
+            { once: true, capture: true },
+        );
+    });
     const clickTick = Number(await status.getAttribute('data-tick'));
     await page.mouse.click(box.x + box.width * 0.7, box.y + box.height * 0.5);
     await expect(canvas).toHaveAttribute('data-target-visible', 'true');
     // Deliberately allow server movement before inspecting the target. CI scheduling
-    // must not make the expected coordinates depend on the player's later position.
+    // must not make the expected coordinates depend on a later render or player position.
     await expect
         .poll(async () => Number(await status.getAttribute('data-tick')))
         .toBeGreaterThan(clickTick + 2);
     const coordinates = await canvas.evaluate(element => ({
         targetX: Number(element.dataset.targetX),
         targetY: Number(element.dataset.targetY),
+        expectedX: Number(element.dataset.testClickX),
+        expectedY: Number(element.dataset.testClickY),
     }));
-    const tolerance = 960 / box.width / 24 + 0.01;
-    expect(Math.abs(coordinates.targetX - (origin.x + 8))).toBeLessThan(tolerance);
-    expect(Math.abs(coordinates.targetY - origin.y)).toBeLessThan(tolerance);
+    // Both sides use the delivered event, so CSS-pixel rounding is already accounted for.
+    const tolerance = 0.01;
+    expect(Math.abs(coordinates.targetX - coordinates.expectedX)).toBeLessThan(tolerance);
+    expect(Math.abs(coordinates.targetY - coordinates.expectedY)).toBeLessThan(tolerance);
     await page.evaluate(() => globalThis.dispatchEvent(new Event('blur')));
     await expect(canvas).toHaveAttribute('data-target-visible', 'false');
 };
@@ -102,6 +123,11 @@ test('fullscreen denial and unsupported browsers leave the game usable', async (
     await expect(page.locator('#fullscreen-message')).toContainText('Не удалось');
     await expect(button).toBeEnabled();
     await expect(button).toHaveAttribute('aria-pressed', 'false');
+    // A real HTML validation message can reflow the UI above the canvas without
+    // resizing the browser window. Pointer mapping must follow that new position.
+    await page.getByRole('textbox', { name: 'Имя игрока' }).fill('');
+    await page.getByRole('button', { name: 'Сохранить имя', exact: true }).click();
+    await expect(page.locator('#profile-message')).toContainText('1–24');
     await page.locator('canvas').scrollIntoViewIfNeeded();
     await assertPointer(page);
     await page.addInitScript(() => {
