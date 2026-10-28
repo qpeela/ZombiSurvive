@@ -51,3 +51,31 @@ export const isMeleeSnapshot = (value: unknown): value is MeleeSnapshot => {
         isId(value['playerId'])
     );
 };
+
+/** Emitted only on the server step that accepts an attack, including misses. */
+export type MeleeAction = {
+    readonly type: 'melee-action';
+    readonly protocolVersion: typeof protocolVersion;
+    readonly meleeVersion: typeof meleeVersion;
+    readonly worldId: string;
+    readonly playerId: string;
+    readonly tick: number;
+    readonly weapon: MeleeWeaponId;
+};
+export const isMeleeAction = (value: unknown): value is MeleeAction => {
+    if (!isRecord(value)) {
+        return false;
+    }
+
+    const tick = value['tick'];
+    const isTick = typeof tick === 'number' && Number.isSafeInteger(tick) && tick >= 0;
+
+    return (
+        value['type'] === 'melee-action' &&
+        isVersion(value) &&
+        isTick &&
+        isMeleeWeaponId(value['weapon']) &&
+        isId(value['worldId']) &&
+        isId(value['playerId'])
+    );
+};

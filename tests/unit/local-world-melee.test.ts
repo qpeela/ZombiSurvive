@@ -174,3 +174,29 @@ test('forged equipment and damage cannot override server rules; zero HP blocks s
     step();
     expect(damage).toHaveBeenCalledTimes(1);
 });
+
+test('only accepted attacks publish an action, once per player and only on their step', () => {
+    const { melee, movement, command, step, health, zombies } = setup();
+    const read = (session = 'first') => melee.action(movement.snapshot(session));
+    command('first', 'melee-attack');
+    step();
+    expect(read()).toBeNull();
+    command('first', 'equip-weapon', 'axe');
+    step();
+    expect(read()).toBeNull();
+    zombies.length = 0;
+    command('first', 'melee-attack');
+    command('tab', 'melee-attack');
+    step();
+    expect(read()).toMatchObject({ type: 'melee-action', tick: 3, weapon: 'axe' });
+    expect(read('tab')).toEqual(read());
+    expect(read('friend')).toBeNull();
+    command('tab', 'melee-attack');
+    step();
+    expect(read()).toBeNull();
+    for (let index = 0; index < meleeWeapons.axe.cooldownTicks; index++) step();
+    health.mockReturnValue(0);
+    command('first', 'melee-attack');
+    step();
+    expect(read()).toBeNull();
+});

@@ -71,6 +71,9 @@ const createRoom = () => {
         publishMelee: (value: unknown) => {
             messages.get('melee-state')?.(value);
         },
+        publishAction: (value: unknown) => {
+            messages.get('melee-action')?.(value);
+        },
         publishHealth: (value: unknown) => {
             messages.get('health-state')?.(value);
         },
@@ -606,5 +609,58 @@ test('a rename reply from a disconnected room cannot change the next connection 
     await rejection;
     expect(profileChanged).toHaveBeenCalledOnce();
     expect(profileChanged).toHaveBeenCalledWith(profile);
+    connection.dispose();
+});
+
+test('melee actions deduplicate by tick and ignore inactive rooms and unready connections', async () => {
+    const first = createRoom();
+    const second = createRoom();
+    join.mockResolvedValueOnce(first.room).mockResolvedValueOnce(second.room);
+    const onAction = vi.fn();
+    const connection = createWorldConnection(
+        'http://host',
+        () => {},
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        onAction,
+    );
+    const action = {
+        type: 'melee-action',
+        protocolVersion: 5,
+        meleeVersion: 2,
+        worldId: 'world',
+        playerId: 'player',
+        weapon: 'axe',
+        tick: 3,
+    };
+    const initial = connection.connect();
+    await vi.waitFor(() => {
+        expect(first.room.request).toHaveBeenCalled();
+    });
+    first.publishAction(action);
+    expect(onAction).not.toHaveBeenCalled();
+    first.resolveInitial(snapshot(1));
+    await initial;
+    first.publishAction(action);
+    first.publishAction(action);
+    first.publishAction({ ...action, tick: 2 });
+    expect(onAction).toHaveBeenCalledExactlyOnceWith(action);
+    const replacement = connection.connect();
+    await vi.waitFor(() => {
+        expect(second.room.request).toHaveBeenCalled();
+    });
+    second.resolveInitial(snapshot(1));
+    await replacement;
+    first.publishAction({ ...action, tick: 4 });
+    expect(onAction).toHaveBeenCalledTimes(1);
+    second.publishAction(action);
+    expect(onAction).toHaveBeenCalledTimes(2);
+    second.publishAction({ ...action, playerId: 'foreign', tick: 4 });
+    expect(second.room.connection.close).toHaveBeenCalledOnce();
+    expect(onAction).toHaveBeenCalledTimes(2);
     connection.dispose();
 });

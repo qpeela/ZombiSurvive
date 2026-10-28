@@ -114,6 +114,12 @@ export class LocalWorldRoom extends Room {
                     client.send('zombie-state', this.zombie.snapshot(snapshot));
                     client.send('health-state', this.combat.snapshot(snapshot));
                     client.send('melee-state', this.melee.snapshot(snapshot));
+                    const action = this.melee.action(snapshot);
+
+                    if (action !== null) {
+                        client.send('melee-action', action);
+                    }
+
                     const playerProfile = profile.snapshot(snapshot);
 
                     if (playerProfile !== null) {

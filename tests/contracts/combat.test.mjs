@@ -5,7 +5,7 @@ import test from 'node:test';
 const scenario = `
 import assert from 'node:assert/strict';
 import { combatSettings, meleeWeapons } from '@zombi-survive/content';
-import { isHealthSnapshot, healthVersion, protocolVersion, isMeleeCommand, isMeleeSnapshot, meleeVersion } from '@zombi-survive/protocol';
+import { isHealthSnapshot, healthVersion, protocolVersion, isMeleeCommand, isMeleeSnapshot, isMeleeAction, meleeVersion } from '@zombi-survive/protocol';
 import { stepZombieAttack, findMeleeTarget } from '@zombi-survive/simulation';
 const target = {
     playerId: 'player', position: { xMeters: 0.9, yMeters: 0 },
@@ -24,6 +24,7 @@ const snapshot = {
 assert.ok(isHealthSnapshot(JSON.parse(JSON.stringify(snapshot))));
 assert.equal(findMeleeTarget({ weapon: 'club', position: target.position, zombies: [zombie], obstacles: [] }), zombie);
 assert.ok(isMeleeCommand({ type: 'melee-attack', protocolVersion, meleeVersion }));
+assert.ok(isMeleeAction(JSON.parse(JSON.stringify({ type: 'melee-action', protocolVersion, meleeVersion, worldId: 'world', playerId: 'player', tick: 1, weapon: 'knife' }))));
 for (const weapon of Object.keys(meleeWeapons)) {
     assert.ok(isMeleeCommand(JSON.parse(JSON.stringify({ type: 'equip-weapon', weapon, protocolVersion, meleeVersion }))));
     assert.ok(isMeleeSnapshot({ type: 'melee-state', protocolVersion, meleeVersion, worldId: 'world', playerId: 'player', tick: 1, weapon }));

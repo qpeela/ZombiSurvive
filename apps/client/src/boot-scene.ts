@@ -5,9 +5,11 @@ import type {
     WorldPosition,
     ZombieState,
 } from '@zombi-survive/domain';
+import type { MeleeAction } from '@zombi-survive/protocol';
 import { type GameObjects, type Input, Scene } from 'phaser';
 
 import { drawHeldWeapon } from './held-weapon';
+import { MeleeAnimation } from './melee-animation';
 import { WorldTerrain } from './world-terrain';
 
 const pixelsPerMeter = 24;
@@ -18,6 +20,7 @@ export class BootScene extends Scene {
     private weapon: MeleeWeaponId | null = null;
     private weaponImage: GameObjects.Graphics | null = null;
     private facingAngle = 0;
+    private readonly animation = new MeleeAnimation();
     private otherPlayers: readonly PlayerMovementState[] = [];
     private readonly otherMarkers = new Map<string, GameObjects.Container>();
     private zombies: readonly ZombieState[] = [];
@@ -123,7 +126,9 @@ export class BootScene extends Scene {
             this.crosshair = null;
             this.destinationMarker = null;
             this.marker = null;
+            this.animation.setWeapon(null);
             this.weaponImage = null;
+            this.game.canvas.dataset['weaponAnimation'] = 'idle';
             this.game.canvas.dataset['weaponVisible'] = 'false';
             delete this.game.canvas.dataset['weapon'];
             this.itemMarker = null;
@@ -192,6 +197,7 @@ export class BootScene extends Scene {
     setWeapon(weapon: MeleeWeaponId | null): void {
         const isChanged = this.weapon !== weapon;
         this.weapon = weapon;
+        this.animation.setWeapon(weapon);
 
         if (this.weaponImage !== null && isChanged) {
             drawHeldWeapon(this.weaponImage, weapon);
@@ -200,7 +206,13 @@ export class BootScene extends Scene {
         this.updateWeapon();
     }
 
-    private updateWeapon(): void {
+    playAttack(action: MeleeAction): void {
+        if (this.animation.accept(action)) {
+            this.updateWeapon();
+        }
+    }
+
+    private updateWeapon(deltaMs = 0): void {
         const image = this.weaponImage;
 
         if (image === null) {
@@ -210,11 +222,20 @@ export class BootScene extends Scene {
         const isPlayerVisible = this.player !== null && this.marker !== null;
         image.setVisible(isPlayerVisible && this.weapon !== null);
 
+        const pose = this.animation.advance(deltaMs);
+
         if (this.marker !== null) {
-            image.setPosition(this.marker.x, this.marker.y).setRotation(this.facingAngle);
+            image
+                .setPosition(
+                    this.marker.x + Math.cos(this.facingAngle) * pose.reach,
+                    this.marker.y + Math.sin(this.facingAngle) * pose.reach,
+                )
+                .setRotation(this.facingAngle + pose.rotation);
         }
 
         const canvas = this.game.canvas;
+        canvas.dataset['weaponAnimation'] = pose.phase;
+        canvas.dataset['weaponAttackTick'] = String(this.animation.tick);
         canvas.dataset['weaponVisible'] = String(image.visible);
         canvas.dataset['weapon'] = this.weapon ?? '';
         canvas.dataset['weaponX'] = String(image.x);
@@ -226,7 +247,7 @@ export class BootScene extends Scene {
         this.destination = position;
     }
 
-    override update(): void {
+    override update(_time: number, deltaMs: number): void {
         this.onFrame();
         const camera = this.cameras.main;
         const canvas = this.game.canvas;
@@ -266,7 +287,7 @@ export class BootScene extends Scene {
             canvas.dataset['aimY'] = String((y - 270) / pixelsPerMeter);
         }
 
-        this.updateWeapon();
+        this.updateWeapon(deltaMs);
 
         // Only the visible grid is drawn; moving away from the origin never exhausts it.
         const grid = this.grid;

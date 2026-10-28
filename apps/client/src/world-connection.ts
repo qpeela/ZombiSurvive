@@ -10,12 +10,14 @@ import {
     initialStateRequest,
     inventoryVersion,
     isHealthSnapshot,
+    isMeleeAction,
     isMeleeSnapshot,
     isPickupSnapshot,
     isProfileResult,
     isProfileSnapshot,
     isZombieSnapshot,
     localWorldRoomId,
+    type MeleeAction,
     type MeleeIntent,
     type MeleeSnapshot,
     meleeVersion,
@@ -73,6 +75,7 @@ export const createWorldConnection = (
     onHealthChange?: (snapshot: HealthSnapshot) => void,
     onMeleeChange?: (snapshot: MeleeSnapshot) => void,
     onProfileChange?: (snapshot: ProfileSnapshot) => void,
+    onMeleeAction?: (action: MeleeAction) => void,
 ): {
     connect: () => Promise<void>;
     sendMelee: (intent: MeleeIntent) => void;
@@ -317,6 +320,34 @@ export const createWorldConnection = (
 
                 meleeTick = value.tick;
                 onMeleeChange?.(value);
+            });
+            let actionTick = -1;
+            room.onMessage<unknown>('melee-action', value => {
+                if (!isActiveRoom() || !isReady || received.snapshot === null) {
+                    return;
+                }
+
+                if (!isMeleeAction(value)) {
+                    closeRoom();
+                    onStateChange({ status: 'error' });
+                    return;
+                }
+
+                const isSameWorld = value.worldId === received.snapshot.worldId;
+                const isSamePlayer = value.playerId === received.snapshot.player.playerId;
+
+                if (!isSameWorld || !isSamePlayer) {
+                    closeRoom();
+                    onStateChange({ status: 'error' });
+                    return;
+                }
+
+                if (value.tick <= actionTick) {
+                    return;
+                }
+
+                actionTick = value.tick;
+                onMeleeAction?.(value);
             });
             let healthTick = -1;
             room.onMessage<unknown>('health-state', value => {
