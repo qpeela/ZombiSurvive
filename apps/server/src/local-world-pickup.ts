@@ -13,9 +13,37 @@ import {
 import { pickUpItem, placeInventoryItem } from '@zombi-survive/simulation';
 import { initialWorldChunk } from '@zombi-survive/worldgen';
 
+import { copyItemLocation } from './saved-item.ts';
+
 export class LocalWorldPickup {
-    private location: ItemLocation = { type: 'ground', item: initialGroundItem };
+    private location: ItemLocation;
+    private readonly requiresCommit: boolean;
+    private pendingSave: ItemLocation | null = null;
+    private isSaveTaken = false;
+    private isSaveComplete = false;
     private readonly pending = new Map<string, PickupCommand | InventoryMoveCommand>();
+
+    constructor(initialLocation?: ItemLocation) {
+        this.requiresCommit = initialLocation !== undefined;
+        this.location = copyItemLocation(
+            initialLocation ?? { type: 'ground', item: initialGroundItem },
+        );
+    }
+
+    takePendingSave(): ItemLocation | null {
+        if (this.pendingSave === null || this.isSaveTaken) {
+            return null;
+        }
+
+        this.isSaveTaken = true;
+        return copyItemLocation(this.pendingSave);
+    }
+
+    confirmSave(): void {
+        if (this.pendingSave !== null && this.isSaveTaken) {
+            this.isSaveComplete = true;
+        }
+    }
 
     receive(sessionId: string, value: unknown): void {
         if (isPickupCommand(value)) {
@@ -44,6 +72,19 @@ export class LocalWorldPickup {
     }
 
     step(sessions: ReadonlyMap<string, MovementSnapshot>): void {
+        if (this.pendingSave !== null) {
+            if (!this.isSaveComplete) {
+                return;
+            }
+
+            this.location = this.pendingSave;
+            this.pendingSave = null;
+            this.isSaveTaken = false;
+            this.isSaveComplete = false;
+        }
+
+        let nextLocation = this.location;
+
         for (const [sessionId, command] of this.pending) {
             const snapshot = sessions.get(sessionId);
 
@@ -52,7 +93,7 @@ export class LocalWorldPickup {
             }
 
             if (command.type === 'inventory-move') {
-                const location = this.location;
+                const location = nextLocation;
                 const isOwner =
                     location.type === 'container' && location.playerId === snapshot.player.playerId;
 
@@ -67,16 +108,20 @@ export class LocalWorldPickup {
                         cell: command.cell,
                     });
 
-                    if (placed !== null) {
-                        this.location = { ...location, cell: { ...command.cell } };
+                    const isMoved =
+                        location.cell.column !== command.cell.column ||
+                        location.cell.row !== command.cell.row;
+
+                    if (placed !== null && isMoved) {
+                        nextLocation = { ...location, cell: { ...command.cell } };
                     }
                 }
 
                 continue;
             }
 
-            this.location = pickUpItem({
-                location: this.location,
+            nextLocation = pickUpItem({
+                location: nextLocation,
                 player: snapshot.player,
                 itemId: command.itemId,
                 obstacles: initialWorldChunk.obstacles,
@@ -84,6 +129,14 @@ export class LocalWorldPickup {
         }
 
         this.pending.clear();
+
+        if (this.requiresCommit) {
+            if (nextLocation !== this.location) {
+                this.pendingSave = nextLocation;
+            }
+        } else {
+            this.location = nextLocation;
+        }
     }
 
     snapshot(movement: MovementSnapshot): PickupSnapshot {

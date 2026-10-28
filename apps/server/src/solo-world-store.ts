@@ -3,9 +3,15 @@ import { chmodSync, mkdirSync } from 'node:fs';
 import { dirname, isAbsolute } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-import { collisionSettings, worldGenerationSettings } from '@zombi-survive/content';
-import { isDisplayName, type WorldPosition } from '@zombi-survive/domain';
+import {
+    collisionSettings,
+    initialGroundItem,
+    worldGenerationSettings,
+} from '@zombi-survive/content';
+import { isDisplayName, type ItemLocation, type WorldPosition } from '@zombi-survive/domain';
 import { loadWorldChunks } from '@zombi-survive/worldgen';
+
+import { readSavedItem, writeSavedItem } from './saved-item.ts';
 
 export type SavedSoloWorld = {
     readonly worldId: string;
@@ -43,6 +49,7 @@ const validatePosition = (position: WorldPosition): void => {
 /** One host owns this connection. Transactions run outside the simulation step. */
 export class SoloWorldStore {
     readonly initialWorld: SavedSoloWorld;
+    readonly initialItemLocation: ItemLocation;
     private readonly database: DatabaseSync;
     private isClosed = false;
     private profile: { readonly displayName: string; readonly nameRevision: number };
@@ -95,7 +102,7 @@ export class SoloWorldStore {
                         worldGenerationSettings.initialSeed,
                         worldGenerationSettings.generatorVersion,
                     );
-            } else if (version !== 1 && version !== 2) {
+            } else if (version !== 1 && version !== 2 && version !== 3) {
                 throw new Error('Unsupported solo save schema version.');
             }
 
@@ -107,7 +114,23 @@ export class SoloWorldStore {
                 `);
             }
 
+            if (version === 0 || version === 1 || version === 2) {
+                this.database.exec(
+                    "ALTER TABLE solo_world ADD COLUMN item_location TEXT NOT NULL DEFAULT '{}'",
+                );
+                this.database
+                    .prepare('UPDATE solo_world SET item_location = ? WHERE id = 1')
+                    .run(JSON.stringify({ type: 'ground', item: initialGroundItem }));
+                this.database.exec('PRAGMA user_version = 3');
+            }
+
             this.initialWorld = this.readWorld();
+            this.initialItemLocation = readSavedItem(
+                this.database.prepare('SELECT item_location FROM solo_world WHERE id = 1').get()?.[
+                    'item_location'
+                ],
+                this.initialWorld.playerId,
+            );
             this.profile = {
                 displayName: this.initialWorld.displayName,
                 nameRevision: this.initialWorld.nameRevision,
@@ -150,6 +173,18 @@ export class SoloWorldStore {
         this.database
             .prepare('UPDATE solo_world SET x_meters = ?, y_meters = ? WHERE id = 1')
             .run(position.xMeters, position.yMeters);
+    }
+
+    saveItemLocation(location: ItemLocation): void {
+        const saved = writeSavedItem(location, this.initialWorld.playerId);
+        // One UPDATE is an atomic, synchronous FULL commit of ground/owner/cell together.
+        const result = this.database
+            .prepare('UPDATE solo_world SET item_location = ? WHERE id = 1')
+            .run(saved);
+
+        if (Number(result.changes) !== 1) {
+            throw new Error('Solo item save lost its world row.');
+        }
     }
 
     close(): void {

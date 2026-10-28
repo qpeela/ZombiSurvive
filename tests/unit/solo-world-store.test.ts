@@ -3,6 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
+import { initialGroundItem } from '@zombi-survive/content';
+import type { ItemLocation } from '@zombi-survive/domain';
 import { afterEach, expect, test } from 'vitest';
 
 import { SoloWorldStore } from '../../apps/server/src/solo-world-store.ts';
@@ -56,7 +58,7 @@ test('one host exclusively owns a save until close, then the next can load it', 
 });
 
 test.each([
-    'PRAGMA user_version = 3',
+    'PRAGMA user_version = 4',
     "UPDATE solo_world SET seed = 'another-world'",
     'UPDATE solo_world SET generator_version = 2',
     "UPDATE solo_world SET player_id = 'bad'",
@@ -128,6 +130,7 @@ test('schema v1 migrates atomically and keeps character, world and position', ()
     const database = new DatabaseSync(path);
     database.exec(`ALTER TABLE solo_world DROP COLUMN display_name;
         ALTER TABLE solo_world DROP COLUMN name_revision;
+        ALTER TABLE solo_world DROP COLUMN item_location;
         PRAGMA user_version = 1`);
     database.close();
     const migrated = open(path);
@@ -135,7 +138,7 @@ test('schema v1 migrates atomically and keeps character, world and position', ()
     expect(migrated.currentProfile()).toEqual({ displayName: 'Выживший', nameRevision: 0 });
     migrated.close();
     const restored = new DatabaseSync(path);
-    expect(restored.prepare('PRAGMA user_version').get()?.['user_version']).toBe(2);
+    expect(restored.prepare('PRAGMA user_version').get()?.['user_version']).toBe(3);
     restored.close();
 });
 
@@ -162,10 +165,109 @@ test('a rejected old save rolls back the schema migration as well as its data', 
     const database = new DatabaseSync(path);
     database.exec(`ALTER TABLE solo_world DROP COLUMN display_name;
         ALTER TABLE solo_world DROP COLUMN name_revision;
+        ALTER TABLE solo_world DROP COLUMN item_location;
         UPDATE solo_world SET player_id = 'invalid';
         PRAGMA user_version = 1`);
     database.close();
     const bytes = readFileSync(path);
     expect(() => open(path)).toThrow(/invalid world data/);
+    expect(readFileSync(path)).toEqual(bytes);
+});
+
+test('schema v2 migration retains profile and seeds the existing item only once', () => {
+    const path = createPath();
+    const original = open(path);
+    original.saveDisplayName('Миграция');
+    original.close();
+    const database = new DatabaseSync(path);
+    database.exec('ALTER TABLE solo_world DROP COLUMN item_location; PRAGMA user_version = 2');
+    database.close();
+    const migrated = open(path);
+    expect(migrated.currentProfile()).toEqual({ displayName: 'Миграция', nameRevision: 1 });
+    expect(migrated.initialItemLocation).toEqual({ type: 'ground', item: initialGroundItem });
+    const collected: ItemLocation = {
+        type: 'container',
+        playerId: migrated.initialWorld.playerId,
+        item: { itemId: initialGroundItem.itemId, kind: 'bandage' },
+        cell: { column: 2, row: 2 },
+    };
+    migrated.saveItemLocation(collected);
+    migrated.close();
+    expect(open(path).initialItemLocation).toEqual(collected);
+});
+
+test('durable item transfer and cell are atomic, validated and retained after restart', () => {
+    const path = createPath();
+    const original = open(path);
+    const playerId = original.initialWorld.playerId;
+    const collected: ItemLocation = {
+        type: 'container',
+        playerId,
+        item: { itemId: initialGroundItem.itemId, kind: 'bandage' },
+        cell: { column: 0, row: 0 },
+    };
+    original.saveItemLocation(collected);
+    original.close();
+    const database = new DatabaseSync(path);
+    database.exec(
+        "CREATE TRIGGER fail_item BEFORE UPDATE OF item_location ON solo_world BEGIN SELECT RAISE(ABORT, 'item disk failure'); END",
+    );
+    const before = database.prepare('SELECT item_location FROM solo_world').get();
+    database.close();
+    const restored = open(path);
+    expect(restored.initialItemLocation).toEqual(collected);
+    expect(() => {
+        restored.saveItemLocation({ ...collected, cell: { column: 2, row: 2 } });
+    }).toThrow(/item disk failure/);
+    expect(() => {
+        restored.saveItemLocation({ ...collected, playerId: 'foreign' });
+    }).toThrow(/invalid item/);
+    expect(() => {
+        restored.saveItemLocation({ ...collected, cell: { column: 3, row: 0 } });
+    }).toThrow(/invalid item/);
+    restored.close();
+    const after = new DatabaseSync(path);
+    expect(after.prepare('SELECT item_location FROM solo_world').get()).toEqual(before);
+    after.close();
+    expect(open(path).initialItemLocation).toEqual(collected);
+});
+
+test.each([
+    'not json',
+    '{}',
+    '[]',
+    JSON.stringify({ type: 'ground', item: { ...initialGroundItem, itemId: 'duplicate' } }),
+    JSON.stringify({ type: 'ground', item: initialGroundItem, playerId: 'also-owned' }),
+    JSON.stringify({
+        type: 'ground',
+        item: { ...initialGroundItem, position: { xMeters: 99, yMeters: 2 } },
+    }),
+    JSON.stringify({
+        type: 'container',
+        item: { itemId: initialGroundItem.itemId, kind: 'bandage' },
+        playerId: 'foreign',
+        cell: { column: 0, row: 0 },
+    }),
+])('invalid item save fails closed without resetting loot: %s', item => {
+    const path = createPath();
+    open(path).close();
+    const database = new DatabaseSync(path);
+    database.prepare('UPDATE solo_world SET item_location = ?').run(item);
+    database.close();
+    const before = readFileSync(path);
+    expect(() => open(path)).toThrow();
+    expect(readFileSync(path)).toEqual(before);
+});
+
+test('v2 migration failure rolls back both schema and initialization', () => {
+    const path = createPath();
+    open(path).close();
+    const database = new DatabaseSync(path);
+    database.exec(
+        "ALTER TABLE solo_world DROP COLUMN item_location; PRAGMA user_version = 2; CREATE TRIGGER reject_migration BEFORE UPDATE ON solo_world BEGIN SELECT RAISE(ABORT, 'migration failure'); END",
+    );
+    database.close();
+    const bytes = readFileSync(path);
+    expect(() => open(path)).toThrow(/migration failure/);
     expect(readFileSync(path)).toEqual(bytes);
 });
