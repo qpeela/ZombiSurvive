@@ -1,4 +1,5 @@
 import {
+    isMeleeAction,
     isMeleeCommand,
     isMeleeSnapshot,
     meleeVersion,
@@ -57,3 +58,21 @@ test.each([undefined, null, '', 'gun', 'toString', '__proto__', {}, 1])(
         if (weapon !== null) expect(isMeleeSnapshot({ ...snapshot, weapon })).toBe(false);
     },
 );
+
+test('action events require an equipped known weapon, identity and safe server tick', () => {
+    const event = { ...snapshot, type: 'melee-action', weapon: 'knife' };
+    expect(isMeleeAction(JSON.parse(JSON.stringify(event)))).toBe(true);
+    for (const fields of [
+        { weapon: null },
+        { weapon: 'gun' },
+        { tick: -1 },
+        { tick: 0.1 },
+        { tick: Infinity },
+        { playerId: '' },
+        { worldId: '' },
+        { protocolVersion: 4 },
+        { meleeVersion: 1 },
+    ]) {
+        expect(isMeleeAction({ ...event, ...fields })).toBe(false);
+    }
+});

@@ -294,6 +294,9 @@ const connection = createWorldConnection(
     snapshot => {
         profileUi.update(snapshot);
     },
+    action => {
+        scene.playAttack(action);
+    },
 );
 const session = createWorldSession();
 let connectAttempt = 0;

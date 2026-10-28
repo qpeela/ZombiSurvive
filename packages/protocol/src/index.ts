@@ -1,8 +1,10 @@
 export { initialStateRequest, localWorldRoomId } from './connection.ts';
 export { type HealthSnapshot, healthVersion, isHealthSnapshot } from './health.ts';
 export {
+    isMeleeAction,
     isMeleeCommand,
     isMeleeSnapshot,
+    type MeleeAction,
     type MeleeCommand,
     type MeleeIntent,
     type MeleeSnapshot,

@@ -264,6 +264,11 @@ test('periodic checkpoint survives SIGKILL and a second host cannot overwrite th
         await expect
             .poll(async () => (await room.request(initialStateRequest)).player.position.yMeters)
             .toBe(-0.1);
+        // Position reaches the target on a moving tick: its transient noise is still 8.
+        // Wait for authoritative idle state before comparing the full player after restart.
+        await expect
+            .poll(async () => (await room.request(initialStateRequest)).player.noiseRadiusMeters)
+            .toBe(0);
         const saved = await room.request(initialStateRequest);
         await expect.poll(() => statSync(path, { bigint: true }).mtimeNs > modified).toBe(true);
         // The request runs after the synchronous checkpoint commits, before killing the host.

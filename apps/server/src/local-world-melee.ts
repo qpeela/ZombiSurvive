@@ -2,6 +2,7 @@ import { meleeWeapons } from '@zombi-survive/content';
 import type { MeleeWeaponId, WorldObstacle, ZombieState } from '@zombi-survive/domain';
 import {
     isMeleeCommand,
+    type MeleeAction,
     type MeleeCommand,
     type MeleeSnapshot,
     meleeVersion,
@@ -11,6 +12,7 @@ import {
 import { findMeleeTarget } from '@zombi-survive/simulation';
 
 export class LocalWorldMelee {
+    private readonly actions = new Map<string, MeleeAction>();
     private readonly equipped = new Map<string, MeleeWeaponId>();
     private readonly nextAttackTick = new Map<string, number>();
     private readonly pending = new Map<string, MeleeCommand>();
@@ -34,6 +36,8 @@ export class LocalWorldMelee {
         damage: (id: string, amount: number) => void;
         health: (snapshot: MovementSnapshot) => number;
     }): void {
+        this.actions.clear();
+
         for (const [sessionId, command] of this.pending) {
             const snapshot = snapshots.get(sessionId);
             if (snapshot === undefined || health(snapshot) <= 0) continue;
@@ -50,6 +54,15 @@ export class LocalWorldMelee {
             // A miss also consumes a swing; tabs share this cooldown.
             const definition = meleeWeapons[weapon];
             this.nextAttackTick.set(player.playerId, tick + definition.cooldownTicks);
+            this.actions.set(player.playerId, {
+                type: 'melee-action',
+                protocolVersion,
+                meleeVersion,
+                worldId: snapshot.worldId,
+                playerId: player.playerId,
+                tick,
+                weapon,
+            });
             const target = findMeleeTarget({
                 position: player.position,
                 zombies,
@@ -59,6 +72,9 @@ export class LocalWorldMelee {
             if (target !== undefined) damage(target.zombieId, definition.damage);
         }
         this.pending.clear();
+    }
+    action(movement: MovementSnapshot): MeleeAction | null {
+        return this.actions.get(movement.player.playerId) ?? null;
     }
     snapshot(movement: MovementSnapshot): MeleeSnapshot {
         return {
