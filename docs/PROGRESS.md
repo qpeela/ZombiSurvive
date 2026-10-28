@@ -9,7 +9,7 @@
   T020: [PR #25](https://github.com/qpeela/ZombiSurvive/pull/25).
   Очередь T021–T040 слита через [PR #26](https://github.com/qpeela/ZombiSurvive/pull/26),
   main e16698c. T005C/T014C остаются PAUSED.
-- T021: CI_PENDING, ветка codex/t021-fullscreen от origin/main (e16698c).
+- T021: CI_PENDING, [PR #27](https://github.com/qpeela/ZombiSurvive/pull/27), ветка codex/t021-fullscreen от origin/main (e16698c).
   Общий fullscreen-контейнер включает canvas, HUD, инвентарь и бой.
   Кнопка, Esc и browser fullscreenchange синхронизируют UI и сбрасывают ввод;
   отказ/недоступность API объясняются, оконный режим остаётся доступен.
