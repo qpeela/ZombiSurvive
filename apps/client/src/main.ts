@@ -5,12 +5,16 @@ import type { GroundItem, PlayerMovementState, WorldPosition } from '@zombi-surv
 import { AUTO, Game, Scale } from 'phaser';
 
 import { BootScene } from './boot-scene';
+import { createFullscreenControls } from './fullscreen';
 import { createInventoryGrid } from './inventory-grid';
 import { createMovementInputController } from './movement-input';
 import { MovementPrediction } from './movement-prediction';
 import { createWorldConnection } from './world-connection';
 import { createWorldSession } from './world-session';
 
+const shell = document.querySelector<HTMLElement>('.game-shell');
+const fullscreenButton = document.querySelector<HTMLButtonElement>('#fullscreen');
+const fullscreenMessage = document.querySelector<HTMLElement>('#fullscreen-message');
 const container = document.querySelector<HTMLElement>('#game');
 const status = document.querySelector<HTMLElement>('#connection-status');
 const weaponOptions = document.querySelector<HTMLElement>('#weapon-options');
@@ -31,6 +35,9 @@ const inventorySelector = document.querySelector<HTMLButtonElement>('#inventory-
 const inventoryMessage = document.querySelector<HTMLElement>('#inventory-message');
 
 if (
+    !shell ||
+    !fullscreenButton ||
+    !fullscreenMessage ||
     !weaponOptions ||
     !weaponStats ||
     !attack ||
@@ -126,6 +133,15 @@ const input = createMovementInputController(
         },
     },
 );
+const fullscreen = createFullscreenControls({
+    container: shell,
+    button: fullscreenButton,
+    message: fullscreenMessage,
+    onChange: () => {
+        input.reset();
+        game.scale.refresh();
+    },
+});
 scene.onMove = position => {
     input.moveTo(position);
 };
@@ -318,6 +334,7 @@ if (import.meta.hot) {
         isPageActive = false;
         connectAttempt++;
         session.cancel();
+        fullscreen.dispose();
         input.dispose();
         inventoryUi.dispose();
         connection.dispose();

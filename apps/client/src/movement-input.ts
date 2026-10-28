@@ -27,6 +27,7 @@ export const createMovementInputController = (
     } = {},
 ): {
     setEnabled: (isEnabled: boolean) => void;
+    reset: () => void;
     moveTo: (target: WorldPosition) => void;
     updatePosition: (position: WorldPosition) => void;
     dispose: () => void;
@@ -184,5 +185,5 @@ export const createMovementInputController = (
         }
     };
 
-    return { setEnabled, moveTo, updatePosition, dispose };
+    return { setEnabled, reset: clear, moveTo, updatePosition, dispose };
 };
