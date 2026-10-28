@@ -9,9 +9,15 @@ import { createFullscreenControls } from './fullscreen';
 import { createInventoryGrid } from './inventory-grid';
 import { createMovementInputController } from './movement-input';
 import { MovementPrediction } from './movement-prediction';
+import { createPlayerProfileControls } from './player-profile';
 import { createWorldConnection } from './world-connection';
 import { createWorldSession } from './world-session';
 
+const profileForm = document.querySelector<HTMLFormElement>('#player-profile');
+const displayName = document.querySelector<HTMLInputElement>('#display-name');
+const saveName = document.querySelector<HTMLButtonElement>('#save-name');
+const profileMessage = document.querySelector<HTMLElement>('#profile-message');
+const playerName = document.querySelector<HTMLElement>('#player-name');
 const shell = document.querySelector<HTMLElement>('.game-shell');
 const fullscreenButton = document.querySelector<HTMLButtonElement>('#fullscreen');
 const fullscreenMessage = document.querySelector<HTMLElement>('#fullscreen-message');
@@ -35,6 +41,11 @@ const inventorySelector = document.querySelector<HTMLButtonElement>('#inventory-
 const inventoryMessage = document.querySelector<HTMLElement>('#inventory-message');
 
 if (
+    !profileForm ||
+    !displayName ||
+    !saveName ||
+    !profileMessage ||
+    !playerName ||
     !shell ||
     !fullscreenButton ||
     !fullscreenMessage ||
@@ -98,6 +109,14 @@ const equipmentButtons = Object.values(meleeWeapons).map(weapon => {
     weaponOptions.append(button);
 
     return { weapon: weapon.id, button, onEquip };
+});
+const profileUi = createPlayerProfileControls({
+    form: profileForm,
+    input: displayName,
+    button: saveName,
+    message: profileMessage,
+    label: playerName,
+    rename: name => connection.renamePlayer(name),
 });
 const prediction = new MovementPrediction();
 let groundItem: GroundItem | null = null;
@@ -191,6 +210,7 @@ const connection = createWorldConnection(
             return;
         }
 
+        profileUi.update(null);
         prediction.reset();
         health.value = 0;
         healthLabel.textContent = 'Здоровье: —';
@@ -262,6 +282,9 @@ const connection = createWorldConnection(
             definition === null
                 ? 'Выберите стартовое оружие.'
                 : `Урон: ${String(definition.damage)} · Дальность: ${formatNumber(definition.rangeMeters)} м · Пауза: ${formatNumber(definition.cooldownTicks / movementSettings.ticksPerSecond)} с`;
+    },
+    snapshot => {
+        profileUi.update(snapshot);
     },
 );
 const session = createWorldSession();
@@ -336,6 +359,7 @@ if (import.meta.hot) {
         session.cancel();
         fullscreen.dispose();
         input.dispose();
+        profileUi.dispose();
         inventoryUi.dispose();
         connection.dispose();
         for (const { button, onEquip } of equipmentButtons) {

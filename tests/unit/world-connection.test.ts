@@ -65,6 +65,9 @@ const createRoom = () => {
         publishZombie: (value: unknown) => {
             messages.get('zombie-state')?.(value);
         },
+        publishProfile: (value: unknown) => {
+            messages.get('profile-state')?.(value);
+        },
         publishMelee: (value: unknown) => {
             messages.get('melee-state')?.(value);
         },
@@ -503,5 +506,105 @@ test.each([
     await ready;
     fake.publishMelee(value);
     expect(states.at(-1)).toEqual({ status: 'error' });
+    connection.dispose();
+});
+
+test('profile revisions cannot regress; expired rooms and foreign identities cannot update the name', async () => {
+    const fake = createRoom();
+    join.mockResolvedValue(fake.room);
+    const profileChanged = vi.fn();
+    const states: WorldConnectionState[] = [];
+    const connection = createWorldConnection(
+        'http://host',
+        state => states.push(state),
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        profileChanged,
+    );
+    const connected = connection.connect();
+    await vi.waitFor(() => {
+        expect(fake.room.request).toHaveBeenCalled();
+    });
+    const profile = {
+        type: 'profile-state',
+        protocolVersion: 5,
+        profileVersion: 1,
+        worldId: 'world',
+        playerId: 'player',
+        revision: 0,
+        displayName: 'Иван',
+    };
+    fake.publishProfile(profile);
+    expect(profileChanged).not.toHaveBeenCalled();
+    fake.resolveInitial(snapshot(1));
+    await connected;
+    fake.publishProfile({ ...profile, revision: 2 });
+    fake.publishProfile({ ...profile, revision: 1, displayName: 'Old' });
+    fake.publishProfile({ ...profile, revision: 2 });
+    expect(profileChanged).toHaveBeenCalledOnce();
+    fake.publishProfile({ ...profile, revision: 3, playerId: 'foreign' });
+    expect(states.at(-1)).toEqual({ status: 'error' });
+    fake.publishProfile({ ...profile, revision: 4 });
+    expect(profileChanged).toHaveBeenCalledOnce();
+    connection.dispose();
+});
+
+test('a rename reply from a disconnected room cannot change the next connection profile', async () => {
+    const first = createRoom();
+    const second = createRoom();
+    join.mockResolvedValueOnce(first.room).mockResolvedValueOnce(second.room);
+    const profileChanged = vi.fn();
+    const connection = createWorldConnection(
+        'http://host',
+        () => {},
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        profileChanged,
+    );
+    const connected = connection.connect();
+    await vi.waitFor(() => {
+        expect(first.room.request).toHaveBeenCalled();
+    });
+    first.resolveInitial(snapshot(1));
+    await connected;
+    let resolveRename: (value: unknown) => void = () => {};
+    first.room.request.mockImplementationOnce(
+        () =>
+            new Promise(resolve => {
+                resolveRename = resolve;
+            }),
+    );
+    const renamed = connection.renamePlayer('Old request');
+    const rejection = expect(renamed).rejects.toThrow(/expired/);
+    connection.disconnect();
+    const reconnected = connection.connect();
+    await vi.waitFor(() => {
+        expect(second.room.request).toHaveBeenCalled();
+    });
+    second.resolveInitial(snapshot(2));
+    await reconnected;
+    const profile = {
+        type: 'profile-state',
+        protocolVersion: 5,
+        profileVersion: 1,
+        worldId: 'world',
+        playerId: 'player',
+        revision: 2,
+        displayName: 'Current',
+    };
+    second.publishProfile(profile);
+    resolveRename({
+        status: 'saved',
+        profile: { ...profile, displayName: 'Old request', revision: 1 },
+    });
+    await rejection;
+    expect(profileChanged).toHaveBeenCalledOnce();
+    expect(profileChanged).toHaveBeenCalledWith(profile);
     connection.dispose();
 });

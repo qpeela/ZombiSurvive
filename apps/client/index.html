@@ -18,6 +18,12 @@
             </header>
             <div class="fullscreen-controls">
                 <button id="fullscreen" type="button" aria-pressed="false">На весь экран</button>
+                <form id="player-profile" novalidate>
+                    <label for="display-name">Имя игрока</label>
+                    <input id="display-name" name="displayName" autocomplete="off" disabled />
+                    <button id="save-name" type="submit" disabled>Сохранить имя</button>
+                    <span id="profile-message" aria-live="polite"></span>
+                </form>
                 <span id="fullscreen-message" aria-live="polite"></span>
             </div>
             <p id="connection-status" role="status">Подключение к локальному миру…</p>
@@ -48,6 +54,7 @@
             </section>
             <section id="game" aria-label="Игровое поле">
                 <div class="stamina-hud">
+                    <span id="player-name">Имя: —</span>
                     <label id="health-label" for="health">Здоровье: —</label>
                     <progress id="health" max="100" value="0"></progress>
                     <label id="stamina-label" for="stamina">Выносливость: —</label>

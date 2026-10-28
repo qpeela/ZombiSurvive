@@ -12,6 +12,8 @@ import {
     isHealthSnapshot,
     isMeleeSnapshot,
     isPickupSnapshot,
+    isProfileResult,
+    isProfileSnapshot,
     isZombieSnapshot,
     localWorldRoomId,
     type MeleeIntent,
@@ -21,6 +23,9 @@ import {
     type MovementSnapshot,
     type MovementTargetCommand,
     type PickupSnapshot,
+    type ProfileResult,
+    type ProfileSnapshot,
+    profileVersion,
     protocolVersion,
     type ZombieSnapshot,
 } from '@zombi-survive/protocol';
@@ -67,9 +72,11 @@ export const createWorldConnection = (
     onZombieChange?: (snapshot: ZombieSnapshot) => void,
     onHealthChange?: (snapshot: HealthSnapshot) => void,
     onMeleeChange?: (snapshot: MeleeSnapshot) => void,
+    onProfileChange?: (snapshot: ProfileSnapshot) => void,
 ): {
     connect: () => Promise<void>;
     sendMelee: (intent: MeleeIntent) => void;
+    renamePlayer: (displayName: string) => Promise<ProfileResult>;
     sendMovement: (direction: MovementDirection, modifiers?: MovementModifiers) => void;
     sendTarget: (target: WorldPosition, modifiers?: MovementModifiers) => void;
     pickUp: (itemId: string) => void;
@@ -83,11 +90,13 @@ export const createWorldConnection = (
     let abortController: AbortController | null = null;
     let sequence = 0;
     let isReady = false;
+    let acceptProfile: ((value: unknown) => boolean) | null = null;
 
     const closeRoom = (): void => {
         const room = activeRoom;
         activeRoom = null;
         isReady = false;
+        acceptProfile = null;
         room?.connection.close();
     };
 
@@ -253,6 +262,40 @@ export const createWorldConnection = (
 
                 zombieTick = value.tick;
                 onZombieChange?.(value);
+            });
+            let profileRevision = -1;
+            acceptProfile = (value: unknown): boolean => {
+                if (!isActiveRoom() || !isReady || received.snapshot === null) {
+                    return false;
+                }
+
+                if (!isProfileSnapshot(value)) {
+                    closeRoom();
+                    onStateChange({ status: 'error' });
+
+                    return false;
+                }
+
+                const isSameWorld = value.worldId === received.snapshot.worldId;
+                const isSamePlayer = value.playerId === received.snapshot.player.playerId;
+
+                if (!isSameWorld || !isSamePlayer) {
+                    closeRoom();
+                    onStateChange({ status: 'error' });
+
+                    return false;
+                }
+
+                if (value.revision > profileRevision) {
+                    profileRevision = value.revision;
+                    onProfileChange?.(value);
+                }
+
+                return true;
+            };
+            const acceptRoomProfile = acceptProfile;
+            room.onMessage<unknown>('profile-state', value => {
+                acceptRoomProfile(value);
             });
             let meleeTick = -1;
             room.onMessage<unknown>('melee-state', value => {
@@ -421,10 +464,47 @@ export const createWorldConnection = (
         }
     };
 
+    const renamePlayer = async (displayName: string): Promise<ProfileResult> => {
+        const room = activeRoom;
+        const accept = acceptProfile;
+
+        if (!isReady || room === null || accept === null) {
+            throw new Error('Profile is not connected.');
+        }
+
+        const value = await room.request<unknown, unknown>(
+            'rename-player',
+            { type: 'rename-player', protocolVersion, profileVersion, displayName },
+            { timeout: 10000 },
+        );
+
+        const isCurrentRoom = room === activeRoom;
+
+        if (!isCurrentRoom || !isProfileResult(value)) {
+            throw new Error('Profile request expired or returned invalid data.');
+        }
+
+        if (value.status === 'saved' && !accept(value.profile)) {
+            throw new Error('Invalid profile confirmation.');
+        }
+
+        return value;
+    };
+
     const dispose = (): void => {
         isDisposed = true;
         disconnect();
     };
 
-    return { connect, sendMelee, sendMovement, sendTarget, pickUp, moveItem, disconnect, dispose };
+    return {
+        connect,
+        renamePlayer,
+        sendMelee,
+        sendMovement,
+        sendTarget,
+        pickUp,
+        moveItem,
+        disconnect,
+        dispose,
+    };
 };

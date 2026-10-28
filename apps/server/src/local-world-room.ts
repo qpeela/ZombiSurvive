@@ -8,6 +8,7 @@ import { LocalWorldCombat } from './local-world-combat.ts';
 import { LocalWorldMelee } from './local-world-melee.ts';
 import { LocalWorldMovement } from './local-world-movement.ts';
 import { LocalWorldPickup } from './local-world-pickup.ts';
+import { createLocalWorldProfile } from './local-world-profile.ts';
 import { LocalWorldZombie } from './local-world-zombie.ts';
 import type { SoloWorldStore } from './solo-world-store.ts';
 import type { WorldAccess } from './world-access.ts';
@@ -41,6 +42,10 @@ export class LocalWorldRoom extends Room {
             saved?.position,
         );
         this.movement = movement;
+        const profile = createLocalWorldProfile(options.soloStore);
+        this.onMessage<unknown>('rename-player', (client, command) =>
+            profile.rename(movement.snapshot(client.sessionId), command),
+        );
 
         if (options.soloStore !== undefined) {
             const store = options.soloStore;
@@ -109,6 +114,11 @@ export class LocalWorldRoom extends Room {
                     client.send('zombie-state', this.zombie.snapshot(snapshot));
                     client.send('health-state', this.combat.snapshot(snapshot));
                     client.send('melee-state', this.melee.snapshot(snapshot));
+                    const playerProfile = profile.snapshot(snapshot);
+
+                    if (playerProfile !== null) {
+                        client.send('profile-state', playerProfile);
+                    }
                 }
             }
         }, 1000 / movementSettings.ticksPerSecond);

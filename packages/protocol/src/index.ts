@@ -27,6 +27,15 @@ export {
 } from './pickup.ts';
 export { type InventoryMoveCommand, inventoryVersion, isInventoryMoveCommand } from './pickup.ts';
 export {
+    isProfileResult,
+    isProfileSnapshot,
+    isRenamePlayerCommand,
+    type ProfileResult,
+    type ProfileSnapshot,
+    profileVersion,
+    type RenamePlayerCommand,
+} from './profile.ts';
+export {
     isZombieSnapshot,
     type ZombieSnapshot,
     zombieSnapshotLimit,
