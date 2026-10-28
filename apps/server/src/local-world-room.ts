@@ -14,7 +14,7 @@ import type { SoloWorldStore } from './solo-world-store.ts';
 import type { WorldAccess } from './world-access.ts';
 
 export class LocalWorldRoom extends Room {
-    private readonly pickup = new LocalWorldPickup();
+    private pickup = new LocalWorldPickup();
     private readonly zombie = new LocalWorldZombie();
     private readonly combat = new LocalWorldCombat();
     private readonly melee = new LocalWorldMelee();
@@ -36,6 +36,7 @@ export class LocalWorldRoom extends Room {
         this.access = options.access;
 
         const saved = options.soloStore?.initialWorld;
+        this.pickup = new LocalWorldPickup(options.soloStore?.initialItemLocation);
         const movement = new LocalWorldMovement(
             saved?.worldId ?? randomUUID(),
             options.access.soloPlayerId,
@@ -93,6 +94,26 @@ export class LocalWorldRoom extends Room {
                 this.clients.map(client => [client.sessionId, movement.snapshot(client.sessionId)]),
             );
             this.pickup.step(snapshots);
+            const itemSave = this.pickup.takePendingSave();
+            if (itemSave !== null && options.soloStore !== undefined) {
+                const store = options.soloStore;
+                // IO runs after this entire step and its snapshots, never inside timestep.
+                setImmediate(() => {
+                    if (this.isStopping) {
+                        return;
+                    }
+
+                    try {
+                        store.saveItemLocation(itemSave);
+                        this.pickup.confirmSave();
+                    } catch (error) {
+                        this.isStopping = true;
+                        clearInterval(this.saveTimer);
+                        options.onSaveError(error);
+                    }
+                });
+            }
+
             const zombie = this.zombie.step(snapshots);
             this.melee.step({
                 ...zombie,
@@ -159,6 +180,7 @@ export class LocalWorldRoom extends Room {
     }
 
     override onDispose(): void {
+        this.isStopping = true;
         clearInterval(this.saveTimer);
     }
 }

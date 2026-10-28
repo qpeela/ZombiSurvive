@@ -141,3 +141,73 @@ test('moves require the real owner, a valid footprint and a server step; retries
     movement.join('rejoined');
     expect(pickup.snapshot(movement.snapshot('rejoined')).items).toEqual(beforeReconnect);
 });
+
+test('durable pickup publishes only after commit on a later step; retries and queued moves stay ordered', () => {
+    const movement = new LocalWorldMovement('world', 'solo', { xMeters: 2, yMeters: 2 });
+    movement.join('first');
+    movement.join('tab');
+    const pickup = new LocalWorldPickup({ type: 'ground', item: initialGroundItem });
+    const sessions = () => new Map(['first', 'tab'].map(id => [id, movement.snapshot(id)]));
+    const read = () => pickup.snapshot(movement.snapshot('first'));
+    pickup.receive('first', command);
+    pickup.receive('tab', command);
+    pickup.step(sessions());
+    expect(read().groundItem).toEqual(initialGroundItem);
+    expect(read().items).toEqual([]);
+    const pending = pickup.takePendingSave();
+    expect(pending).toMatchObject({
+        type: 'container',
+        playerId: 'solo',
+        cell: { column: 0, row: 0 },
+    });
+    expect(pickup.takePendingSave()).toBeNull();
+    if (pending?.type !== 'container') throw new Error('Missing staged pickup.');
+    Object.assign(pending.cell, { column: 99 });
+    pickup.receiveMove('tab', {
+        type: 'inventory-move',
+        inventoryVersion: 1,
+        protocolVersion: 5,
+        itemId: command.itemId,
+        cell: { column: 2, row: 2 },
+    });
+    pickup.step(sessions());
+    expect(read().items).toEqual([]);
+    pickup.confirmSave();
+    expect(read().items).toEqual([]);
+    pickup.step(sessions());
+    expect(read().groundItem).toBeNull();
+    expect(read().items[0]?.cell).toEqual({ column: 0, row: 0 });
+    expect(pickup.takePendingSave()).toMatchObject({ cell: { column: 2, row: 2 } });
+    pickup.confirmSave();
+    pickup.step(sessions());
+    expect(read().items[0]?.cell).toEqual({ column: 2, row: 2 });
+    pickup.receiveMove('first', {
+        type: 'inventory-move',
+        inventoryVersion: 1,
+        protocolVersion: 5,
+        itemId: command.itemId,
+        cell: { column: 2, row: 2 },
+    });
+    pickup.step(sessions());
+    expect(pickup.takePendingSave()).toBeNull();
+});
+
+test('failed or unfinished durable writes never expose a transfer; loaded placement is detached', () => {
+    const movement = new LocalWorldMovement('world', 'solo', { xMeters: 2, yMeters: 2 });
+    movement.join('session');
+    const pickup = new LocalWorldPickup({ type: 'ground', item: initialGroundItem });
+    pickup.receive('session', command);
+    const sessions = new Map([['session', movement.snapshot('session')]]);
+    pickup.step(sessions);
+    const pending = pickup.takePendingSave();
+    for (let count = 0; count < 20; count++) pickup.step(sessions);
+    expect(pickup.snapshot(movement.snapshot('session')).items).toEqual([]);
+    if (pending === null) throw new Error('Missing pending write.');
+    const restored = new LocalWorldPickup(pending);
+    if (pending.type === 'container') Object.assign(pending.cell, { column: 99 });
+    expect(restored.snapshot(movement.snapshot('session')).groundItem).toBeNull();
+    expect(restored.snapshot(movement.snapshot('session')).items[0]?.cell).toEqual({
+        column: 0,
+        row: 0,
+    });
+});
