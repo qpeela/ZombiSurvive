@@ -17,7 +17,7 @@ export class LocalWorldRoom extends Room {
     private pickup = new LocalWorldPickup();
     private readonly zombie = new LocalWorldZombie();
     private readonly combat = new LocalWorldCombat();
-    private readonly melee = new LocalWorldMelee();
+    private readonly melee = new LocalWorldMelee(snapshot => this.pickup.weapon(snapshot));
     private movement: LocalWorldMovement | null = null;
     private access: WorldAccess | null = null;
     private saveTimer: ReturnType<typeof setInterval> | undefined;
@@ -36,7 +36,7 @@ export class LocalWorldRoom extends Room {
         this.access = options.access;
 
         const saved = options.soloStore?.initialWorld;
-        this.pickup = new LocalWorldPickup(options.soloStore?.initialItemLocation);
+        this.pickup = new LocalWorldPickup(options.soloStore?.initialItemLocations);
         const movement = new LocalWorldMovement(
             saved?.worldId ?? randomUUID(),
             options.access.soloPlayerId,
@@ -66,11 +66,14 @@ export class LocalWorldRoom extends Room {
         this.onMessage(pickupStateRequest, client =>
             this.pickup.snapshot(movement.snapshot(client.sessionId)),
         );
-        for (const type of ['equip-weapon', 'melee-attack']) {
+        for (const type of ['equip-weapon', 'unequip-weapon']) {
             this.onMessage<unknown>(type, (client, value) => {
-                this.melee.receive(client.sessionId, value);
+                this.pickup.receiveEquipment(client.sessionId, value);
             });
         }
+        this.onMessage<unknown>('melee-attack', (client, value) => {
+            this.melee.receive(client.sessionId, value);
+        });
         this.onMessage<unknown>('pickup-item', (client, value) => {
             this.pickup.receive(client.sessionId, value);
         });
@@ -93,7 +96,7 @@ export class LocalWorldRoom extends Room {
             const snapshots = new Map(
                 this.clients.map(client => [client.sessionId, movement.snapshot(client.sessionId)]),
             );
-            this.pickup.step(snapshots);
+            this.pickup.step(snapshots, snapshot => this.combat.snapshot(snapshot).health);
             const itemSave = this.pickup.takePendingSave();
             if (itemSave !== null && options.soloStore !== undefined) {
                 const store = options.soloStore;
@@ -104,7 +107,7 @@ export class LocalWorldRoom extends Room {
                     }
 
                     try {
-                        store.saveItemLocation(itemSave);
+                        store.saveItemLocations(itemSave);
                         this.pickup.confirmSave();
                     } catch (error) {
                         this.isStopping = true;
@@ -161,6 +164,7 @@ export class LocalWorldRoom extends Room {
         }
 
         this.movement?.join(client.sessionId, playerId);
+        this.pickup.initializePlayer(playerId);
     }
 
     override onLeave(client: Client): void {

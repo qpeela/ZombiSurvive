@@ -35,6 +35,7 @@
                 <button id="inventory-select" type="button" aria-pressed="false" disabled>
                     Переместить бинт · 2 × 1 · 100 г
                 </button>
+                <div id="inventory-items" aria-label="Перенос предметов"></div>
                 <div id="inventory-grid" aria-label="Сетка инвентаря 4 × 3"></div>
                 <p id="inventory-message" aria-live="polite">Сетка недоступна.</p>
                 <p class="caption">
@@ -45,12 +46,15 @@
             <section class="pickup-panel" aria-label="Ближний бой">
                 <p id="weapon-label">Оружие: —</p>
                 <div id="weapon-options" aria-label="Выбор оружия"></div>
+                <button id="unequip-weapon" type="button" disabled>Убрать оружие в сетку</button>
                 <p id="weapon-stats">Характеристики: —</p>
                 <button id="melee-attack" type="button" disabled>Ударить (F)</button>
                 <p class="caption">
                     Дубинка — универсальная, нож — быстрый, лом — дальнобойный, топор — мощный. F —
                     удар по ближайшему доступному зомби. Смена оружия сохраняет паузу предыдущего
-                    удара. Стартовый набор доступен до остановки хоста, отдельно от сетки инвентаря.
+                    удара. Каждый предмет занимает ячейку сетки или единственный слот рук.
+                    Экипировка сохраняется после перезапуска хоста; для снятия нужно свободное место
+                    в сетке.
                 </p>
             </section>
             <section id="game" aria-label="Игровое поле">

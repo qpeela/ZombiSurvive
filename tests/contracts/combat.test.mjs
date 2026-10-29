@@ -26,7 +26,7 @@ assert.equal(findMeleeTarget({ weapon: 'club', position: target.position, zombie
 assert.ok(isMeleeCommand({ type: 'melee-attack', protocolVersion, meleeVersion }));
 assert.ok(isMeleeAction(JSON.parse(JSON.stringify({ type: 'melee-action', protocolVersion, meleeVersion, worldId: 'world', playerId: 'player', tick: 1, weapon: 'knife' }))));
 for (const weapon of Object.keys(meleeWeapons)) {
-    assert.ok(isMeleeCommand(JSON.parse(JSON.stringify({ type: 'equip-weapon', weapon, protocolVersion, meleeVersion }))));
+    assert.ok(isMeleeCommand(JSON.parse(JSON.stringify({ type: 'equip-weapon', itemId: 'player:' + weapon, protocolVersion, meleeVersion }))));
     assert.ok(isMeleeSnapshot({ type: 'melee-state', protocolVersion, meleeVersion, worldId: 'world', playerId: 'player', tick: 1, weapon }));
 }
 assert.ok(isMeleeSnapshot({ type: 'melee-state', protocolVersion, meleeVersion, worldId: 'world', playerId: 'player', tick: 1, weapon: 'club' }));

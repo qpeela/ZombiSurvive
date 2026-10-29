@@ -1,8 +1,14 @@
-import type { GroundItem, InventoryCell, InventoryItem, Item } from '@zombi-survive/domain';
+import {
+    type GroundItem,
+    type InventoryCell,
+    type InventoryItem,
+    isMeleeWeaponId,
+    type Item,
+} from '@zombi-survive/domain';
 
 import { protocolVersion } from './movement.ts';
 
-export const inventoryVersion = 1;
+export const inventoryVersion = 2;
 export type InventoryMoveCommand = {
     readonly type: 'inventory-move';
     readonly protocolVersion: typeof protocolVersion;
@@ -26,6 +32,7 @@ export type PickupSnapshot = {
     readonly tick: number;
     readonly groundItem: GroundItem | null;
     readonly items: readonly InventoryItem[];
+    readonly hands: Item | null;
 };
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -41,7 +48,7 @@ const isItem = (value: unknown): value is Item => {
         return false;
     }
 
-    return isId(value['itemId']) && value['kind'] === 'bandage';
+    return isId(value['itemId']) && (value['kind'] === 'bandage' || isMeleeWeaponId(value['kind']));
 };
 const isCell = (value: unknown): value is InventoryCell => {
     if (!isRecord(value)) {
@@ -98,9 +105,25 @@ export const isPickupSnapshot = (value: unknown): value is PickupSnapshot => {
     }
 
     if (
-        items.length > 1 ||
+        items.length > 128 ||
         !items.every((item: unknown) => isRecord(item) && isCell(item['cell']) && isItem(item))
     ) {
+        return false;
+    }
+
+    const hands: unknown = value['hands'];
+
+    if (hands !== null && (!isItem(hands) || !isMeleeWeaponId(hands.kind))) {
+        return false;
+    }
+
+    const ids = items.map((item: InventoryItem) => item.itemId);
+
+    if (hands !== null) ids.push(hands.itemId);
+
+    if (ground !== null && isItem(ground)) ids.push(ground.itemId);
+
+    if (new Set(ids).size !== ids.length) {
         return false;
     }
 
@@ -118,7 +141,7 @@ export const isPickupSnapshot = (value: unknown): value is PickupSnapshot => {
         return false;
     }
 
-    if (!isRecord(position) || items.length !== 0) {
+    if (!isRecord(position)) {
         return false;
     }
 

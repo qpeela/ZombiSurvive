@@ -207,12 +207,13 @@ test('mouse and keyboard share sequence numbers and cannot send before readiness
 
 const pickupState = (tick: number): PickupSnapshot => ({
     type: 'pickup-state',
-    inventoryVersion: 1,
+    inventoryVersion: 2,
     protocolVersion: 5,
     worldId: 'world',
     playerId: 'player',
     tick,
     groundItem: null,
+    hands: null,
     items: [{ itemId: 'item', kind: 'bandage', cell: { column: 0, row: 0 } }],
 });
 test('pickup waits for readiness, ignores stale and replaced rooms, and stops sending on disconnect', async () => {
@@ -241,7 +242,7 @@ test('pickup waits for readiness, ignores stale and replaced rooms, and stops se
     expect(first.room.send).toHaveBeenCalledWith('inventory-move', {
         type: 'inventory-move',
         protocolVersion: 5,
-        inventoryVersion: 1,
+        inventoryVersion: 2,
         itemId: 'item',
         cell: { column: 2, row: 2 },
     });
@@ -436,7 +437,7 @@ test.each([
 const meleeState = (tick: number) => ({
     type: 'melee-state',
     protocolVersion: 5,
-    meleeVersion: 2,
+    meleeVersion: 3,
     worldId: 'world',
     playerId: 'player',
     tick,
@@ -456,7 +457,7 @@ test('melee waits for readiness, ignores stale rooms/ticks and cannot send after
         undefined,
         onMelee,
     );
-    connection.sendMelee({ type: 'equip-weapon', weapon: 'axe' });
+    connection.sendMelee({ type: 'equip-weapon', itemId: 'player:axe' });
     const ready = connection.connect();
     await vi.waitFor(() => {
         expect(first.room.request).toHaveBeenCalled();
@@ -465,12 +466,12 @@ test('melee waits for readiness, ignores stale rooms/ticks and cannot send after
     expect(onMelee).not.toHaveBeenCalled();
     first.resolveInitial(snapshot(1));
     await ready;
-    connection.sendMelee({ type: 'equip-weapon', weapon: 'axe' });
+    connection.sendMelee({ type: 'equip-weapon', itemId: 'player:axe' });
     expect(first.room.send).toHaveBeenCalledWith('equip-weapon', {
         type: 'equip-weapon',
-        weapon: 'axe',
+        itemId: 'player:axe',
         protocolVersion: 5,
-        meleeVersion: 2,
+        meleeVersion: 3,
     });
     first.publishMelee(meleeState(2));
     first.publishMelee(meleeState(1));
@@ -631,7 +632,7 @@ test('melee actions deduplicate by tick and ignore inactive rooms and unready co
     const action = {
         type: 'melee-action',
         protocolVersion: 5,
-        meleeVersion: 2,
+        meleeVersion: 3,
         worldId: 'world',
         playerId: 'player',
         weapon: 'axe',

@@ -1,5 +1,10 @@
 import { pickupSettings } from '@zombi-survive/content';
-import type { ItemLocation, PlayerMovementState, WorldObstacle } from '@zombi-survive/domain';
+import type {
+    InventoryItem,
+    ItemLocation,
+    PlayerMovementState,
+    WorldObstacle,
+} from '@zombi-survive/domain';
 
 import { resolveMovement } from './collisions.ts';
 import { findInventorySpace } from './inventory.ts';
@@ -10,10 +15,12 @@ export const pickUpItem = ({
     player,
     itemId,
     obstacles,
+    items = [],
 }: {
     readonly location: ItemLocation;
     readonly player: PlayerMovementState;
     readonly itemId: string;
+    readonly items?: readonly InventoryItem[];
     readonly obstacles: readonly WorldObstacle[];
 }): ItemLocation => {
     if (location.type !== 'ground' || location.item.itemId !== itemId) {
@@ -38,7 +45,7 @@ export const pickUpItem = ({
         return location;
     }
 
-    const cell = findInventorySpace({ items: [], item: location.item });
+    const cell = findInventorySpace({ items, item: location.item });
 
     if (cell === null) {
         return location;

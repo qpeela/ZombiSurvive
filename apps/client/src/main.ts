@@ -1,7 +1,14 @@
 import './style.css';
 
 import { meleeWeapons, movementSettings, pickupSettings } from '@zombi-survive/content';
-import type { GroundItem, PlayerMovementState, WorldPosition } from '@zombi-survive/domain';
+import type {
+    GroundItem,
+    InventoryItem,
+    Item,
+    PlayerMovementState,
+    WorldPosition,
+} from '@zombi-survive/domain';
+import { findInventorySpace } from '@zombi-survive/simulation';
 import { AUTO, Game, Scale } from 'phaser';
 
 import { BootScene } from './boot-scene';
@@ -24,6 +31,8 @@ const fullscreenMessage = document.querySelector<HTMLElement>('#fullscreen-messa
 const container = document.querySelector<HTMLElement>('#game');
 const status = document.querySelector<HTMLElement>('#connection-status');
 const weaponOptions = document.querySelector<HTMLElement>('#weapon-options');
+const unequip = document.querySelector<HTMLButtonElement>('#unequip-weapon');
+const itemSelectors = document.querySelector<HTMLElement>('#inventory-items');
 const weaponStats = document.querySelector<HTMLElement>('#weapon-stats');
 const attack = document.querySelector<HTMLButtonElement>('#melee-attack');
 const weaponLabel = document.querySelector<HTMLElement>('#weapon-label');
@@ -50,6 +59,8 @@ if (
     !fullscreenButton ||
     !fullscreenMessage ||
     !weaponOptions ||
+    !unequip ||
+    !itemSelectors ||
     !weaponStats ||
     !attack ||
     !weaponLabel ||
@@ -90,12 +101,15 @@ const game = new Game({
 
 const inventoryUi = createInventoryGrid({
     grid: inventoryGrid,
+    itemSelectors,
     selector: inventorySelector,
     message: inventoryMessage,
     onMove: (itemId, cell) => {
         connection.moveItem(itemId, cell);
     },
 });
+let inventoryItems: readonly InventoryItem[] = [];
+let hands: Item | null = null;
 const equipmentButtons = Object.values(meleeWeapons).map(weapon => {
     const button = document.createElement('button');
     button.type = 'button';
@@ -103,7 +117,9 @@ const equipmentButtons = Object.values(meleeWeapons).map(weapon => {
     button.disabled = true;
     button.setAttribute('aria-pressed', 'false');
     const onEquip = (): void => {
-        connection.sendMelee({ type: 'equip-weapon', weapon: weapon.id });
+        const item = inventoryItems.find(candidate => candidate.kind === weapon.id);
+
+        if (item !== undefined) connection.sendMelee({ type: 'equip-weapon', itemId: item.itemId });
     };
     button.addEventListener('click', onEquip);
     weaponOptions.append(button);
@@ -225,6 +241,9 @@ const connection = createWorldConnection(
         pickup.disabled = true;
         groundLabel.textContent = 'На земле: —';
         inventory.textContent = 'Контейнер: —';
+        inventoryItems = [];
+        hands = null;
+        unequip.disabled = true;
         inventoryUi.update(null);
         scene.setGroundItem(null);
         scene.setZombies([]);
@@ -259,8 +278,15 @@ const connection = createWorldConnection(
         scene.setGroundItem(groundItem);
         groundLabel.textContent =
             groundItem === null ? 'На земле: пусто' : 'На земле: Бинт · 2, 2 м';
-        inventory.textContent =
-            snapshot.items.length === 0 ? 'Контейнер: пусто' : 'Контейнер: Бинт × 1';
+        inventory.textContent = `Контейнер: предметов ${String(snapshot.items.length)}`;
+        inventoryItems = snapshot.items;
+        hands = snapshot.hands;
+        const hasSpace =
+            hands === null || findInventorySpace({ items: inventoryItems, item: hands }) !== null;
+        unequip.disabled = hands === null || !hasSpace || health.value <= 0;
+        unequip.title = hasSpace
+            ? 'Перенести предмет из рук в свободную ячейку'
+            : 'Недостаточно места в сетке';
         inventoryUi.update(snapshot.items);
         updatePickup();
     },
@@ -278,7 +304,8 @@ const connection = createWorldConnection(
         const isEquipped = snapshot.weapon !== null;
         for (const { weapon, button } of equipmentButtons) {
             const isSelected = snapshot.weapon === weapon;
-            button.disabled = isSelected || health.value <= 0;
+            const isAvailable = inventoryItems.some(item => item.kind === weapon);
+            button.disabled = !isAvailable || health.value <= 0;
             button.setAttribute('aria-pressed', String(isSelected));
         }
         attack.disabled = !isEquipped || health.value <= 0;
@@ -288,7 +315,7 @@ const connection = createWorldConnection(
         const formatNumber = (value: number): string => value.toLocaleString('ru-RU');
         weaponStats.textContent =
             definition === null
-                ? 'Выберите стартовое оружие.'
+                ? 'Экипируйте оружие из сетки.'
                 : `Урон: ${String(definition.damage)} · Дальность: ${formatNumber(definition.rangeMeters)} м · Пауза: ${formatNumber(definition.cooldownTicks / movementSettings.ticksPerSecond)} с`;
     },
     snapshot => {
@@ -340,6 +367,10 @@ const onPickup = (): void => {
         connection.pickUp(groundItem.itemId);
     }
 };
+const onUnequip = (): void => {
+    if (hands !== null) connection.sendMelee({ type: 'unequip-weapon', itemId: hands.itemId });
+};
+unequip.addEventListener('click', onUnequip);
 const onAttack = (): void => {
     if (!attack.disabled) connection.sendMelee({ type: 'melee-attack' });
 };
@@ -378,6 +409,7 @@ if (import.meta.hot) {
             button.removeEventListener('click', onEquip);
             button.remove();
         }
+        unequip.removeEventListener('click', onUnequip);
         attack.removeEventListener('click', onAttack);
         window.removeEventListener('keydown', onAttackKey);
         pickup.removeEventListener('click', onPickup);

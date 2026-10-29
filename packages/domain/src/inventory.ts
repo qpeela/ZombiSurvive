@@ -10,6 +10,7 @@ export type InventorySettings = {
 };
 
 export type ItemLocation =
+    | { readonly type: 'hands'; readonly item: Item; readonly playerId: PlayerId }
     | { readonly type: 'ground'; readonly item: GroundItem }
     | {
           readonly type: 'container';

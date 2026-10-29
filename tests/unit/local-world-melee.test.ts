@@ -5,9 +5,13 @@ import { expect, test, vi } from 'vitest';
 
 import { LocalWorldMelee } from '../../apps/server/src/local-world-melee.ts';
 import { LocalWorldMovement } from '../../apps/server/src/local-world-movement.ts';
+import { LocalWorldPickup } from '../../apps/server/src/local-world-pickup.ts';
 
 const setup = () => {
-    const melee = new LocalWorldMelee();
+    const pickup = new LocalWorldPickup();
+    pickup.initializePlayer('solo');
+    pickup.initializePlayer('friend');
+    const melee = new LocalWorldMelee(snapshot => pickup.weapon(snapshot));
     const movement = new LocalWorldMovement('world', 'solo');
     movement.join('first');
     movement.join('tab');
@@ -28,10 +32,23 @@ const setup = () => {
         type: 'equip-weapon' | 'melee-attack',
         weapon: MeleeWeaponId = 'club',
     ) => {
-        melee.receive(session, { type, weapon, protocolVersion, meleeVersion });
+        if (type === 'equip-weapon') {
+            pickup.receiveEquipment(session, {
+                type,
+                itemId: `solo:${weapon}`,
+                protocolVersion,
+                meleeVersion,
+            });
+        } else {
+            melee.receive(session, { type, protocolVersion, meleeVersion });
+        }
     };
     const step = () => {
         movement.step();
+        const snapshots = new Map(
+            ['first', 'tab', 'friend'].map(id => [id, movement.snapshot(id)]),
+        );
+        pickup.step(snapshots, health);
         melee.step({
             snapshots: new Map(['first', 'tab', 'friend'].map(id => [id, movement.snapshot(id)])),
             zombies,

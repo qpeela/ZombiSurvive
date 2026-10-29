@@ -14,12 +14,18 @@ import { findMeleeTarget } from '@zombi-survive/simulation';
 
 export class LocalWorldMelee {
     private readonly actions = new Map<string, MeleeAction>();
-    private readonly equipped = new Map<string, MeleeWeaponId>();
     private readonly nextAttackTick = new Map<string, number>();
     private readonly pending = new Map<string, MeleeCommand>();
 
+    private readonly equippedWeapon: (snapshot: MovementSnapshot) => MeleeWeaponId | null;
+
+    constructor(equippedWeapon: (snapshot: MovementSnapshot) => MeleeWeaponId | null) {
+        this.equippedWeapon = equippedWeapon;
+    }
+
     receive(sessionId: string, value: unknown): void {
-        if (isMeleeCommand(value)) this.pending.set(sessionId, value);
+        if (isMeleeCommand(value) && value.type === 'melee-attack')
+            this.pending.set(sessionId, value);
     }
     leave(sessionId: string): void {
         this.pending.delete(sessionId);
@@ -39,18 +45,14 @@ export class LocalWorldMelee {
     }): void {
         this.actions.clear();
 
-        for (const [sessionId, command] of this.pending) {
+        for (const sessionId of this.pending.keys()) {
             const snapshot = snapshots.get(sessionId);
             if (snapshot === undefined || health(snapshot) <= 0) continue;
 
             const { player, tick } = snapshot;
-            if (command.type === 'equip-weapon') {
-                this.equipped.set(player.playerId, command.weapon);
-                continue;
-            }
-            const weapon = this.equipped.get(player.playerId);
+            const weapon = this.equippedWeapon(snapshot);
             const isReady = tick >= (this.nextAttackTick.get(player.playerId) ?? 0);
-            if (weapon === undefined || !isReady) continue;
+            if (weapon === null || !isReady) continue;
 
             // A miss also consumes a swing; tabs share this cooldown.
             const definition = meleeWeapons[weapon];
@@ -98,7 +100,7 @@ export class LocalWorldMelee {
             worldId: movement.worldId,
             playerId: movement.player.playerId,
             tick: movement.tick,
-            weapon: this.equipped.get(movement.player.playerId) ?? null,
+            weapon: this.equippedWeapon(movement),
         };
     }
 }
