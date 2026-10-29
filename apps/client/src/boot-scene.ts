@@ -1,3 +1,4 @@
+import { itemDefinitions } from '@zombi-survive/content';
 import type {
     GroundItem,
     MeleeWeaponId,
@@ -6,7 +7,7 @@ import type {
     ZombieState,
 } from '@zombi-survive/domain';
 import type { MeleeAction } from '@zombi-survive/protocol';
-import { type GameObjects, type Input, Scene } from 'phaser';
+import { GameObjects, type Input, Scene } from 'phaser';
 
 import { drawHeldWeapon } from './held-weapon';
 import { MeleeAnimation } from './melee-animation';
@@ -192,6 +193,8 @@ export class BootScene extends Scene {
         this.itemMarker?.setVisible(item !== null);
 
         if (item !== null) {
+            const label = this.itemMarker?.list[1];
+            if (label instanceof GameObjects.Text) label.setText(itemDefinitions[item.kind].name);
             this.itemMarker?.setPosition(
                 480 + item.position.xMeters * pixelsPerMeter,
                 270 + item.position.yMeters * pixelsPerMeter,

@@ -1,5 +1,10 @@
 import { initialGroundItem } from '@zombi-survive/content';
-import { type InventoryItem, isMeleeWeaponId, type ItemLocation } from '@zombi-survive/domain';
+import {
+    type GroundItem,
+    type InventoryItem,
+    isMeleeWeaponId,
+    type ItemLocation,
+} from '@zombi-survive/domain';
 import { placeInventoryItem } from '@zombi-survive/simulation';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -97,13 +102,17 @@ export const copyItemLocation = (location: ItemLocation): ItemLocation => {
     return { ...location, item: { ...location.item }, cell: { ...location.cell } };
 };
 
-/** v4 saves each known instance exactly once and validates the whole grid together. */
-export const readSavedItems = (value: unknown, playerId: string): readonly ItemLocation[] => {
+/** Validates the complete manifest and inventory together; absent items are never respawned. */
+export const readSavedItems = (
+    value: unknown,
+    playerId: string,
+    worldLoot: readonly GroundItem[] = [],
+): readonly ItemLocation[] => {
     if (typeof value !== 'string' || value.length > 16_384) return invalidItem();
 
     const saved: unknown = JSON.parse(value);
 
-    if (!Array.isArray(saved) || saved.length !== 5) return invalidItem();
+    if (!Array.isArray(saved) || saved.length !== 5 + worldLoot.length) return invalidItem();
 
     const locations: ItemLocation[] = [];
     const ids = new Set<string>();
@@ -120,16 +129,41 @@ export const readSavedItems = (value: unknown, playerId: string): readonly ItemL
         if (kind === 'bandage') {
             locations.push(readSavedItem(JSON.stringify(entry), playerId));
         } else {
-            const isOwner = entry['playerId'] === playerId;
-            const isUnplaced = item['position'] === undefined;
+            const spawn = worldLoot.find(candidate => candidate.itemId === itemId);
+            const isStarter = isMeleeWeaponId(kind) && itemId === `${playerId}:${kind}`;
+            const isWorldWeapon = spawn !== undefined && spawn.kind === kind;
 
             if (
                 !isMeleeWeaponId(kind) ||
-                itemId !== `${playerId}:${kind}` ||
-                !isOwner ||
-                !isUnplaced
+                typeof itemId !== 'string' ||
+                (!isStarter && !isWorldWeapon)
             )
                 return invalidItem();
+
+            if (entry['type'] === 'ground') {
+                const position = item['position'];
+                const hasNoOwner = entry['playerId'] === undefined && entry['cell'] === undefined;
+
+                if (spawn === undefined || !hasNoOwner || !isRecord(position)) return invalidItem();
+
+                const isSpawn =
+                    position['xMeters'] === spawn.position.xMeters &&
+                    position['yMeters'] === spawn.position.yMeters;
+
+                if (!isSpawn || ids.has(itemId)) return invalidItem();
+
+                ids.add(itemId);
+                locations.push({
+                    type: 'ground',
+                    item: { ...spawn, position: { ...spawn.position } },
+                });
+                continue;
+            }
+
+            const isOwner = entry['playerId'] === playerId;
+            const isUnplaced = item['position'] === undefined;
+
+            if (!isOwner || !isUnplaced) return invalidItem();
 
             const weapon = { itemId, kind };
 
@@ -175,5 +209,8 @@ export const readSavedItems = (value: unknown, playerId: string): readonly ItemL
     return locations;
 };
 
-export const writeSavedItems = (locations: readonly ItemLocation[], playerId: string): string =>
-    JSON.stringify(readSavedItems(JSON.stringify(locations), playerId));
+export const writeSavedItems = (
+    locations: readonly ItemLocation[],
+    playerId: string,
+    worldLoot: readonly GroundItem[] = [],
+): string => JSON.stringify(readSavedItems(JSON.stringify(locations), playerId, worldLoot));

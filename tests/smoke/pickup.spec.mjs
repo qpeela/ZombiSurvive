@@ -93,7 +93,7 @@ test('pickup and grid moves are server-confirmed, reject invalid placement and s
         await page.getByRole('button', { name: 'Подобрать бинт' }).click();
         await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 5');
         await expect(page.locator('#ground-item')).toHaveText('На земле: пусто');
-        await expect(page.getByRole('button', { name: 'Подобрать бинт' })).toBeDisabled();
+        await expect(page.getByRole('button', { name: 'Подобрать предмет' })).toBeDisabled();
         const pickedAt = await room.request(initialStateRequest);
         for (let count = 0; count < 3; count++) room.send('pickup-item', command);
         await expect
@@ -169,7 +169,7 @@ test('pickup and grid moves are server-confirmed, reject invalid placement and s
         await expect(selector).toBeDisabled();
         await expect(grid.locator('[data-occupied="true"]')).toHaveCount(0);
         await expect(grid.locator('button:enabled')).toHaveCount(0);
-        await expect(page.getByRole('button', { name: 'Подобрать бинт' })).toBeDisabled();
+        await expect(page.getByRole('button', { name: 'Подобрать предмет' })).toBeDisabled();
         await context.setOffline(false);
         await page.getByRole('button', { name: 'Подключиться снова' }).click();
         await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 5');
