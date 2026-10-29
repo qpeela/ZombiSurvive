@@ -19,7 +19,7 @@ const snapshot = {
 };
 test('melee messages survive JSON and reject malformed versions, ticks and equipment', () => {
     expect(isMeleeCommand(JSON.parse(JSON.stringify(command)))).toBe(true);
-    expect(isMeleeCommand({ ...command, type: 'equip-weapon', weapon: 'club' })).toBe(true);
+    expect(isMeleeCommand({ ...command, type: 'equip-weapon', itemId: 'player:club' })).toBe(true);
     expect(isMeleeSnapshot(snapshot)).toBe(true);
     expect(isMeleeSnapshot({ ...snapshot, weapon: 'club' })).toBe(true);
     for (const value of [
@@ -46,7 +46,7 @@ test('melee messages survive JSON and reject malformed versions, ticks and equip
 });
 
 test.each(['club', 'knife', 'crowbar', 'axe'])('%s equipment survives the wire', weapon => {
-    const equip = { ...command, type: 'equip-weapon', weapon };
+    const equip = { ...command, type: 'equip-weapon', itemId: `player:${weapon}` };
     expect(isMeleeCommand(JSON.parse(JSON.stringify(equip)))).toBe(true);
     expect(isMeleeSnapshot(JSON.parse(JSON.stringify({ ...snapshot, weapon })))).toBe(true);
 });
@@ -105,5 +105,15 @@ test('optional impact data validates outcome, identity, damage and world coordin
         { outcome: 'hit', position, zombieId: 'zombie', damage: 0.5 },
     ]) {
         expect(isMeleeAction({ ...event, impact })).toBe(false);
+    }
+});
+
+test('equipment requires an instance ID, supports unequip and rejects the old type-only contract', () => {
+    for (const type of ['equip-weapon', 'unequip-weapon']) {
+        expect(isMeleeCommand({ ...command, type, itemId: 'player:axe' })).toBe(true);
+        for (const itemId of [undefined, null, '', ' leading', 'x'.repeat(129), 1]) {
+            expect(isMeleeCommand({ ...command, type, itemId })).toBe(false);
+        }
+        expect(isMeleeCommand({ ...command, type, weapon: 'axe', meleeVersion: 2 })).toBe(false);
     }
 });

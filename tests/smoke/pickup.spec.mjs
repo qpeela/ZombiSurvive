@@ -50,7 +50,7 @@ test('pickup and grid moves are server-confirmed, reject invalid placement and s
         await page.goto(origin);
         await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
         await expect(page.locator('#ground-item')).toContainText('Бинт');
-        await expect(page.locator('#inventory')).toHaveText('Контейнер: пусто');
+        await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 4');
         await expect(page.getByRole('button', { name: 'Подобрать бинт' })).toBeDisabled();
         const client = new Client(origin, { headers: { Origin: origin } });
         room = await client.joinById(localWorldRoomId);
@@ -91,7 +91,7 @@ test('pickup and grid moves are server-confirmed, reject invalid placement and s
             .toBeGreaterThan(invalidAt.tick + 2);
         expect((await room.request(pickupStateRequest)).groundItem).toEqual(initialGroundItem);
         await page.getByRole('button', { name: 'Подобрать бинт' }).click();
-        await expect(page.locator('#inventory')).toHaveText('Контейнер: Бинт × 1');
+        await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 5');
         await expect(page.locator('#ground-item')).toHaveText('На земле: пусто');
         await expect(page.getByRole('button', { name: 'Подобрать бинт' })).toBeDisabled();
         const pickedAt = await room.request(initialStateRequest);
@@ -101,17 +101,20 @@ test('pickup and grid moves are server-confirmed, reject invalid placement and s
             .toBeGreaterThan(pickedAt.tick + 2);
         const state = await room.request(pickupStateRequest);
         expect(state.groundItem).toBeNull();
-        expect(state.items).toEqual([
+        expect(state.items.filter(item => item.kind === 'bandage')).toEqual([
             { itemId: initialGroundItem.itemId, kind: 'bandage', cell: { column: 0, row: 0 } },
         ]);
         const grid = page.locator('#inventory-grid');
         const selector = page.getByRole('button', { name: 'Переместить бинт' });
-        await expect(grid.locator('[data-occupied="true"]')).toHaveCount(2);
-        await expect(page.locator('#inventory-message')).toHaveText('Масса: 100 / 2000 г');
+        await expect(grid.locator('[data-occupied="true"]')).toHaveCount(6);
+        await expect(page.locator('#inventory-message')).toHaveText('Масса в сетке: 2000 / 2000 г');
         await selector.click();
         await page.getByRole('button', { name: 'Ячейка 4, 1', exact: true }).click();
         await expect(page.locator('#inventory-message')).toContainText('Недостаточно места');
-        expect((await room.request(pickupStateRequest)).items[0].cell).toEqual({
+        expect(
+            (await room.request(pickupStateRequest)).items.find(item => item.kind === 'bandage')
+                .cell,
+        ).toEqual({
             column: 0,
             row: 0,
         });
@@ -126,12 +129,12 @@ test('pickup and grid moves are server-confirmed, reject invalid placement and s
             'data-occupied',
             'false',
         );
-        await expect(grid.locator('[data-occupied="true"]')).toHaveCount(2);
+        await expect(grid.locator('[data-occupied="true"]')).toHaveCount(6);
         await expect(selector).toHaveAttribute('aria-pressed', 'false');
         const move = {
             type: 'inventory-move',
             protocolVersion: 5,
-            inventoryVersion: 1,
+            inventoryVersion: 2,
             itemId: initialGroundItem.itemId,
             cell: { column: 2, row: 2 },
         };
@@ -147,15 +150,18 @@ test('pickup and grid moves are server-confirmed, reject invalid placement and s
         await expect
             .poll(async () => (await room.request(initialStateRequest)).tick)
             .toBeGreaterThan(invalidMoveAt.tick + 2);
-        expect((await room.request(pickupStateRequest)).items[0].cell).toEqual(move.cell);
+        expect(
+            (await room.request(pickupStateRequest)).items.find(item => item.kind === 'bandage')
+                .cell,
+        ).toEqual(move.cell);
         const repeatAt = await room.request(initialStateRequest);
         for (let count = 0; count < 3; count++) room.send('inventory-move', move);
         await expect
             .poll(async () => (await room.request(initialStateRequest)).tick)
             .toBeGreaterThan(repeatAt.tick + 2);
-        expect((await room.request(pickupStateRequest)).items).toEqual([
-            { itemId: move.itemId, kind: 'bandage', cell: move.cell },
-        ]);
+        expect(
+            (await room.request(pickupStateRequest)).items.filter(item => item.kind === 'bandage'),
+        ).toEqual([{ itemId: move.itemId, kind: 'bandage', cell: move.cell }]);
         await page.screenshot({ path: '.cache/t016-inventory-grid.png', fullPage: true });
         await context.setOffline(true);
         await expect(page.getByRole('status')).toHaveAttribute('data-status', 'disconnected');
@@ -166,15 +172,15 @@ test('pickup and grid moves are server-confirmed, reject invalid placement and s
         await expect(page.getByRole('button', { name: 'Подобрать бинт' })).toBeDisabled();
         await context.setOffline(false);
         await page.getByRole('button', { name: 'Подключиться снова' }).click();
-        await expect(page.locator('#inventory')).toHaveText('Контейнер: Бинт × 1');
+        await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 5');
         await page.reload();
-        await expect(page.locator('#inventory')).toHaveText('Контейнер: Бинт × 1');
+        await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 5');
         await expect(page.locator('#ground-item')).toHaveText('На земле: пусто');
         await expect(grid.locator('[data-column="2"][data-row="2"]')).toHaveAttribute(
             'data-occupied',
             'true',
         );
-        await expect(grid.locator('[data-occupied="true"]')).toHaveCount(2);
+        await expect(grid.locator('[data-occupied="true"]')).toHaveCount(6);
         await page.screenshot({ path: '.cache/t016-reloaded.png', fullPage: true });
         expect(errors).toEqual([]);
     } finally {

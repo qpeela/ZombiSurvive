@@ -99,7 +99,8 @@ button:disabled {
     cursor: default;
 }
 
-#weapon-options {
+#weapon-options,
+#inventory-items {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
@@ -139,6 +140,8 @@ button:focus-visible {
     place-items: center;
     z-index: 1;
     pointer-events: none;
+    font-size: 11px;
+    overflow: hidden;
     border: 1px solid #d8e3c9;
     background: #536344;
 }

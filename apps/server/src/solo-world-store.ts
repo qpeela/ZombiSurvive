@@ -9,9 +9,10 @@ import {
     worldGenerationSettings,
 } from '@zombi-survive/content';
 import { isDisplayName, type ItemLocation, type WorldPosition } from '@zombi-survive/domain';
+import { addStarterWeapons } from '@zombi-survive/simulation';
 import { loadWorldChunks } from '@zombi-survive/worldgen';
 
-import { readSavedItem, writeSavedItem } from './saved-item.ts';
+import { readSavedItem, readSavedItems, writeSavedItems } from './saved-item.ts';
 
 export type SavedSoloWorld = {
     readonly worldId: string;
@@ -49,7 +50,7 @@ const validatePosition = (position: WorldPosition): void => {
 /** One host owns this connection. Transactions run outside the simulation step. */
 export class SoloWorldStore {
     readonly initialWorld: SavedSoloWorld;
-    readonly initialItemLocation: ItemLocation;
+    readonly initialItemLocations: readonly ItemLocation[];
     private readonly database: DatabaseSync;
     private isClosed = false;
     private profile: { readonly displayName: string; readonly nameRevision: number };
@@ -102,7 +103,7 @@ export class SoloWorldStore {
                         worldGenerationSettings.initialSeed,
                         worldGenerationSettings.generatorVersion,
                     );
-            } else if (version !== 1 && version !== 2 && version !== 3) {
+            } else if (version !== 1 && version !== 2 && version !== 3 && version !== 4) {
                 throw new Error('Unsupported solo save schema version.');
             }
 
@@ -125,7 +126,20 @@ export class SoloWorldStore {
             }
 
             this.initialWorld = this.readWorld();
-            this.initialItemLocation = readSavedItem(
+            const savedItems = this.database
+                .prepare('SELECT item_location FROM solo_world WHERE id = 1')
+                .get()?.['item_location'];
+
+            if (version !== 4) {
+                const bandage = readSavedItem(savedItems, this.initialWorld.playerId);
+                const locations = addStarterWeapons([bandage], this.initialWorld.playerId);
+                this.database
+                    .prepare('UPDATE solo_world SET item_location = ? WHERE id = 1')
+                    .run(writeSavedItems(locations, this.initialWorld.playerId));
+                this.database.exec('PRAGMA user_version = 4');
+            }
+
+            this.initialItemLocations = readSavedItems(
                 this.database.prepare('SELECT item_location FROM solo_world WHERE id = 1').get()?.[
                     'item_location'
                 ],
@@ -175,8 +189,8 @@ export class SoloWorldStore {
             .run(position.xMeters, position.yMeters);
     }
 
-    saveItemLocation(location: ItemLocation): void {
-        const saved = writeSavedItem(location, this.initialWorld.playerId);
+    saveItemLocations(locations: readonly ItemLocation[]): void {
+        const saved = writeSavedItems(locations, this.initialWorld.playerId);
         // One UPDATE is an atomic, synchronous FULL commit of ground/owner/cell together.
         const result = this.database
             .prepare('UPDATE solo_world SET item_location = ? WHERE id = 1')

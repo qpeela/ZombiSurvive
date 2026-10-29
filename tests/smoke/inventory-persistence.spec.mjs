@@ -46,7 +46,7 @@ const open = async page => {
 };
 const occupied = page => page.locator('#inventory-grid [data-column="2"][data-row="2"]');
 
-test('v2 migrates; pickup and placement survive tabs, reload and SIGKILL in a fresh browser', async ({
+test('v2 migrates; inventory and hands survive tabs, reload and SIGKILL in a fresh browser', async ({
     page,
     context,
     browser,
@@ -73,7 +73,7 @@ test('v2 migrates; pickup and placement survive tabs, reload and SIGKILL in a fr
         ).toBeEnabled();
         await page.getByRole('button', { name: 'Подобрать бинт', exact: true }).click();
         for (const view of [page, tab]) {
-            await expect(view.locator('#inventory')).toHaveText('Контейнер: Бинт × 1');
+            await expect(view.locator('#inventory')).toHaveText('Контейнер: предметов 5');
             await expect(view.locator('#ground-item')).toHaveText('На земле: пусто');
         }
         await tab
@@ -84,27 +84,59 @@ test('v2 migrates; pickup and placement survive tabs, reload and SIGKILL in a fr
         await expect(occupied(page)).toHaveAttribute('data-occupied', 'true');
         await page.reload();
         await expect(occupied(page)).toHaveAttribute('data-occupied', 'true');
+        await page.getByRole('button', { name: 'Экипировать топор', exact: true }).click();
+        for (const view of [page, tab]) {
+            await expect(view.locator('#weapon-label')).toHaveText('Оружие: топор');
+            await expect(view.locator('#inventory')).toHaveText('Контейнер: предметов 4');
+            await expect(
+                view.getByRole('button', { name: 'Экипировать топор', exact: true }),
+            ).toBeDisabled();
+        }
+        await page.reload();
+        await expect(page.locator('#weapon-label')).toHaveText('Оружие: топор');
         // UI confirmation is already a durable commit: no checkpoint delay is allowed here.
         await stop(running, 'SIGKILL');
         const saved = new DatabaseSync(path);
-        expect(saved.prepare('PRAGMA user_version').get().user_version).toBe(3);
+        expect(saved.prepare('PRAGMA user_version').get().user_version).toBe(4);
         expect(
-            JSON.parse(saved.prepare('SELECT item_location FROM solo_world').get().item_location),
+            JSON.parse(
+                saved.prepare('SELECT item_location FROM solo_world').get().item_location,
+            ).find(location => location.item.kind === 'bandage'),
         ).toMatchObject({
             type: 'container',
             item: { itemId: initialGroundItem.itemId },
             cell: { column: 2, row: 2 },
         });
+        const savedLocations = JSON.parse(
+            saved.prepare('SELECT item_location FROM solo_world').get().item_location,
+        );
+        expect(savedLocations).toHaveLength(5);
+        const savedPlayerId = saved.prepare('SELECT player_id FROM solo_world').get().player_id;
+        expect(savedLocations.filter(location => location.type === 'hands')).toEqual([
+            {
+                type: 'hands',
+                playerId: savedPlayerId,
+                item: {
+                    itemId: `${savedPlayerId}:axe`,
+                    kind: 'axe',
+                },
+            },
+        ]);
         saved.close();
         running = start(path);
         await expect.poll(running.output).toContain('Local world ready');
         fresh = await browser.newContext();
         const restored = await fresh.newPage();
         await open(restored);
-        await expect(restored.locator('#inventory')).toHaveText('Контейнер: Бинт × 1');
+        await expect(restored.locator('#weapon-label')).toHaveText('Оружие: топор');
+        await expect(restored.locator('#inventory')).toHaveText('Контейнер: предметов 4');
+        await expect(restored.locator('#inventory-grid [data-occupied="true"]')).toHaveCount(5);
+        await restored.getByRole('button', { name: 'Убрать оружие в сетку', exact: true }).click();
+        await expect(restored.locator('#weapon-label')).toHaveText('Оружие: в руках пусто');
+        await expect(restored.locator('#inventory')).toHaveText('Контейнер: предметов 5');
         await expect(restored.locator('#ground-item')).toHaveText('На земле: пусто');
         await expect(occupied(restored)).toHaveAttribute('data-occupied', 'true');
-        await expect(restored.locator('#inventory-grid [data-occupied="true"]')).toHaveCount(2);
+        await expect(restored.locator('#inventory-grid [data-occupied="true"]')).toHaveCount(6);
         const client = new Client(origin, { headers: { Origin: origin } });
         room = await client.joinById(localWorldRoomId);
         room.reconnection.enabled = false;
@@ -117,7 +149,16 @@ test('v2 migrates; pickup and placement survive tabs, reload and SIGKILL in a fr
             'profile-state',
         ])
             room.onMessage(type, () => {});
+        const inventoryBefore = await room.request(pickupStateRequest);
         const before = await room.request(initialStateRequest);
+        // None of these commands owns an equipable instance in the authenticated inventory.
+        for (const value of [
+            { type: 'equip-weapon', itemId: 'forged' },
+            { type: 'equip-weapon', itemId: initialGroundItem.itemId },
+            { type: 'equip-weapon', weapon: 'axe' },
+            { type: 'unequip-weapon', itemId: `${before.player.playerId}:axe` },
+        ])
+            room.send(value.type, { ...value, protocolVersion: 5, meleeVersion: 3 });
         room.send('pickup-item', {
             type: 'pickup-item',
             protocolVersion: 5,
@@ -126,7 +167,7 @@ test('v2 migrates; pickup and placement survive tabs, reload and SIGKILL in a fr
         room.send('inventory-move', {
             type: 'inventory-move',
             protocolVersion: 5,
-            inventoryVersion: 1,
+            inventoryVersion: 2,
             itemId: initialGroundItem.itemId,
             cell: { column: 2, row: 2 },
         });
@@ -135,10 +176,13 @@ test('v2 migrates; pickup and placement survive tabs, reload and SIGKILL in a fr
             .toBeGreaterThan(before.tick + 3);
         const state = await room.request(pickupStateRequest);
         expect(state.groundItem).toBeNull();
-        expect(state.items).toEqual([
+        expect(state.items).toHaveLength(5);
+        expect(state.hands).toBeNull();
+        expect(state.items).toEqual(inventoryBefore.items);
+        expect(state.items.filter(item => item.kind === 'bandage')).toEqual([
             { itemId: initialGroundItem.itemId, kind: 'bandage', cell: { column: 2, row: 2 } },
         ]);
-        await restored.screenshot({ path: '.cache/t026-restored-inventory.png', fullPage: true });
+        await restored.screenshot({ path: '.cache/t027-restored-inventory.png', fullPage: true });
         expect(errors).toEqual([]);
     } finally {
         room?.connection.close();
@@ -149,61 +193,80 @@ test('v2 migrates; pickup and placement survive tabs, reload and SIGKILL in a fr
     }
 });
 
-test('a failed item commit stops the host without ever confirming the transfer or losing ground loot', async ({
-    page,
-}) => {
-    const directory = mkdtempSync(join(tmpdir(), 'zombi-item-failure-'));
-    const path = join(directory, 'world.sqlite');
-    seed(path);
-    const database = new DatabaseSync(path);
-    database.exec(
-        "CREATE TRIGGER reject_item BEFORE UPDATE OF item_location ON solo_world BEGIN SELECT RAISE(ABORT, 'fixture item failure'); END",
-    );
-    database.close();
-    let running = start(path);
-    let room;
-    const received = [];
-    try {
-        await expect.poll(running.output).toContain('Local world ready');
-        const client = new Client(origin, { headers: { Origin: origin } });
-        room = await client.joinById(localWorldRoomId);
-        room.reconnection.enabled = false;
-        for (const type of [
-            'movement-snapshot',
-            'zombie-state',
-            'health-state',
-            'melee-state',
-            'profile-state',
-        ])
-            room.onMessage(type, () => {});
-        room.onMessage('pickup-state', state => received.push(state));
-        received.push(await room.request(pickupStateRequest));
-        room.send('pickup-item', {
-            type: 'pickup-item',
-            protocolVersion: 5,
-            itemId: initialGroundItem.itemId,
-        });
-        expect(await running.exited).toEqual({ code: 1, signal: null });
-        expect(running.output()).toContain('Solo save failed; stopping host: fixture item failure');
-        expect(received.every(state => state.items.length === 0 && state.groundItem !== null)).toBe(
-            true,
+for (const action of ['pickup', 'equip']) {
+    test(`a failed ${action} commit stops the host without confirming or losing items`, async ({
+        page,
+    }) => {
+        const directory = mkdtempSync(join(tmpdir(), 'zombi-item-failure-'));
+        const path = join(directory, 'world.sqlite');
+        seed(path);
+        const database = new DatabaseSync(path);
+        database.exec(
+            "CREATE TRIGGER reject_item BEFORE UPDATE OF item_location ON solo_world BEGIN SELECT RAISE(ABORT, 'fixture item failure'); END",
         );
-        const restored = new DatabaseSync(path);
-        expect(
-            JSON.parse(
-                restored.prepare('SELECT item_location FROM solo_world').get().item_location,
-            ),
-        ).toEqual({ type: 'ground', item: initialGroundItem });
-        restored.exec('DROP TRIGGER reject_item');
-        restored.close();
-        running = start(path);
-        await expect.poll(running.output).toContain('Local world ready');
-        await open(page);
-        await expect(page.locator('#inventory')).toHaveText('Контейнер: пусто');
-        await expect(page.locator('#ground-item')).toContainText('Бинт');
-    } finally {
-        room?.connection.close();
-        await stop(running);
-        rmSync(directory, { recursive: true, force: true });
-    }
-});
+        database.close();
+        let running = start(path);
+        let room;
+        const received = [];
+        try {
+            await expect.poll(running.output).toContain('Local world ready');
+            const client = new Client(origin, { headers: { Origin: origin } });
+            room = await client.joinById(localWorldRoomId);
+            room.reconnection.enabled = false;
+            for (const type of [
+                'movement-snapshot',
+                'zombie-state',
+                'health-state',
+                'melee-state',
+                'profile-state',
+            ])
+                room.onMessage(type, () => {});
+            room.onMessage('pickup-state', state => received.push(state));
+            received.push(await room.request(pickupStateRequest));
+            const movement = await room.request(initialStateRequest);
+            if (action === 'pickup') {
+                room.send('pickup-item', {
+                    type: 'pickup-item',
+                    protocolVersion: 5,
+                    itemId: initialGroundItem.itemId,
+                });
+            } else {
+                room.send('equip-weapon', {
+                    type: 'equip-weapon',
+                    protocolVersion: 5,
+                    meleeVersion: 3,
+                    itemId: `${movement.player.playerId}:axe`,
+                });
+            }
+            expect(await running.exited).toEqual({ code: 1, signal: null });
+            expect(running.output()).toContain(
+                'Solo save failed; stopping host: fixture item failure',
+            );
+            expect(
+                received.every(
+                    state =>
+                        state.items.length === 4 &&
+                        state.groundItem !== null &&
+                        state.hands === null,
+                ),
+            ).toBe(true);
+            const restored = new DatabaseSync(path);
+            expect(
+                JSON.parse(
+                    restored.prepare('SELECT item_location FROM solo_world').get().item_location,
+                ).find(location => location.item.kind === 'bandage'),
+            ).toEqual({ type: 'ground', item: initialGroundItem });
+            restored.exec('DROP TRIGGER reject_item');
+            restored.close();
+            running = start(path);
+            await expect.poll(running.output).toContain('Local world ready');
+            await open(page);
+            await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 4');
+            await expect(page.locator('#ground-item')).toContainText('Бинт');
+        } finally {
+            room?.connection.close();
+            await stop(running);
+            rmSync(directory, { recursive: true, force: true });
+        }
+    });
+}

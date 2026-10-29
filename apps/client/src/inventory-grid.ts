@@ -5,18 +5,21 @@ import { inventoryWeightGrams, placeInventoryItem } from '@zombi-survive/simulat
 export const createInventoryGrid = ({
     grid,
     selector,
+    itemSelectors,
     message,
     onMove,
 }: {
     readonly grid: HTMLElement;
     readonly selector: HTMLButtonElement;
+    readonly itemSelectors: HTMLElement;
     readonly message: HTMLElement;
     readonly onMove: (itemId: string, cell: InventoryCell) => void;
 }): { update: (items: readonly InventoryItem[] | null) => void; dispose: () => void } => {
     let items: readonly InventoryItem[] | null = null;
-    let isSelected = false;
+    let selectedId: string | null = null;
     let lastState = '';
     const cells: HTMLButtonElement[] = [];
+    const footprints: HTMLElement[] = [];
     grid.style.setProperty('--inventory-columns', String(inventorySettings.columns));
 
     for (let row = 0; row < inventorySettings.rows; row++) {
@@ -34,37 +37,64 @@ export const createInventoryGrid = ({
         }
     }
 
-    const footprint = document.createElement('span');
-    footprint.className = 'inventory-item';
-    footprint.textContent = 'Бинт';
-    footprint.setAttribute('aria-hidden', 'true');
-    footprint.hidden = true;
-    grid.append(footprint);
+    const select = (itemId: string): void => {
+        selectedId = selectedId === itemId ? null : itemId;
+        selector.setAttribute(
+            'aria-pressed',
+            String(
+                selectedId !== null &&
+                    items?.find(item => item.itemId === selectedId)?.kind === 'bandage',
+            ),
+        );
 
+        for (const button of itemSelectors.querySelectorAll('button')) {
+            button.setAttribute('aria-pressed', String(button.dataset['itemId'] === selectedId));
+        }
+
+        message.textContent =
+            selectedId === null
+                ? 'Перенос отменён.'
+                : 'Выберите верхнюю левую ячейку для предмета.';
+    };
     const update = (next: readonly InventoryItem[] | null): void => {
         const state = JSON.stringify(next);
 
-        if (state === lastState) {
-            return;
-        }
+        if (state === lastState) return;
 
         lastState = state;
         items = next;
-        isSelected = false;
+        selectedId = null;
         selector.setAttribute('aria-pressed', 'false');
-        selector.disabled = next === null || next.length === 0;
+        const hasBandage = next?.some(item => item.kind === 'bandage') ?? false;
+        selector.disabled = !hasBandage;
         message.textContent =
             next === null
                 ? 'Сетка недоступна.'
-                : `Масса: ${String(inventoryWeightGrams(next))} / ${String(inventorySettings.maxWeightGrams)} г`;
+                : `Масса в сетке: ${String(inventoryWeightGrams(next))} / ${String(inventorySettings.maxWeightGrams)} г`;
+        footprints.splice(0).forEach(footprint => {
+            footprint.remove();
+        });
+        itemSelectors.replaceChildren();
 
-        const firstItem = next?.[0];
-        footprint.hidden = firstItem === undefined;
+        for (const item of next ?? []) {
+            const definition = itemDefinitions[item.kind];
+            const footprint = document.createElement('span');
+            footprint.className = 'inventory-item';
+            footprint.textContent = definition.name;
+            footprint.setAttribute('aria-hidden', 'true');
+            footprint.style.gridColumn = `${String(item.cell.column + 1)} / span ${String(definition.columns)}`;
+            footprint.style.gridRow = `${String(item.cell.row + 1)} / span ${String(definition.rows)}`;
+            grid.append(footprint);
+            footprints.push(footprint);
 
-        if (firstItem !== undefined) {
-            const size = itemDefinitions[firstItem.kind];
-            footprint.style.gridColumn = `${String(firstItem.cell.column + 1)} / span ${String(size.columns)}`;
-            footprint.style.gridRow = `${String(firstItem.cell.row + 1)} / span ${String(size.rows)}`;
+            if (item.kind !== 'bandage') {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.dataset['itemId'] = item.itemId;
+                button.textContent = `Переместить: ${definition.name} · ${String(definition.columns)} × ${String(definition.rows)} · ${String(definition.weightGrams)} г`;
+                button.setAttribute('aria-pressed', 'false');
+                itemSelectors.append(button);
+            }
         }
 
         for (const button of cells) {
@@ -80,27 +110,35 @@ export const createInventoryGrid = ({
 
                 return isColumn && isRow;
             });
+            const definition = item === undefined ? null : itemDefinitions[item.kind];
             button.setAttribute(
                 'aria-description',
-                item === undefined ? 'Свободно' : 'Бинт · часть предмета 2 × 1',
+                definition === null
+                    ? 'Свободно'
+                    : `${definition.name} · часть предмета ${String(definition.columns)} × ${String(definition.rows)}`,
             );
             button.dataset['occupied'] = String(item !== undefined);
         }
     };
     const onSelect = (): void => {
-        isSelected = !isSelected;
-        selector.setAttribute('aria-pressed', String(isSelected));
-        message.textContent = isSelected
-            ? 'Выберите верхнюю левую ячейку для бинта.'
-            : 'Перенос отменён.';
+        const bandage = items?.find(item => item.kind === 'bandage');
+
+        if (bandage !== undefined) select(bandage.itemId);
+    };
+    const onItemSelect = (event: MouseEvent): void => {
+        const target = event.target;
+
+        if (!(target instanceof HTMLButtonElement)) return;
+
+        const itemId = target.dataset['itemId'];
+
+        if (itemId !== undefined) select(itemId);
     };
     const onCellClick = (event: MouseEvent): void => {
         const target = event.target;
-        const item = items?.[0];
+        const item = items?.find(candidate => candidate.itemId === selectedId);
 
-        if (!isSelected || item === undefined || !(target instanceof HTMLButtonElement)) {
-            return;
-        }
+        if (item === undefined || !(target instanceof HTMLButtonElement)) return;
 
         const cell = {
             column: Number(target.dataset['column']),
@@ -108,7 +146,7 @@ export const createInventoryGrid = ({
         };
 
         if (placeInventoryItem({ items: items ?? [], item, cell }) === null) {
-            message.textContent = 'Недостаточно места: бинт занимает 2 × 1 ячейки.';
+            message.textContent = 'Недостаточно места для предмета.';
 
             return;
         }
@@ -116,7 +154,7 @@ export const createInventoryGrid = ({
         const isSameCell = cell.column === item.cell.column && cell.row === item.cell.row;
 
         if (isSameCell) {
-            message.textContent = 'Бинт уже в этой ячейке.';
+            message.textContent = 'Предмет уже в этой ячейке.';
 
             return;
         }
@@ -125,6 +163,7 @@ export const createInventoryGrid = ({
         onMove(item.itemId, cell);
     };
     selector.addEventListener('click', onSelect);
+    itemSelectors.addEventListener('click', onItemSelect);
     grid.addEventListener('click', onCellClick);
     update(null);
 
@@ -132,8 +171,10 @@ export const createInventoryGrid = ({
         update,
         dispose: () => {
             selector.removeEventListener('click', onSelect);
+            itemSelectors.removeEventListener('click', onItemSelect);
             grid.removeEventListener('click', onCellClick);
             grid.replaceChildren();
+            itemSelectors.replaceChildren();
         },
     };
 };

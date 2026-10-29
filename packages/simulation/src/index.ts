@@ -1,4 +1,5 @@
 export { resolveMovement } from './collisions.ts';
+export { addStarterWeapons, playerHands, playerInventory, transferWeapon } from './equipment.ts';
 export { findInventorySpace, inventoryWeightGrams, placeInventoryItem } from './inventory.ts';
 export { findMeleeTarget } from './melee.ts';
 export { movementStepSeconds, stepPlayerMovement, stepPlayerToward } from './movement.ts';

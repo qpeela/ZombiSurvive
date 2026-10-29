@@ -92,7 +92,7 @@ test('moves require the real owner, a valid footprint and a server step; retries
     const move = {
         type: 'inventory-move',
         protocolVersion: 5,
-        inventoryVersion: 1,
+        inventoryVersion: 2,
         itemId: command.itemId,
         cell: { column: 2, row: 2 },
     };
@@ -146,7 +146,7 @@ test('durable pickup publishes only after commit on a later step; retries and qu
     const movement = new LocalWorldMovement('world', 'solo', { xMeters: 2, yMeters: 2 });
     movement.join('first');
     movement.join('tab');
-    const pickup = new LocalWorldPickup({ type: 'ground', item: initialGroundItem });
+    const pickup = new LocalWorldPickup([{ type: 'ground', item: initialGroundItem }]);
     const sessions = () => new Map(['first', 'tab'].map(id => [id, movement.snapshot(id)]));
     const read = () => pickup.snapshot(movement.snapshot('first'));
     pickup.receive('first', command);
@@ -154,7 +154,7 @@ test('durable pickup publishes only after commit on a later step; retries and qu
     pickup.step(sessions());
     expect(read().groundItem).toEqual(initialGroundItem);
     expect(read().items).toEqual([]);
-    const pending = pickup.takePendingSave();
+    const pending = pickup.takePendingSave()?.[0] ?? null;
     expect(pending).toMatchObject({
         type: 'container',
         playerId: 'solo',
@@ -165,7 +165,7 @@ test('durable pickup publishes only after commit on a later step; retries and qu
     Object.assign(pending.cell, { column: 99 });
     pickup.receiveMove('tab', {
         type: 'inventory-move',
-        inventoryVersion: 1,
+        inventoryVersion: 2,
         protocolVersion: 5,
         itemId: command.itemId,
         cell: { column: 2, row: 2 },
@@ -177,13 +177,13 @@ test('durable pickup publishes only after commit on a later step; retries and qu
     pickup.step(sessions());
     expect(read().groundItem).toBeNull();
     expect(read().items[0]?.cell).toEqual({ column: 0, row: 0 });
-    expect(pickup.takePendingSave()).toMatchObject({ cell: { column: 2, row: 2 } });
+    expect(pickup.takePendingSave()).toMatchObject([{ cell: { column: 2, row: 2 } }]);
     pickup.confirmSave();
     pickup.step(sessions());
     expect(read().items[0]?.cell).toEqual({ column: 2, row: 2 });
     pickup.receiveMove('first', {
         type: 'inventory-move',
-        inventoryVersion: 1,
+        inventoryVersion: 2,
         protocolVersion: 5,
         itemId: command.itemId,
         cell: { column: 2, row: 2 },
@@ -195,19 +195,67 @@ test('durable pickup publishes only after commit on a later step; retries and qu
 test('failed or unfinished durable writes never expose a transfer; loaded placement is detached', () => {
     const movement = new LocalWorldMovement('world', 'solo', { xMeters: 2, yMeters: 2 });
     movement.join('session');
-    const pickup = new LocalWorldPickup({ type: 'ground', item: initialGroundItem });
+    const pickup = new LocalWorldPickup([{ type: 'ground', item: initialGroundItem }]);
     pickup.receive('session', command);
     const sessions = new Map([['session', movement.snapshot('session')]]);
     pickup.step(sessions);
-    const pending = pickup.takePendingSave();
+    const pending = pickup.takePendingSave()?.[0] ?? null;
     for (let count = 0; count < 20; count++) pickup.step(sessions);
     expect(pickup.snapshot(movement.snapshot('session')).items).toEqual([]);
     if (pending === null) throw new Error('Missing pending write.');
-    const restored = new LocalWorldPickup(pending);
+    const restored = new LocalWorldPickup([pending]);
     if (pending.type === 'container') Object.assign(pending.cell, { column: 99 });
     expect(restored.snapshot(movement.snapshot('session')).groundItem).toBeNull();
     expect(restored.snapshot(movement.snapshot('session')).items[0]?.cell).toEqual({
         column: 0,
         row: 0,
     });
+});
+
+test('equipment commits before publication; racing tabs and queued stale commands keep one owner', () => {
+    const movement = new LocalWorldMovement('world', 'solo');
+    movement.join('first');
+    movement.join('tab');
+    movement.join('foreign', 'other');
+    const seeded = new LocalWorldPickup();
+    seeded.initializePlayer('solo');
+    const initial = seeded.snapshot(movement.snapshot('first')).items.map(item => ({
+        type: 'container' as const,
+        playerId: 'solo',
+        item: { itemId: item.itemId, kind: item.kind },
+        cell: item.cell,
+    }));
+    const pickup = new LocalWorldPickup(initial);
+    const sessions = new Map(['first', 'tab', 'foreign'].map(id => [id, movement.snapshot(id)]));
+    const read = () => pickup.snapshot(movement.snapshot('first'));
+    const equip = { type: 'equip-weapon', protocolVersion: 5, meleeVersion: 3, itemId: 'solo:axe' };
+    pickup.receiveEquipment('foreign', equip);
+    pickup.step(sessions);
+    expect(pickup.takePendingSave()).toBeNull();
+    pickup.receiveEquipment('first', equip);
+    pickup.receiveEquipment('tab', equip);
+    pickup.step(sessions);
+    const pending = pickup.takePendingSave();
+    expect(pending?.filter(location => location.type === 'hands')).toHaveLength(1);
+    expect(read().hands).toBeNull();
+    pickup.receiveEquipment('tab', { ...equip, itemId: 'solo:knife' });
+    pickup.step(sessions);
+    expect(read().hands).toBeNull();
+    pickup.confirmSave();
+    pickup.step(sessions);
+    expect(read().hands?.itemId).toBe('solo:axe');
+    expect(read().items).toHaveLength(3);
+    expect(pickup.snapshot(movement.snapshot('tab'))).toEqual(read());
+    const next = pickup.takePendingSave();
+    expect(next?.find(location => location.type === 'hands')?.item.itemId).toBe('solo:knife');
+    pickup.confirmSave();
+    pickup.step(sessions);
+    pickup.receiveEquipment('first', { ...equip, type: 'unequip-weapon' }); // stale old hands
+    pickup.step(sessions);
+    expect(read().hands?.itemId).toBe('solo:knife');
+    expect(pickup.takePendingSave()).toBeNull();
+    pickup.receiveEquipment('tab', { ...equip, itemId: 'solo:knife', type: 'unequip-weapon' });
+    pickup.leave('tab');
+    pickup.step(sessions);
+    expect(pickup.takePendingSave()).toBeNull();
 });

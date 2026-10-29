@@ -10,13 +10,14 @@ import { expect, test } from 'vitest';
 
 const state: PickupSnapshot = {
     type: 'pickup-state',
-    inventoryVersion: 1,
+    inventoryVersion: 2,
     protocolVersion,
     worldId: 'world',
     playerId: 'player',
     tick: 0,
     groundItem: initialGroundItem,
     items: [],
+    hands: null,
 };
 test('pickup command accepts an ID intent and rejects malformed or incompatible messages', () => {
     const command = { type: 'pickup-item', protocolVersion, itemId: 'item' };
@@ -48,7 +49,7 @@ test('pickup states validate identity, tick, item kind, coordinates and single-i
         { ...state, tick: -1 },
         { ...state, tick: 0.5 },
         { ...state, tick: Infinity },
-        { ...state, items: [item] },
+        { ...state, items: [{ ...item, itemId: initialGroundItem.itemId }] },
         { ...state, groundItem: null, items: [item, item] },
         { ...state, items: [{}] },
         { ...state, groundItem: { ...initialGroundItem, kind: 'unknown' } },
@@ -63,7 +64,7 @@ test('inventory moves validate version, ID and finite integer cells before simul
     const command = {
         type: 'inventory-move',
         protocolVersion,
-        inventoryVersion: 1,
+        inventoryVersion: 2,
         itemId: 'item',
         cell: { column: 2, row: 2 },
     };
@@ -74,7 +75,7 @@ test('inventory moves validate version, ID and finite integer cells before simul
         {},
         { ...command, itemId: '' },
         { ...command, protocolVersion: 4 },
-        { ...command, inventoryVersion: 2 },
+        { ...command, inventoryVersion: 99 },
         { ...command, type: 'pickup-item' },
         { ...command, cell: null },
         { ...command, cell: {} },
@@ -99,4 +100,18 @@ test('inventory snapshots reject unsupported versions and missing or invalid pla
         { ...contained, items: [{ ...contained.items[0], cell: { column: NaN, row: 0 } }] },
     ])
         expect(isPickupSnapshot(value)).toBe(false);
+});
+
+test('multi-item inventory permits ground loot and validates distinct hands and instance IDs', () => {
+    const knife = { itemId: 'player:knife', kind: 'knife' };
+    const club = { itemId: 'player:club', kind: 'club', cell: { column: 0, row: 1 } };
+    expect(isPickupSnapshot({ ...state, hands: knife, items: [club] })).toBe(true);
+    for (const fields of [
+        { hands: undefined },
+        { hands: { itemId: 'x', kind: 'bandage' } },
+        { hands: knife, items: [{ ...knife, cell: { column: 0, row: 0 } }] },
+        { items: [club, club] },
+        { items: [{ ...club, itemId: initialGroundItem.itemId }] },
+    ])
+        expect(isPickupSnapshot({ ...state, ...fields })).toBe(false);
 });

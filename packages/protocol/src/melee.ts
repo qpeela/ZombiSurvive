@@ -2,9 +2,9 @@ import { isMeleeWeaponId, type MeleeWeaponId, type WorldPosition } from '@zombi-
 
 import { protocolVersion } from './movement.ts';
 
-export const meleeVersion = 2;
+export const meleeVersion = 3;
 export type MeleeIntent =
-    | { readonly type: 'equip-weapon'; readonly weapon: MeleeWeaponId }
+    | { readonly type: 'equip-weapon' | 'unequip-weapon'; readonly itemId: string }
     | { readonly type: 'melee-attack' };
 export type MeleeCommand = MeleeIntent & {
     readonly protocolVersion: typeof protocolVersion;
@@ -31,7 +31,8 @@ export const isMeleeCommand = (value: unknown): value is MeleeCommand => {
 
     const isType =
         value['type'] === 'melee-attack' ||
-        (value['type'] === 'equip-weapon' && isMeleeWeaponId(value['weapon']));
+        ((value['type'] === 'equip-weapon' || value['type'] === 'unequip-weapon') &&
+            isId(value['itemId']));
 
     return isType && isVersion(value);
 };
