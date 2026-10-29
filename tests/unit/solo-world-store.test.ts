@@ -60,7 +60,7 @@ test('one host exclusively owns a save until close, then the next can load it', 
 });
 
 test.each([
-    'PRAGMA user_version = 6',
+    'PRAGMA user_version = 7',
     "UPDATE solo_world SET seed = 'another-world'",
     'UPDATE solo_world SET generator_version = 2',
     "UPDATE solo_world SET player_id = 'bad'",
@@ -130,7 +130,8 @@ test('schema v1 migrates atomically and keeps character, world and position', ()
     first.savePosition({ xMeters: 0, yMeters: -8 });
     first.close();
     const database = new DatabaseSync(path);
-    database.exec(`ALTER TABLE solo_world DROP COLUMN display_name;
+    database.exec(`ALTER TABLE solo_world DROP COLUMN combat_state;
+        ALTER TABLE solo_world DROP COLUMN display_name;
         ALTER TABLE solo_world DROP COLUMN name_revision;
         ALTER TABLE solo_world DROP COLUMN item_location;
         PRAGMA user_version = 1`);
@@ -140,7 +141,7 @@ test('schema v1 migrates atomically and keeps character, world and position', ()
     expect(migrated.currentProfile()).toEqual({ displayName: 'Выживший', nameRevision: 0 });
     migrated.close();
     const restored = new DatabaseSync(path);
-    expect(restored.prepare('PRAGMA user_version').get()?.['user_version']).toBe(5);
+    expect(restored.prepare('PRAGMA user_version').get()?.['user_version']).toBe(6);
     restored.close();
 });
 
@@ -165,7 +166,8 @@ test('a rejected old save rolls back the schema migration as well as its data', 
     const path = createPath();
     open(path).close();
     const database = new DatabaseSync(path);
-    database.exec(`ALTER TABLE solo_world DROP COLUMN display_name;
+    database.exec(`ALTER TABLE solo_world DROP COLUMN combat_state;
+        ALTER TABLE solo_world DROP COLUMN display_name;
         ALTER TABLE solo_world DROP COLUMN name_revision;
         ALTER TABLE solo_world DROP COLUMN item_location;
         UPDATE solo_world SET player_id = 'invalid';
@@ -182,7 +184,9 @@ test('schema v2 migration retains profile and seeds the existing item only once'
     original.saveDisplayName('Миграция');
     original.close();
     const database = new DatabaseSync(path);
-    database.exec('ALTER TABLE solo_world DROP COLUMN item_location; PRAGMA user_version = 2');
+    database.exec(
+        'ALTER TABLE solo_world DROP COLUMN combat_state; ALTER TABLE solo_world DROP COLUMN item_location; PRAGMA user_version = 2',
+    );
     database.close();
     const migrated = open(path);
     expect(migrated.currentProfile()).toEqual({ displayName: 'Миграция', nameRevision: 1 });
@@ -288,7 +292,7 @@ test('v2 migration failure rolls back both schema and initialization', () => {
     open(path).close();
     const database = new DatabaseSync(path);
     database.exec(
-        "ALTER TABLE solo_world DROP COLUMN item_location; PRAGMA user_version = 2; CREATE TRIGGER reject_migration BEFORE UPDATE ON solo_world BEGIN SELECT RAISE(ABORT, 'migration failure'); END",
+        "ALTER TABLE solo_world DROP COLUMN combat_state; ALTER TABLE solo_world DROP COLUMN item_location; PRAGMA user_version = 2; CREATE TRIGGER reject_migration BEFORE UPDATE ON solo_world BEGIN SELECT RAISE(ABORT, 'migration failure'); END",
     );
     database.close();
     const bytes = readFileSync(path);
@@ -312,7 +316,7 @@ test.each([
     };
     const database = new DatabaseSync(path);
     database.prepare('UPDATE solo_world SET item_location = ?').run(JSON.stringify(bandage));
-    database.exec('PRAGMA user_version = 3');
+    database.exec('ALTER TABLE solo_world DROP COLUMN combat_state; PRAGMA user_version = 3');
     database.close();
     const migrated = open(path);
     expect(migrated.initialItemLocations).toHaveLength(9);
@@ -339,7 +343,7 @@ test('failed v3 migration rolls back version and data, preserving the complete o
         .prepare('UPDATE solo_world SET item_location = ?')
         .run(JSON.stringify({ type: 'ground', item: initialGroundItem }));
     database.exec(
-        "PRAGMA user_version = 3; CREATE TRIGGER reject_weapons BEFORE UPDATE OF item_location ON solo_world BEGIN SELECT RAISE(ABORT, 'weapon migration failure'); END",
+        "ALTER TABLE solo_world DROP COLUMN combat_state; PRAGMA user_version = 3; CREATE TRIGGER reject_weapons BEFORE UPDATE OF item_location ON solo_world BEGIN SELECT RAISE(ABORT, 'weapon migration failure'); END",
     );
     database.close();
     const before = readFileSync(path);
@@ -400,7 +404,7 @@ test('v4 migration adds the finite overlay once, preserving hands, profile, cell
     original.close();
     const database = new DatabaseSync(path);
     database.prepare('UPDATE solo_world SET item_location = ?').run(JSON.stringify(oldItems));
-    database.exec('PRAGMA user_version = 4');
+    database.exec('ALTER TABLE solo_world DROP COLUMN combat_state; PRAGMA user_version = 4');
     const before = database
         .prepare(
             'SELECT world_id, player_id, seed, generator_version, x_meters, y_meters, display_name, name_revision FROM solo_world',
@@ -437,7 +441,7 @@ test('v4 migration adds the finite overlay once, preserving hands, profile, cell
             )
             .get(),
     ).toEqual(before);
-    expect(saved.prepare('PRAGMA user_version').get()?.['user_version']).toBe(5);
+    expect(saved.prepare('PRAGMA user_version').get()?.['user_version']).toBe(6);
     saved.close();
 });
 
@@ -489,10 +493,110 @@ test('failed v4 overlay migration rolls back the old schema and all item locatio
     const database = new DatabaseSync(path);
     database.prepare('UPDATE solo_world SET item_location = ?').run(JSON.stringify(oldItems));
     database.exec(
-        "PRAGMA user_version = 4; CREATE TRIGGER reject_loot BEFORE UPDATE OF item_location ON solo_world BEGIN SELECT RAISE(ABORT, 'loot migration failure'); END",
+        "ALTER TABLE solo_world DROP COLUMN combat_state; PRAGMA user_version = 4; CREATE TRIGGER reject_loot BEFORE UPDATE OF item_location ON solo_world BEGIN SELECT RAISE(ABORT, 'loot migration failure'); END",
     );
     database.close();
     const before = readFileSync(path);
     expect(() => open(path)).toThrow(/loot migration failure/);
     expect(readFileSync(path)).toEqual(before);
+});
+
+test.each([100, 73, 0])(
+    'combat round-trip keeps %s HP and remaining ticks with equipment',
+    health => {
+        const path = createPath();
+        const first = open(path);
+        const playerId = first.initialWorld.playerId;
+        const equipped = first.initialItemLocations.map(location =>
+            location.item.itemId === `${playerId}:axe`
+                ? { type: 'hands' as const, playerId, item: location.item }
+                : location,
+        );
+        first.saveCombat({ health, cooldownTicks: 17 }, equipped);
+        first.close();
+        const restored = open(path);
+        expect(restored.initialCombat).toEqual({ health, cooldownTicks: 17 });
+        expect(restored.initialItemLocations).toEqual(equipped);
+    },
+);
+
+test.each([
+    'not json',
+    '{}',
+    'null',
+    '{"health":101,"cooldownTicks":0}',
+    '{"health":-1,"cooldownTicks":0}',
+    '{"health":1.5,"cooldownTicks":0}',
+    '{"health":"90","cooldownTicks":0}',
+    '{"health":90,"cooldownTicks":-1}',
+    '{"health":90,"cooldownTicks":25}',
+    '{"health":90,"cooldownTicks":0.5}',
+])('corrupt v6 combat state is rejected without resetting the save: %s', state => {
+    const path = createPath();
+    open(path).close();
+    const database = new DatabaseSync(path);
+    database.prepare('UPDATE solo_world SET combat_state = ?').run(state);
+    database.close();
+    const before = readFileSync(path);
+    expect(() => open(path)).toThrow();
+    expect(readFileSync(path)).toEqual(before);
+});
+
+test('v5 migration seeds combat once while preserving the entire world and inventory', () => {
+    const path = createPath();
+    const first = open(path);
+    const initial = first.initialWorld;
+    const items = first.initialItemLocations;
+    first.close();
+    const database = new DatabaseSync(path);
+    database.exec('ALTER TABLE solo_world DROP COLUMN combat_state; PRAGMA user_version = 5');
+    database.close();
+    const migrated = open(path);
+    expect(migrated.initialWorld).toEqual(initial);
+    expect(migrated.initialItemLocations).toEqual(items);
+    expect(migrated.initialCombat).toEqual({ health: 100, cooldownTicks: 0 });
+    migrated.saveCombat({ health: 60, cooldownTicks: 9 });
+    migrated.close();
+    expect(open(path).initialCombat).toEqual({ health: 60, cooldownTicks: 9 });
+});
+
+test('invalid v5 item data aborts combat migration without changing the file', () => {
+    const path = createPath();
+    open(path).close();
+    const database = new DatabaseSync(path);
+    database.exec('ALTER TABLE solo_world DROP COLUMN combat_state; PRAGMA user_version = 5');
+    database.prepare('UPDATE solo_world SET item_location = ?').run('[]');
+    database.close();
+    const before = readFileSync(path);
+    expect(() => open(path)).toThrow(/invalid item/);
+    expect(readFileSync(path)).toEqual(before);
+});
+
+test('a failed combat/equipment commit keeps both previous values and rejects invalid state', () => {
+    const path = createPath();
+    const first = open(path);
+    first.saveCombat({ health: 90, cooldownTicks: 4 });
+    first.close();
+    const database = new DatabaseSync(path);
+    database.exec(`CREATE TRIGGER reject_combat BEFORE UPDATE OF combat_state ON solo_world
+        BEGIN SELECT RAISE(ABORT, 'combat disk failure'); END`);
+    database.close();
+    const store = open(path);
+    const items = store.initialItemLocations;
+    const playerId = store.initialWorld.playerId;
+    const equipped = items.map(location =>
+        location.item.itemId === `${playerId}:axe`
+            ? { type: 'hands' as const, playerId, item: location.item }
+            : location,
+    );
+    expect(() => {
+        store.saveCombat({ health: 80, cooldownTicks: 24 }, equipped);
+    }).toThrow(/combat disk failure/);
+    expect(() => {
+        store.saveCombat({ health: -1, cooldownTicks: 0 });
+    }).toThrow(/combat state/);
+    store.close();
+    const restored = open(path);
+    expect(restored.initialCombat).toEqual({ health: 90, cooldownTicks: 4 });
+    expect(restored.initialItemLocations).toEqual(items);
 });

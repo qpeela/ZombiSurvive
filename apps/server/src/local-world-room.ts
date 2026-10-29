@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { type AuthContext, type Client, Room } from '@colyseus/core';
-import { movementSettings } from '@zombi-survive/content';
+import { combatSettings, movementSettings } from '@zombi-survive/content';
 import { initialStateRequest, localWorldRoomId, pickupStateRequest } from '@zombi-survive/protocol';
 
 import { LocalWorldCombat } from './local-world-combat.ts';
@@ -10,18 +10,20 @@ import { LocalWorldMovement } from './local-world-movement.ts';
 import { LocalWorldPickup } from './local-world-pickup.ts';
 import { createLocalWorldProfile } from './local-world-profile.ts';
 import { LocalWorldZombie } from './local-world-zombie.ts';
+import type { SavedCombat } from './saved-combat.ts';
 import type { SoloWorldStore } from './solo-world-store.ts';
 import type { WorldAccess } from './world-access.ts';
 
 export class LocalWorldRoom extends Room {
     private pickup = new LocalWorldPickup();
     private readonly zombie = new LocalWorldZombie();
-    private readonly combat = new LocalWorldCombat();
-    private readonly melee = new LocalWorldMelee(snapshot => this.pickup.weapon(snapshot));
+    private combat = new LocalWorldCombat();
+    private melee = new LocalWorldMelee(snapshot => this.pickup.weapon(snapshot));
     private movement: LocalWorldMovement | null = null;
     private access: WorldAccess | null = null;
     private saveTimer: ReturnType<typeof setInterval> | undefined;
     private isStopping = false;
+    private pendingStep: (() => void) | null = null;
     private save: (() => void) | undefined;
 
     override onCreate(options: {
@@ -36,6 +38,16 @@ export class LocalWorldRoom extends Room {
         this.access = options.access;
 
         const saved = options.soloStore?.initialWorld;
+        const soloPlayerId = options.access.soloPlayerId;
+        let savedCombat: SavedCombat = options.soloStore?.initialCombat ?? {
+            health: combatSettings.maxHealth,
+            cooldownTicks: 0,
+        };
+        this.combat = new LocalWorldCombat({ playerId: soloPlayerId, health: savedCombat.health });
+        this.melee = new LocalWorldMelee(snapshot => this.pickup.weapon(snapshot), {
+            playerId: soloPlayerId,
+            cooldownTicks: savedCombat.cooldownTicks,
+        });
         this.pickup = new LocalWorldPickup(options.soloStore?.initialItemLocations);
         const movement = new LocalWorldMovement(
             saved?.worldId ?? randomUUID(),
@@ -87,7 +99,7 @@ export class LocalWorldRoom extends Room {
             movement.receive(client.sessionId, value);
         });
         this.setTimestep(() => {
-            if (this.isStopping) {
+            if (this.isStopping || this.pendingStep !== null) {
                 return;
             }
 
@@ -98,25 +110,6 @@ export class LocalWorldRoom extends Room {
             );
             this.pickup.step(snapshots, snapshot => this.combat.snapshot(snapshot).health);
             const itemSave = this.pickup.takePendingSave();
-            if (itemSave !== null && options.soloStore !== undefined) {
-                const store = options.soloStore;
-                // IO runs after this entire step and its snapshots, never inside timestep.
-                setImmediate(() => {
-                    if (this.isStopping) {
-                        return;
-                    }
-
-                    try {
-                        store.saveItemLocations(itemSave);
-                        this.pickup.confirmSave();
-                    } catch (error) {
-                        this.isStopping = true;
-                        clearInterval(this.saveTimer);
-                        options.onSaveError(error);
-                    }
-                });
-            }
-
             const zombie = this.zombie.step(snapshots);
             this.melee.step({
                 ...zombie,
@@ -127,28 +120,71 @@ export class LocalWorldRoom extends Room {
             const living = zombie.zombies.filter(state => this.zombie.isAlive(state.zombieId));
             this.combat.step({ ...zombie, zombies: living, snapshots });
 
-            for (const client of this.clients) {
-                const snapshot = snapshots.get(client.sessionId);
+            const nextCombat: SavedCombat = {
+                health: this.combat.health(soloPlayerId),
+                cooldownTicks: this.melee.remainingCooldown(soloPlayerId),
+            };
+            const isCombatChanged =
+                nextCombat.health !== savedCombat.health ||
+                nextCombat.cooldownTicks !== savedCombat.cooldownTicks;
+            const store = options.soloStore;
+            const publish = (): void => {
+                for (const client of this.clients) {
+                    const snapshot = snapshots.get(client.sessionId);
 
-                if (snapshot !== undefined) {
-                    client.send('movement-snapshot', snapshot);
-                    client.send('pickup-state', this.pickup.snapshot(snapshot));
-                    client.send('zombie-state', this.zombie.snapshot(snapshot));
-                    client.send('health-state', this.combat.snapshot(snapshot));
-                    client.send('melee-state', this.melee.snapshot(snapshot));
-                    const action = this.melee.action(snapshot);
+                    if (snapshot !== undefined) {
+                        client.send('movement-snapshot', snapshot);
+                        client.send('pickup-state', this.pickup.snapshot(snapshot));
+                        client.send('zombie-state', this.zombie.snapshot(snapshot));
+                        client.send('health-state', this.combat.snapshot(snapshot));
+                        client.send('melee-state', this.melee.snapshot(snapshot));
+                        const action = this.melee.action(snapshot);
 
-                    if (action !== null) {
-                        client.send('melee-action', action);
-                    }
+                        if (action !== null) {
+                            client.send('melee-action', action);
+                        }
 
-                    const playerProfile = profile.snapshot(snapshot);
+                        const playerProfile = profile.snapshot(snapshot);
 
-                    if (playerProfile !== null) {
-                        client.send('profile-state', playerProfile);
+                        if (playerProfile !== null) {
+                            client.send('profile-state', playerProfile);
+                        }
                     }
                 }
+            };
+
+            if (store === undefined || (!isCombatChanged && itemSave === null)) {
+                publish();
+
+                return;
             }
+
+            // Freeze further steps until this step is durable. No IO runs in timestep.
+            const finishStep = (): void => {
+                this.pendingStep = null;
+                try {
+                    if (isCombatChanged) store.saveCombat(nextCombat, itemSave ?? undefined);
+                    else if (itemSave !== null) store.saveItemLocations(itemSave);
+
+                    if (itemSave !== null) {
+                        this.pickup.confirmSave();
+                    }
+
+                    savedCombat = nextCombat;
+                } catch (error) {
+                    this.isStopping = true;
+                    clearInterval(this.saveTimer);
+                    options.onSaveError(error);
+
+                    return;
+                }
+
+                publish();
+            };
+            this.pendingStep = finishStep;
+            setImmediate(() => {
+                if (!this.isStopping && this.pendingStep === finishStep) finishStep();
+            });
         }, 1000 / movementSettings.ticksPerSecond);
     }
 
@@ -174,6 +210,10 @@ export class LocalWorldRoom extends Room {
     }
 
     override onBeforeShutdown(): void {
+        if (!this.isStopping) {
+            this.pendingStep?.();
+        }
+
         if (!this.isStopping) {
             this.isStopping = true;
             this.save?.();

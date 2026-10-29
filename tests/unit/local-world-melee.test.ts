@@ -256,3 +256,39 @@ test('confirmed impacts report actual damage and kills; walls and stale dead tar
     expect(impact()?.outcome).toBe('miss');
     expect(damage).toHaveBeenCalledTimes(2);
 });
+
+test('restored cooldown uses remaining steps, survives switching and elapses without clients', () => {
+    const movement = new LocalWorldMovement('world', 'solo');
+    movement.join('tab');
+    let weapon: MeleeWeaponId = 'axe';
+    const melee = new LocalWorldMelee(() => weapon, { playerId: 'solo', cooldownTicks: 9 });
+    const damage = vi.fn(() => ({ damage: 20, isKilled: false }));
+    const command = { type: 'melee-attack', protocolVersion, meleeVersion };
+    const step = (isConnected = true) => {
+        movement.step();
+        melee.step({
+            snapshots: isConnected ? new Map([['tab', movement.snapshot('tab')]]) : new Map(),
+            zombies: [
+                { zombieId: 'z', position: { xMeters: 1, yMeters: 0 }, targetPlayerId: null },
+            ],
+            obstacles: [],
+            damage,
+            health: () => 90,
+        });
+    };
+    expect(melee.remainingCooldown('solo')).toBe(9);
+    step(false);
+    step(false);
+    expect(melee.remainingCooldown('solo')).toBe(7);
+    weapon = 'knife';
+    for (let tick = 3; tick < 9; tick++) {
+        melee.receive('tab', command);
+        step();
+        expect(melee.action(movement.snapshot('tab'))).toBeNull();
+    }
+    expect(melee.remainingCooldown('solo')).toBe(1);
+    melee.receive('tab', command);
+    step();
+    expect(damage).toHaveBeenCalledOnce();
+    expect(melee.remainingCooldown('solo')).toBe(meleeWeapons.knife.cooldownTicks);
+});

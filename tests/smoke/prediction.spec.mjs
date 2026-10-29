@@ -101,6 +101,9 @@ test('held transport shows predicted input before acknowledgement and reconciles
         await page.keyboard.up('d');
         release();
         await expect(page.getByRole('status')).not.toHaveAttribute('data-ack', 'null');
+        // The first ack can still belong to held WASD input. Wait for the stop
+        // snapshot before using the camera position to calculate a world click.
+        await expect(page.getByRole('status')).toHaveAttribute('data-noise-radius', '0');
         await converge(page);
         await page.locator('canvas').scrollIntoViewIfNeeded();
         await clickWorld(page, 4, 0);
