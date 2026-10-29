@@ -17,6 +17,15 @@ export class LocalWorldCombat {
     private readonly players = new Map<string, PlayerHealth>();
     private readonly attacks = new Map<string, ZombieAttackState>();
 
+    constructor(initialHealth?: PlayerHealth) {
+        if (initialHealth !== undefined)
+            this.players.set(initialHealth.playerId, { ...initialHealth });
+    }
+
+    health(playerId: string): number {
+        return this.players.get(playerId)?.health ?? combatSettings.maxHealth;
+    }
+
     step({
         zombies,
         snapshots,
@@ -67,7 +76,7 @@ export class LocalWorldCombat {
             worldId: movement.worldId,
             playerId: movement.player.playerId,
             tick: movement.tick,
-            health: this.players.get(movement.player.playerId)?.health ?? combatSettings.maxHealth,
+            health: this.health(movement.player.playerId),
             maxHealth: combatSettings.maxHealth,
         };
     }

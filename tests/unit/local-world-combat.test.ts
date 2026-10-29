@@ -63,3 +63,16 @@ test('each zombie has an independent attack interval and damage accumulates with
     combat.step({ zombies, snapshots, obstacles: [] });
     expect(combat.snapshot(movement.snapshot('first')).health).toBe(0);
 });
+
+test.each([63, 0])('restored %s HP is shared across tabs and never healed on reconnect', health => {
+    const { movement, snapshots } = setup();
+    const initial = { playerId: 'solo', health };
+    const combat = new LocalWorldCombat(initial);
+    initial.health = 100;
+    combat.step({ zombies: [], snapshots, obstacles: [] });
+    expect(combat.snapshot(movement.snapshot('first')).health).toBe(health);
+    expect(combat.snapshot(movement.snapshot('tab')).health).toBe(health);
+    movement.leave('first');
+    movement.join('rejoined');
+    expect(combat.snapshot(movement.snapshot('rejoined')).health).toBe(health);
+});

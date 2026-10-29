@@ -55,7 +55,9 @@ test('v2 migrates; inventory and hands survive tabs, reload and SIGKILL in a fre
     const path = join(directory, 'world.sqlite');
     seed(path);
     const old = new DatabaseSync(path);
-    old.exec('ALTER TABLE solo_world DROP COLUMN item_location; PRAGMA user_version = 2');
+    old.exec(
+        'ALTER TABLE solo_world DROP COLUMN combat_state; ALTER TABLE solo_world DROP COLUMN item_location; PRAGMA user_version = 2',
+    );
     old.close();
     let running = start(path);
     let fresh;
@@ -97,7 +99,7 @@ test('v2 migrates; inventory and hands survive tabs, reload and SIGKILL in a fre
         // UI confirmation is already a durable commit: no checkpoint delay is allowed here.
         await stop(running, 'SIGKILL');
         const saved = new DatabaseSync(path);
-        expect(saved.prepare('PRAGMA user_version').get().user_version).toBe(5);
+        expect(saved.prepare('PRAGMA user_version').get().user_version).toBe(6);
         expect(
             JSON.parse(
                 saved.prepare('SELECT item_location FROM solo_world').get().item_location,

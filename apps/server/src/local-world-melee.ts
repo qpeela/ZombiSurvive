@@ -16,11 +16,21 @@ export class LocalWorldMelee {
     private readonly actions = new Map<string, MeleeAction>();
     private readonly nextAttackTick = new Map<string, number>();
     private readonly pending = new Map<string, MeleeCommand>();
+    private tick = 0;
 
     private readonly equippedWeapon: (snapshot: MovementSnapshot) => MeleeWeaponId | null;
 
-    constructor(equippedWeapon: (snapshot: MovementSnapshot) => MeleeWeaponId | null) {
+    constructor(
+        equippedWeapon: (snapshot: MovementSnapshot) => MeleeWeaponId | null,
+        initialCooldown?: { readonly playerId: string; readonly cooldownTicks: number },
+    ) {
         this.equippedWeapon = equippedWeapon;
+        if (initialCooldown !== undefined)
+            this.nextAttackTick.set(initialCooldown.playerId, initialCooldown.cooldownTicks);
+    }
+
+    remainingCooldown(playerId: string): number {
+        return Math.max(0, (this.nextAttackTick.get(playerId) ?? 0) - this.tick);
     }
 
     receive(sessionId: string, value: unknown): void {
@@ -43,6 +53,7 @@ export class LocalWorldMelee {
         damage: (id: string, amount: number) => { damage: number; isKilled: boolean } | null;
         health: (snapshot: MovementSnapshot) => number;
     }): void {
+        this.tick++;
         this.actions.clear();
 
         for (const sessionId of this.pending.keys()) {

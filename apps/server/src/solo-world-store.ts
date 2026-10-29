@@ -12,6 +12,7 @@ import { isDisplayName, type ItemLocation, type WorldPosition } from '@zombi-sur
 import { addStarterWeapons } from '@zombi-survive/simulation';
 import { initialWorldWeaponLoot, loadWorldChunks } from '@zombi-survive/worldgen';
 
+import { readSavedCombat, type SavedCombat } from './saved-combat.ts';
 import { readSavedItem, readSavedItems, writeSavedItems } from './saved-item.ts';
 
 export type SavedSoloWorld = {
@@ -51,6 +52,7 @@ const validatePosition = (position: WorldPosition): void => {
 export class SoloWorldStore {
     readonly initialWorld: SavedSoloWorld;
     readonly initialItemLocations: readonly ItemLocation[];
+    readonly initialCombat: SavedCombat;
     private readonly database: DatabaseSync;
     private isClosed = false;
     private profile: { readonly displayName: string; readonly nameRevision: number };
@@ -108,7 +110,8 @@ export class SoloWorldStore {
                 version !== 2 &&
                 version !== 3 &&
                 version !== 4 &&
-                version !== 5
+                version !== 5 &&
+                version !== 6
             ) {
                 throw new Error('Unsupported solo save schema version.');
             }
@@ -136,7 +139,7 @@ export class SoloWorldStore {
                 .prepare('SELECT item_location FROM solo_world WHERE id = 1')
                 .get()?.['item_location'];
 
-            if (version !== 4 && version !== 5) {
+            if (version !== 4 && version !== 5 && version !== 6) {
                 const bandage = readSavedItem(savedItems, this.initialWorld.playerId);
                 const locations = addStarterWeapons([bandage], this.initialWorld.playerId);
                 this.database
@@ -145,7 +148,7 @@ export class SoloWorldStore {
                 this.database.exec('PRAGMA user_version = 4');
             }
 
-            if (version !== 5) {
+            if (version !== 5 && version !== 6) {
                 const oldLocations = readSavedItems(
                     this.database
                         .prepare('SELECT item_location FROM solo_world WHERE id = 1')
@@ -174,6 +177,19 @@ export class SoloWorldStore {
                 ],
                 this.initialWorld.playerId,
                 initialWorldWeaponLoot,
+            );
+            if (version !== 6) {
+                this.database.exec(`
+                    ALTER TABLE solo_world ADD COLUMN combat_state TEXT NOT NULL
+                        DEFAULT '{"health":100,"cooldownTicks":0}';
+                    PRAGMA user_version = 6;
+                `);
+            }
+
+            this.initialCombat = readSavedCombat(
+                this.database.prepare('SELECT combat_state FROM solo_world WHERE id = 1').get()?.[
+                    'combat_state'
+                ],
             );
             this.profile = {
                 displayName: this.initialWorld.displayName,
@@ -232,6 +248,29 @@ export class SoloWorldStore {
 
         if (Number(result.changes) !== 1) {
             throw new Error('Solo item save lost its world row.');
+        }
+    }
+
+    saveCombat(state: SavedCombat, locations?: readonly ItemLocation[]): void {
+        const saved = JSON.stringify(readSavedCombat(JSON.stringify(state)));
+        const items =
+            locations === undefined
+                ? undefined
+                : writeSavedItems(locations, this.initialWorld.playerId, initialWorldWeaponLoot);
+        // A simultaneous inventory/equipment transition shares the same atomic commit.
+        const result =
+            items === undefined
+                ? this.database
+                      .prepare('UPDATE solo_world SET combat_state = ? WHERE id = 1')
+                      .run(saved)
+                : this.database
+                      .prepare(
+                          'UPDATE solo_world SET combat_state = ?, item_location = ? WHERE id = 1',
+                      )
+                      .run(saved, items);
+
+        if (Number(result.changes) !== 1) {
+            throw new Error('Solo combat save lost its world row.');
         }
     }
 
