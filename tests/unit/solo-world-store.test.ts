@@ -6,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { initialGroundItem } from '@zombi-survive/content';
 import type { ItemLocation } from '@zombi-survive/domain';
 import { addStarterWeapons } from '@zombi-survive/simulation';
+import { initialWorldWeaponLoot } from '@zombi-survive/worldgen';
 import { afterEach, expect, test } from 'vitest';
 
 import { SoloWorldStore } from '../../apps/server/src/solo-world-store.ts';
@@ -59,7 +60,7 @@ test('one host exclusively owns a save until close, then the next can load it', 
 });
 
 test.each([
-    'PRAGMA user_version = 5',
+    'PRAGMA user_version = 6',
     "UPDATE solo_world SET seed = 'another-world'",
     'UPDATE solo_world SET generator_version = 2',
     "UPDATE solo_world SET player_id = 'bad'",
@@ -139,7 +140,7 @@ test('schema v1 migrates atomically and keeps character, world and position', ()
     expect(migrated.currentProfile()).toEqual({ displayName: 'Выживший', nameRevision: 0 });
     migrated.close();
     const restored = new DatabaseSync(path);
-    expect(restored.prepare('PRAGMA user_version').get()?.['user_version']).toBe(4);
+    expect(restored.prepare('PRAGMA user_version').get()?.['user_version']).toBe(5);
     restored.close();
 });
 
@@ -194,7 +195,10 @@ test('schema v2 migration retains profile and seeds the existing item only once'
         item: { itemId: initialGroundItem.itemId, kind: 'bandage' },
         cell: { column: 2, row: 2 },
     };
-    migrated.saveItemLocations(addStarterWeapons([collected], migrated.initialWorld.playerId));
+    migrated.saveItemLocations([
+        ...addStarterWeapons([collected], migrated.initialWorld.playerId),
+        ...initialWorldWeaponLoot.map(item => ({ type: 'ground' as const, item })),
+    ]);
     migrated.close();
     expect(
         open(path).initialItemLocations.find(location => location.item.kind === 'bandage'),
@@ -211,7 +215,10 @@ test('durable item transfer and cell are atomic, validated and retained after re
         item: { itemId: initialGroundItem.itemId, kind: 'bandage' },
         cell: { column: 0, row: 0 },
     };
-    original.saveItemLocations(addStarterWeapons([collected], playerId));
+    original.saveItemLocations([
+        ...addStarterWeapons([collected], playerId),
+        ...initialWorldWeaponLoot.map(item => ({ type: 'ground' as const, item })),
+    ]);
     original.close();
     const database = new DatabaseSync(path);
     database.exec(
@@ -224,9 +231,10 @@ test('durable item transfer and cell are atomic, validated and retained after re
         restored.initialItemLocations.find(location => location.item.kind === 'bandage'),
     ).toEqual(collected);
     expect(() => {
-        restored.saveItemLocations(
-            addStarterWeapons([{ ...collected, cell: { column: 2, row: 2 } }], playerId),
-        );
+        restored.saveItemLocations([
+            ...addStarterWeapons([{ ...collected, cell: { column: 2, row: 2 } }], playerId),
+            ...initialWorldWeaponLoot.map(item => ({ type: 'ground' as const, item })),
+        ]);
     }).toThrow(/item disk failure/);
     expect(() => {
         restored.saveItemLocations(
@@ -307,10 +315,10 @@ test.each([
     database.exec('PRAGMA user_version = 3');
     database.close();
     const migrated = open(path);
-    expect(migrated.initialItemLocations).toHaveLength(5);
+    expect(migrated.initialItemLocations).toHaveLength(9);
     expect(migrated.initialItemLocations[0]).toEqual(bandage);
     const equipped = migrated.initialItemLocations.map(location =>
-        location.item.kind === 'axe'
+        location.item.itemId === `${playerId}:axe`
             ? { type: 'hands' as const, playerId, item: location.item }
             : location,
     );
@@ -319,7 +327,7 @@ test.each([
     const restored = open(path);
     expect(restored.initialItemLocations).toEqual(equipped);
     expect(new Set(restored.initialItemLocations.map(location => location.item.itemId)).size).toBe(
-        5,
+        9,
     );
 });
 
@@ -376,3 +384,115 @@ test.each(['duplicate', 'missing', 'foreign', 'overlap', 'two-hands', 'wrong-kin
         expect(readFileSync(path)).toEqual(before);
     },
 );
+
+test('v4 migration adds the finite overlay once, preserving hands, profile, cells and world', () => {
+    const path = createPath();
+    const original = open(path);
+    const playerId = original.initialWorld.playerId;
+    const oldItems = original.initialItemLocations
+        .filter(location => !location.item.itemId.startsWith('loot-v1:'))
+        .map(location =>
+            location.item.itemId === `${playerId}:axe`
+                ? { type: 'hands' as const, playerId, item: location.item }
+                : location,
+        );
+    original.saveDisplayName('Следопыт');
+    original.close();
+    const database = new DatabaseSync(path);
+    database.prepare('UPDATE solo_world SET item_location = ?').run(JSON.stringify(oldItems));
+    database.exec('PRAGMA user_version = 4');
+    const before = database
+        .prepare(
+            'SELECT world_id, player_id, seed, generator_version, x_meters, y_meters, display_name, name_revision FROM solo_world',
+        )
+        .get();
+    database.close();
+    const migrated = open(path);
+    expect(migrated.initialItemLocations.slice(0, 5)).toEqual(oldItems);
+    expect(migrated.initialItemLocations.slice(5)).toEqual(
+        initialWorldWeaponLoot.map(item => ({ type: 'ground', item })),
+    );
+    const knife = initialWorldWeaponLoot.find(item => item.kind === 'knife');
+    if (knife === undefined) throw new Error('Missing loot.');
+    const collected = migrated.initialItemLocations.map(location =>
+        location.item.itemId === knife.itemId
+            ? {
+                  type: 'container' as const,
+                  playerId,
+                  item: { itemId: knife.itemId, kind: knife.kind },
+                  cell: { column: 0, row: 0 },
+              }
+            : location,
+    );
+    migrated.saveItemLocations(collected);
+    migrated.close();
+    const restored = open(path);
+    expect(restored.initialItemLocations).toEqual(collected);
+    restored.close();
+    const saved = new DatabaseSync(path);
+    expect(
+        saved
+            .prepare(
+                'SELECT world_id, player_id, seed, generator_version, x_meters, y_meters, display_name, name_revision FROM solo_world',
+            )
+            .get(),
+    ).toEqual(before);
+    expect(saved.prepare('PRAGMA user_version').get()?.['user_version']).toBe(5);
+    saved.close();
+});
+
+test.each(['missing', 'duplicate', 'foreign', 'kind', 'position', 'owner', 'starter-ground'])(
+    'v5 rejects %s world loot without reset or regeneration',
+    problem => {
+        const path = createPath();
+        const store = open(path);
+        const locations = [...store.initialItemLocations];
+        const loot = locations[5];
+        if (loot?.type !== 'ground') throw new Error('Missing ground loot.');
+        store.close();
+        if (problem === 'missing') locations.pop();
+        if (problem === 'duplicate') locations[6] = loot;
+        if (problem === 'foreign')
+            locations[5] = {
+                type: 'container',
+                playerId: 'foreign',
+                item: { itemId: loot.item.itemId, kind: loot.item.kind },
+                cell: { column: 0, row: 0 },
+            };
+        if (problem === 'kind') locations[5] = { ...loot, item: { ...loot.item, kind: 'axe' } };
+        if (problem === 'position')
+            locations[5] = {
+                ...loot,
+                item: { ...loot.item, position: { xMeters: 999, yMeters: 999 } },
+            };
+        if (problem === 'owner')
+            Object.assign(locations[5] ?? {}, { playerId: store.initialWorld.playerId });
+        if (problem === 'starter-ground')
+            locations[5] = {
+                type: 'ground',
+                item: { ...loot.item, itemId: `${store.initialWorld.playerId}:knife` },
+            };
+        const database = new DatabaseSync(path);
+        database.prepare('UPDATE solo_world SET item_location = ?').run(JSON.stringify(locations));
+        database.close();
+        const before = readFileSync(path);
+        expect(() => open(path)).toThrow(/invalid item/);
+        expect(readFileSync(path)).toEqual(before);
+    },
+);
+
+test('failed v4 overlay migration rolls back the old schema and all item locations', () => {
+    const path = createPath();
+    const first = open(path);
+    const oldItems = first.initialItemLocations.slice(0, 5);
+    first.close();
+    const database = new DatabaseSync(path);
+    database.prepare('UPDATE solo_world SET item_location = ?').run(JSON.stringify(oldItems));
+    database.exec(
+        "PRAGMA user_version = 4; CREATE TRIGGER reject_loot BEFORE UPDATE OF item_location ON solo_world BEGIN SELECT RAISE(ABORT, 'loot migration failure'); END",
+    );
+    database.close();
+    const before = readFileSync(path);
+    expect(() => open(path)).toThrow(/loot migration failure/);
+    expect(readFileSync(path)).toEqual(before);
+});

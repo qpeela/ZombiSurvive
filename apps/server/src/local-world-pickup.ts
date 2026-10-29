@@ -1,4 +1,4 @@
-import { initialGroundItem } from '@zombi-survive/content';
+import { initialGroundItem, worldLootSettings } from '@zombi-survive/content';
 import { isMeleeWeaponId, type ItemLocation, type MeleeWeaponId } from '@zombi-survive/domain';
 import {
     type InventoryMoveCommand,
@@ -20,7 +20,7 @@ import {
     playerInventory,
     transferWeapon,
 } from '@zombi-survive/simulation';
-import { initialWorldChunk } from '@zombi-survive/worldgen';
+import { loadWorldChunks } from '@zombi-survive/worldgen';
 
 import { copyItemLocation } from './saved-item.ts';
 
@@ -162,7 +162,15 @@ export class LocalWorldPickup {
                 location,
                 player: snapshot.player,
                 itemId: command.itemId,
-                obstacles: initialWorldChunk.obstacles,
+                obstacles: loadWorldChunks({
+                    positions: [
+                        snapshot.player.position,
+                        location.type === 'ground'
+                            ? location.item.position
+                            : snapshot.player.position,
+                    ],
+                    previousChunks: [],
+                }).flatMap(chunk => chunk.obstacles),
                 items,
             });
 
@@ -186,7 +194,18 @@ export class LocalWorldPickup {
     }
 
     snapshot(movement: MovementSnapshot): PickupSnapshot {
-        const ground = this.locations.find(location => location.type === 'ground');
+        const position = movement.player.position;
+        const distance = (item: {
+            readonly position: { readonly xMeters: number; readonly yMeters: number };
+        }): number =>
+            Math.hypot(
+                item.position.xMeters - position.xMeters,
+                item.position.yMeters - position.yMeters,
+            );
+        const ground = this.locations
+            .filter(location => location.type === 'ground')
+            .filter(location => distance(location.item) <= worldLootSettings.visibilityMeters)
+            .sort((first, second) => distance(first.item) - distance(second.item))[0];
         const playerId = movement.player.playerId;
 
         return {

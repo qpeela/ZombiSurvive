@@ -1,6 +1,11 @@
 import './style.css';
 
-import { meleeWeapons, movementSettings, pickupSettings } from '@zombi-survive/content';
+import {
+    itemDefinitions,
+    meleeWeapons,
+    movementSettings,
+    pickupSettings,
+} from '@zombi-survive/content';
 import type {
     GroundItem,
     InventoryItem,
@@ -117,7 +122,11 @@ const equipmentButtons = Object.values(meleeWeapons).map(weapon => {
     button.disabled = true;
     button.setAttribute('aria-pressed', 'false');
     const onEquip = (): void => {
-        const item = inventoryItems.find(candidate => candidate.kind === weapon.id);
+        const selected = inventoryUi.selectedItem();
+        const item =
+            selected?.kind === weapon.id
+                ? selected
+                : inventoryItems.find(candidate => candidate.kind === weapon.id);
 
         if (item !== undefined) connection.sendMelee({ type: 'equip-weapon', itemId: item.itemId });
     };
@@ -145,7 +154,22 @@ const updatePickup = (): void => {
                   groundItem.position.xMeters - confirmedPosition.xMeters,
                   groundItem.position.yMeters - confirmedPosition.yMeters,
               );
-    pickup.disabled = distance > pickupSettings.rangeMeters;
+    const hasSpace =
+        groundItem !== null &&
+        findInventorySpace({ items: inventoryItems, item: groundItem }) !== null;
+    pickup.disabled = distance > pickupSettings.rangeMeters || !hasSpace;
+
+    if (groundItem === null) {
+        pickup.title = 'Поблизости нет предметов.';
+
+        return;
+    }
+
+    const definition = itemDefinitions[groundItem.kind];
+    const details = `${definition.name} · ${String(definition.columns)} × ${String(definition.rows)} · ${String(definition.weightGrams)} г`;
+    pickup.title = hasSpace
+        ? details
+        : `${details} · Недостаточно места или превышена масса контейнера.`;
 };
 const messages = {
     connecting: 'Подключение к локальному миру…',
@@ -277,7 +301,13 @@ const connection = createWorldConnection(
         groundItem = snapshot.groundItem;
         scene.setGroundItem(groundItem);
         groundLabel.textContent =
-            groundItem === null ? 'На земле: пусто' : 'На земле: Бинт · 2, 2 м';
+            groundItem === null
+                ? 'На земле: пусто'
+                : `На земле: ${itemDefinitions[groundItem.kind].name} · ${String(groundItem.position.xMeters)}, ${String(groundItem.position.yMeters)} м`;
+        pickup.textContent =
+            groundItem === null
+                ? 'Подобрать предмет'
+                : `Подобрать ${itemDefinitions[groundItem.kind].name.toLocaleLowerCase('ru-RU')}`;
         inventory.textContent = `Контейнер: предметов ${String(snapshot.items.length)}`;
         inventoryItems = snapshot.items;
         hands = snapshot.hands;

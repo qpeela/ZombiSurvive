@@ -14,7 +14,11 @@ export const createInventoryGrid = ({
     readonly itemSelectors: HTMLElement;
     readonly message: HTMLElement;
     readonly onMove: (itemId: string, cell: InventoryCell) => void;
-}): { update: (items: readonly InventoryItem[] | null) => void; dispose: () => void } => {
+}): {
+    selectedItem: () => InventoryItem | null;
+    update: (items: readonly InventoryItem[] | null) => void;
+    dispose: () => void;
+} => {
     let items: readonly InventoryItem[] | null = null;
     let selectedId: string | null = null;
     let lastState = '';
@@ -54,7 +58,7 @@ export const createInventoryGrid = ({
         message.textContent =
             selectedId === null
                 ? 'Перенос отменён.'
-                : 'Выберите верхнюю левую ячейку для предмета.';
+                : 'Выберите верхнюю левую ячейку или экипируйте выбранное оружие.';
     };
     const update = (next: readonly InventoryItem[] | null): void => {
         const state = JSON.stringify(next);
@@ -92,6 +96,18 @@ export const createInventoryGrid = ({
                 button.type = 'button';
                 button.dataset['itemId'] = item.itemId;
                 button.textContent = `Переместить: ${definition.name} · ${String(definition.columns)} × ${String(definition.rows)} · ${String(definition.weightGrams)} г`;
+                const hasDuplicates =
+                    next?.some(candidate => {
+                        const isOtherItem = candidate.itemId !== item.itemId;
+                        const isSameKind = candidate.kind === item.kind;
+
+                        return isOtherItem && isSameKind;
+                    }) ?? false;
+
+                if (hasDuplicates) {
+                    button.textContent += ` · ячейка ${String(item.cell.column + 1)}, ${String(item.cell.row + 1)}`;
+                }
+
                 button.setAttribute('aria-pressed', 'false');
                 itemSelectors.append(button);
             }
@@ -168,6 +184,7 @@ export const createInventoryGrid = ({
     update(null);
 
     return {
+        selectedItem: () => items?.find(item => item.itemId === selectedId) ?? null,
         update,
         dispose: () => {
             selector.removeEventListener('click', onSelect);

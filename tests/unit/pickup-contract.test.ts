@@ -115,3 +115,21 @@ test('multi-item inventory permits ground loot and validates distinct hands and 
     ])
         expect(isPickupSnapshot({ ...state, ...fields })).toBe(false);
 });
+
+test('world weapons keep distinct instance IDs through ground, inventory and hands messages', () => {
+    const item = { itemId: 'loot-v1:0:0:knife', kind: 'knife' };
+    const groundItem = { ...item, position: { xMeters: -14, yMeters: -8 } };
+    const starter = { itemId: 'player:knife', kind: 'knife', cell: { column: 0, row: 1 } };
+    expect(isPickupSnapshot({ ...state, groundItem, items: [starter] })).toBe(true);
+    expect(isPickupSnapshot({ ...state, groundItem: null, hands: item, items: [starter] })).toBe(
+        true,
+    );
+    expect(isPickupSnapshot({ ...state, groundItem, hands: item })).toBe(false);
+    expect(
+        isPickupSnapshot({
+            ...state,
+            groundItem,
+            items: [{ ...item, cell: { column: 1, row: 1 } }],
+        }),
+    ).toBe(false);
+});
