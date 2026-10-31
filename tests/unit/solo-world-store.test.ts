@@ -60,7 +60,7 @@ test('one host exclusively owns a save until close, then the next can load it', 
 });
 
 test.each([
-    'PRAGMA user_version = 7',
+    'PRAGMA user_version = 8',
     "UPDATE solo_world SET seed = 'another-world'",
     'UPDATE solo_world SET generator_version = 2',
     "UPDATE solo_world SET player_id = 'bad'",
@@ -141,7 +141,7 @@ test('schema v1 migrates atomically and keeps character, world and position', ()
     expect(migrated.currentProfile()).toEqual({ displayName: 'Выживший', nameRevision: 0 });
     migrated.close();
     const restored = new DatabaseSync(path);
-    expect(restored.prepare('PRAGMA user_version').get()?.['user_version']).toBe(6);
+    expect(restored.prepare('PRAGMA user_version').get()?.['user_version']).toBe(7);
     restored.close();
 });
 
@@ -441,7 +441,7 @@ test('v4 migration adds the finite overlay once, preserving hands, profile, cell
             )
             .get(),
     ).toEqual(before);
-    expect(saved.prepare('PRAGMA user_version').get()?.['user_version']).toBe(6);
+    expect(saved.prepare('PRAGMA user_version').get()?.['user_version']).toBe(7);
     saved.close();
 });
 
@@ -512,10 +512,10 @@ test.each([100, 73, 0])(
                 ? { type: 'hands' as const, playerId, item: location.item }
                 : location,
         );
-        first.saveCombat({ health, cooldownTicks: 17 }, equipped);
+        first.saveCombat({ health, cooldownTicks: 17, bleedingTicks: 0 }, equipped);
         first.close();
         const restored = open(path);
-        expect(restored.initialCombat).toEqual({ health, cooldownTicks: 17 });
+        expect(restored.initialCombat).toEqual({ health, cooldownTicks: 17, bleedingTicks: 0 });
         expect(restored.initialItemLocations).toEqual(equipped);
     },
 );
@@ -524,14 +524,14 @@ test.each([
     'not json',
     '{}',
     'null',
-    '{"health":101,"cooldownTicks":0}',
-    '{"health":-1,"cooldownTicks":0}',
-    '{"health":1.5,"cooldownTicks":0}',
-    '{"health":"90","cooldownTicks":0}',
-    '{"health":90,"cooldownTicks":-1}',
-    '{"health":90,"cooldownTicks":25}',
-    '{"health":90,"cooldownTicks":0.5}',
-])('corrupt v6 combat state is rejected without resetting the save: %s', state => {
+    '{"health":101,"cooldownTicks":0,"bleedingTicks":0}',
+    '{"health":-1,"cooldownTicks":0,"bleedingTicks":0}',
+    '{"health":1.5,"cooldownTicks":0,"bleedingTicks":0}',
+    '{"health":"90","cooldownTicks":0,"bleedingTicks":0}',
+    '{"health":90,"cooldownTicks":-1,"bleedingTicks":0}',
+    '{"health":90,"cooldownTicks":25,"bleedingTicks":0}',
+    '{"health":90,"cooldownTicks":0.5,"bleedingTicks":0}',
+])('corrupt v7 combat state is rejected without resetting the save: %s', state => {
     const path = createPath();
     open(path).close();
     const database = new DatabaseSync(path);
@@ -554,10 +554,10 @@ test('v5 migration seeds combat once while preserving the entire world and inven
     const migrated = open(path);
     expect(migrated.initialWorld).toEqual(initial);
     expect(migrated.initialItemLocations).toEqual(items);
-    expect(migrated.initialCombat).toEqual({ health: 100, cooldownTicks: 0 });
-    migrated.saveCombat({ health: 60, cooldownTicks: 9 });
+    expect(migrated.initialCombat).toEqual({ health: 100, cooldownTicks: 0, bleedingTicks: 0 });
+    migrated.saveCombat({ health: 60, cooldownTicks: 9, bleedingTicks: 0 });
     migrated.close();
-    expect(open(path).initialCombat).toEqual({ health: 60, cooldownTicks: 9 });
+    expect(open(path).initialCombat).toEqual({ health: 60, cooldownTicks: 9, bleedingTicks: 0 });
 });
 
 test('invalid v5 item data aborts combat migration without changing the file', () => {
@@ -575,7 +575,7 @@ test('invalid v5 item data aborts combat migration without changing the file', (
 test('a failed combat/equipment commit keeps both previous values and rejects invalid state', () => {
     const path = createPath();
     const first = open(path);
-    first.saveCombat({ health: 90, cooldownTicks: 4 });
+    first.saveCombat({ health: 90, cooldownTicks: 4, bleedingTicks: 0 });
     first.close();
     const database = new DatabaseSync(path);
     database.exec(`CREATE TRIGGER reject_combat BEFORE UPDATE OF combat_state ON solo_world
@@ -590,13 +590,74 @@ test('a failed combat/equipment commit keeps both previous values and rejects in
             : location,
     );
     expect(() => {
-        store.saveCombat({ health: 80, cooldownTicks: 24 }, equipped);
+        store.saveCombat({ health: 80, cooldownTicks: 24, bleedingTicks: 0 }, equipped);
     }).toThrow(/combat disk failure/);
     expect(() => {
-        store.saveCombat({ health: -1, cooldownTicks: 0 });
+        store.saveCombat({ health: -1, cooldownTicks: 0, bleedingTicks: 0 });
     }).toThrow(/combat state/);
     store.close();
     const restored = open(path);
-    expect(restored.initialCombat).toEqual({ health: 90, cooldownTicks: 4 });
+    expect(restored.initialCombat).toEqual({ health: 90, cooldownTicks: 4, bleedingTicks: 0 });
     expect(restored.initialItemLocations).toEqual(items);
+});
+
+test('v6 migration preserves combat, world, profile and items and only adds an unwounded interval once', () => {
+    const path = createPath();
+    const first = open(path);
+    first.saveDisplayName('Раненый');
+    first.savePosition({ xMeters: 8, yMeters: 12 });
+    const items = first.initialItemLocations;
+    const ids = first.initialWorld;
+    first.close();
+    const database = new DatabaseSync(path);
+    database.exec('PRAGMA user_version = 6');
+    database
+        .prepare('UPDATE solo_world SET combat_state = ?')
+        .run(JSON.stringify({ health: 63, cooldownTicks: 7 }));
+    database.close();
+    const migrated = open(path);
+    expect(migrated.initialWorld).toMatchObject({
+        worldId: ids.worldId,
+        playerId: ids.playerId,
+        displayName: 'Раненый',
+        position: { xMeters: 8, yMeters: 12 },
+    });
+    expect(migrated.initialItemLocations).toEqual(items);
+    expect(migrated.initialCombat).toEqual({ health: 63, cooldownTicks: 7, bleedingTicks: 0 });
+    migrated.saveCombat({ health: 62, cooldownTicks: 3, bleedingTicks: 17 });
+    migrated.close();
+    expect(open(path).initialCombat).toEqual({ health: 62, cooldownTicks: 3, bleedingTicks: 17 });
+});
+
+test.each([undefined, -1, 101, 1.5, '5', null])(
+    'corrupt v7 bleeding interval %s is rejected without resetting the save',
+    bleedingTicks => {
+        const path = createPath();
+        open(path).close();
+        const database = new DatabaseSync(path);
+        database
+            .prepare('UPDATE solo_world SET combat_state = ?')
+            .run(JSON.stringify({ health: 63, cooldownTicks: 7, bleedingTicks }));
+        database.close();
+        const before = readFileSync(path);
+        expect(() => open(path)).toThrow(/combat state/);
+        expect(readFileSync(path)).toEqual(before);
+    },
+);
+
+test.each(['invalid combat', 'failed update'])('v6 wound migration rolls back on %s', failure => {
+    const path = createPath();
+    open(path).close();
+    const database = new DatabaseSync(path);
+    database.exec('PRAGMA user_version = 6');
+    database
+        .prepare('UPDATE solo_world SET combat_state = ?')
+        .run(JSON.stringify({ health: failure === 'invalid combat' ? -1 : 60, cooldownTicks: 7 }));
+    if (failure === 'failed update')
+        database.exec(`CREATE TRIGGER reject_wound BEFORE UPDATE OF combat_state ON solo_world
+        BEGIN SELECT RAISE(ABORT, 'wound migration failure'); END`);
+    database.close();
+    const before = readFileSync(path);
+    expect(() => open(path)).toThrow();
+    expect(readFileSync(path)).toEqual(before);
 });

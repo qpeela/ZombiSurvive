@@ -361,15 +361,16 @@ test.each([
     connection.dispose();
 });
 
-const healthState = (tick: number, health = 90) => ({
+const healthState = (tick: number, health = 90, bleedingTicks = 0) => ({
     type: 'health-state',
     protocolVersion: 5,
-    healthVersion: 1,
+    healthVersion: 2,
     worldId: 'world',
     playerId: 'player',
     tick,
     health,
     maxHealth: 100,
+    bleedingTicks,
 });
 test('health requires readiness and cannot be overwritten by stale ticks, rooms or disconnect', async () => {
     const first = createRoom();
@@ -392,11 +393,11 @@ test('health requires readiness and cannot be overwritten by stale ticks, rooms 
     expect(onHealth).not.toHaveBeenCalled();
     first.resolveInitial(snapshot(1));
     await ready;
-    first.publishHealth(healthState(2));
+    first.publishHealth(healthState(2, 90, 50));
     first.publishHealth(healthState(1, 100));
     first.publishHealth(healthState(2, 100));
     expect(onHealth).toHaveBeenCalledOnce();
-    expect(onHealth).toHaveBeenLastCalledWith(healthState(2));
+    expect(onHealth).toHaveBeenLastCalledWith(healthState(2, 90, 50));
     const retry = connection.connect();
     await vi.waitFor(() => {
         expect(second.room.request).toHaveBeenCalled();
@@ -417,6 +418,7 @@ test.each([
     { ...healthState(2), worldId: 'foreign' },
     { ...healthState(2), playerId: 'foreign' },
     { ...healthState(2), health: 101 },
+    { ...healthState(2), bleedingTicks: -1 },
 ])('invalid or foreign health updates close the connection: %j', async value => {
     const fake = createRoom();
     join.mockResolvedValue(fake.room);

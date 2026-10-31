@@ -1,16 +1,17 @@
-import type { PlayerHealth } from '@zombi-survive/domain';
+import type { BleedingState, PlayerHealth } from '@zombi-survive/domain';
 
 import { protocolVersion } from './movement.ts';
 
-export const healthVersion = 1;
-export type HealthSnapshot = PlayerHealth & {
-    readonly type: 'health-state';
-    readonly protocolVersion: typeof protocolVersion;
-    readonly healthVersion: typeof healthVersion;
-    readonly worldId: string;
-    readonly tick: number;
-    readonly maxHealth: number;
-};
+export const healthVersion = 2;
+export type HealthSnapshot = PlayerHealth &
+    BleedingState & {
+        readonly type: 'health-state';
+        readonly protocolVersion: typeof protocolVersion;
+        readonly healthVersion: typeof healthVersion;
+        readonly worldId: string;
+        readonly tick: number;
+        readonly maxHealth: number;
+    };
 const isId = (value: unknown): value is string => {
     if (typeof value !== 'string') {
         return false;
@@ -32,6 +33,11 @@ export const isHealthSnapshot = (value: unknown): value is HealthSnapshot => {
         record['protocolVersion'] === protocolVersion && record['healthVersion'] === healthVersion;
     const tick = record['tick'];
     const health = record['health'];
+    const bleedingTicks = record['bleedingTicks'];
+    const isBleeding =
+        typeof bleedingTicks === 'number' &&
+        Number.isSafeInteger(bleedingTicks) &&
+        bleedingTicks >= 0;
     const maxHealth = record['maxHealth'];
     const isTick = typeof tick === 'number' && Number.isSafeInteger(tick) && tick >= 0;
     const isHealth = typeof health === 'number' && Number.isSafeInteger(health) && health >= 0;
@@ -46,6 +52,7 @@ export const isHealthSnapshot = (value: unknown): value is HealthSnapshot => {
         isType &&
         isVersion &&
         isTick &&
+        isBleeding &&
         isId(record['worldId']) &&
         isId(record['playerId']) &&
         health <= maxHealth

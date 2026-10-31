@@ -47,7 +47,9 @@ test('server attacks reduce shared health on fixed ticks; zero, movement and rec
         await expect(page.locator('#weapon-options button:enabled')).toHaveCount(0);
         await expect(page.getByRole('button', { name: 'Ударить (F)' })).toBeDisabled();
         const hits = healthSamples.filter(
-            (sample, index) => index > 0 && sample.health < healthSamples[index - 1].health,
+            (sample, index) =>
+                index > 0 &&
+                healthSamples[index - 1].health - sample.health > combatSettings.bleedingDamage,
         );
         expect(hits.length).toBeGreaterThanOrEqual(9);
         for (const sample of healthSamples) expect(isHealthSnapshot(sample)).toBe(true);
@@ -55,7 +57,13 @@ test('server attacks reduce shared health on fixed ticks; zero, movement and rec
             expect(hits[index].tick - hits[index - 1].tick).toBe(
                 combatSettings.attackIntervalTicks,
             );
-            expect(hits[index - 1].health - hits[index].health).toBe(combatSettings.zombieDamage);
+        }
+        for (let index = 1; index < healthSamples.length; index++) {
+            const damage = healthSamples[index - 1].health - healthSamples[index].health;
+            expect(damage).toBeGreaterThanOrEqual(0);
+            expect(damage).toBeLessThanOrEqual(
+                combatSettings.zombieDamage + combatSettings.bleedingDamage,
+            );
         }
         // Zero health has no death/respawn mechanic yet; ordinary movement still works.
         await page.locator('canvas').scrollIntoViewIfNeeded();

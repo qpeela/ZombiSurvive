@@ -78,6 +78,11 @@ h1 {
     accent-color: #cf7864;
 }
 
+#bleeding-label[data-bleeding='true'] {
+    color: #ff9b89;
+    font-weight: bold;
+}
+
 .pickup-panel {
     margin-top: 20px;
     padding: 12px 16px;

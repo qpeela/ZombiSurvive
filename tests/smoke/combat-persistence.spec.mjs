@@ -40,7 +40,7 @@ const seed = (path, health = 100, position = { xMeters: 0, yMeters: 0 }) => {
     const playerId = store.initialWorld.playerId;
     store.savePosition(position);
     store.saveCombat(
-        { health, cooldownTicks: 0 },
+        { health, cooldownTicks: 0, bleedingTicks: 0 },
         store.initialItemLocations.map(location =>
             location.item.itemId === `${playerId}:axe`
                 ? { type: 'hands', playerId, item: location.item }
@@ -243,7 +243,11 @@ for (const action of ['health', 'attack']) {
             expect(received.every(state => state.health === 100)).toBe(true);
             expect(actions).toEqual([]);
             const restored = new SoloWorldStore(path);
-            expect(restored.initialCombat).toEqual({ health: 100, cooldownTicks: 0 });
+            expect(restored.initialCombat).toEqual({
+                health: 100,
+                cooldownTicks: 0,
+                bleedingTicks: 0,
+            });
             restored.close();
         } finally {
             room?.connection.close();

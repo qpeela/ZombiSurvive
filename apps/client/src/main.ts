@@ -46,6 +46,7 @@ const stamina = document.querySelector<HTMLProgressElement>('#stamina');
 const staminaLabel = document.querySelector<HTMLElement>('#stamina-label');
 const health = document.querySelector<HTMLProgressElement>('#health');
 const healthLabel = document.querySelector<HTMLElement>('#health-label');
+const bleedingLabel = document.querySelector<HTMLElement>('#bleeding-label');
 const movementLabel = document.querySelector<HTMLElement>('#movement-label');
 const groundLabel = document.querySelector<HTMLElement>('#ground-item');
 const inventory = document.querySelector<HTMLElement>('#inventory');
@@ -76,6 +77,7 @@ if (
     !staminaLabel ||
     !health ||
     !healthLabel ||
+    !bleedingLabel ||
     !movementLabel ||
     !groundLabel ||
     !inventory ||
@@ -260,6 +262,8 @@ const connection = createWorldConnection(
         prediction.reset();
         health.value = 0;
         healthLabel.textContent = 'Здоровье: —';
+        bleedingLabel.textContent = 'Кровотечение: —';
+        bleedingLabel.removeAttribute('data-bleeding');
         groundItem = null;
         confirmedPosition = null;
         pickup.disabled = true;
@@ -325,6 +329,9 @@ const connection = createWorldConnection(
     },
     snapshot => {
         attack.disabled = attack.disabled || snapshot.health <= 0;
+        const isBleeding = snapshot.bleedingTicks > 0;
+        bleedingLabel.textContent = isBleeding ? 'Кровотечение: есть' : 'Кровотечение: нет';
+        bleedingLabel.dataset['bleeding'] = String(isBleeding);
         health.max = snapshot.maxHealth;
         health.value = snapshot.health;
         healthLabel.textContent = `Здоровье: ${String(snapshot.health)} / ${String(snapshot.maxHealth)}`;

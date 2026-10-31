@@ -111,7 +111,8 @@ export class SoloWorldStore {
                 version !== 3 &&
                 version !== 4 &&
                 version !== 5 &&
-                version !== 6
+                version !== 6 &&
+                version !== 7
             ) {
                 throw new Error('Unsupported solo save schema version.');
             }
@@ -139,7 +140,7 @@ export class SoloWorldStore {
                 .prepare('SELECT item_location FROM solo_world WHERE id = 1')
                 .get()?.['item_location'];
 
-            if (version !== 4 && version !== 5 && version !== 6) {
+            if (version !== 4 && version !== 5 && version !== 6 && version !== 7) {
                 const bandage = readSavedItem(savedItems, this.initialWorld.playerId);
                 const locations = addStarterWeapons([bandage], this.initialWorld.playerId);
                 this.database
@@ -148,7 +149,7 @@ export class SoloWorldStore {
                 this.database.exec('PRAGMA user_version = 4');
             }
 
-            if (version !== 5 && version !== 6) {
+            if (version !== 5 && version !== 6 && version !== 7) {
                 const oldLocations = readSavedItems(
                     this.database
                         .prepare('SELECT item_location FROM solo_world WHERE id = 1')
@@ -178,12 +179,25 @@ export class SoloWorldStore {
                 this.initialWorld.playerId,
                 initialWorldWeaponLoot,
             );
-            if (version !== 6) {
+            if (version !== 6 && version !== 7) {
                 this.database.exec(`
                     ALTER TABLE solo_world ADD COLUMN combat_state TEXT NOT NULL
                         DEFAULT '{"health":100,"cooldownTicks":0}';
                     PRAGMA user_version = 6;
                 `);
+            }
+
+            if (version !== 7) {
+                const legacy = readSavedCombat(
+                    this.database
+                        .prepare('SELECT combat_state FROM solo_world WHERE id = 1')
+                        .get()?.['combat_state'],
+                    true,
+                );
+                this.database
+                    .prepare('UPDATE solo_world SET combat_state = ? WHERE id = 1')
+                    .run(JSON.stringify(legacy));
+                this.database.exec('PRAGMA user_version = 7');
             }
 
             this.initialCombat = readSavedCombat(

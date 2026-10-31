@@ -1,5 +1,6 @@
 import { combatSettings } from '@zombi-survive/content';
 import type {
+    BleedingState,
     PlayerHealth,
     WorldObstacle,
     ZombieAttackState,
@@ -11,19 +12,26 @@ import {
     type MovementSnapshot,
     protocolVersion,
 } from '@zombi-survive/protocol';
-import { stepZombieAttack } from '@zombi-survive/simulation';
+import { stepBleeding, stepZombieAttack, woundFromZombieHit } from '@zombi-survive/simulation';
 
 export class LocalWorldCombat {
-    private readonly players = new Map<string, PlayerHealth>();
+    private readonly players = new Map<string, PlayerHealth & BleedingState>();
     private readonly attacks = new Map<string, ZombieAttackState>();
+    private readonly roll: () => number;
 
-    constructor(initialHealth?: PlayerHealth) {
+    constructor(initialHealth?: PlayerHealth & BleedingState, roll: () => number = Math.random) {
+        this.roll = roll;
+
         if (initialHealth !== undefined)
             this.players.set(initialHealth.playerId, { ...initialHealth });
     }
 
     health(playerId: string): number {
         return this.players.get(playerId)?.health ?? combatSettings.maxHealth;
+    }
+
+    bleedingTicks(playerId: string): number {
+        return this.players.get(playerId)?.bleedingTicks ?? 0;
     }
 
     step({
@@ -40,8 +48,13 @@ export class LocalWorldCombat {
                 this.players.set(player.playerId, {
                     playerId: player.playerId,
                     health: combatSettings.maxHealth,
+                    bleedingTicks: 0,
                 });
             }
+        }
+
+        for (const [playerId, state] of this.players) {
+            this.players.set(playerId, stepBleeding(state));
         }
 
         const ids = new Set(zombies.map(zombie => zombie.zombieId));
@@ -52,6 +65,7 @@ export class LocalWorldCombat {
             const target = [...snapshots.values()].find(
                 snapshot => snapshot.player.playerId === zombie.targetPlayerId,
             )?.player;
+            const previous = target === undefined ? undefined : this.players.get(target.playerId);
             const result = stepZombieAttack({
                 zombie,
                 attack: this.attacks.get(zombie.zombieId) ?? {
@@ -59,12 +73,18 @@ export class LocalWorldCombat {
                     ticksUntilHit: 0,
                 },
                 target,
-                health: target === undefined ? undefined : this.players.get(target.playerId),
+                health: previous,
                 obstacles,
             });
             this.attacks.set(zombie.zombieId, result.attack);
-            if (result.health !== undefined)
-                this.players.set(result.health.playerId, result.health);
+            if (result.health !== undefined && previous !== undefined) {
+                const next = { ...previous, health: result.health.health };
+                const isHit = next.health < previous.health;
+                this.players.set(
+                    next.playerId,
+                    isHit ? woundFromZombieHit(next, this.roll()) : next,
+                );
+            }
         }
     }
 
@@ -78,6 +98,7 @@ export class LocalWorldCombat {
             tick: movement.tick,
             health: this.health(movement.player.playerId),
             maxHealth: combatSettings.maxHealth,
+            bleedingTicks: this.bleedingTicks(movement.player.playerId),
         };
     }
 }
