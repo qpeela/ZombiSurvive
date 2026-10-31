@@ -1,4 +1,4 @@
-export type { PlayerHealth, ZombieAttackState } from './health.ts';
+export type { BleedingState, PlayerHealth, ZombieAttackState } from './health.ts';
 export type { InventoryCell, InventoryItem, InventorySettings, ItemLocation } from './inventory.ts';
 export type { GroundItem, Item } from './item.ts';
 export type {

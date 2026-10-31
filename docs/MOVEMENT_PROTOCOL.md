@@ -351,8 +351,8 @@ zombi-survive зафиксированы одной сборкой обеих с
 
 ## Здоровье (T018)
 
-Отдельный `health-state`: type, protocolVersion=5, healthVersion=1,
-worldId, playerId, неотрицательный целый tick, целые health/maxHealth
+Отдельный `health-state`: type, protocolVersion=5, healthVersion=2,
+worldId, playerId, неотрицательные целые tick/bleedingTicks, целые health/maxHealth
 (0 ≤ health ≤ maxHealth, maxHealth > 0). Room отправляет его после расчёта
 боя вместе с остальными snapshots; контракты движения не меняются.
 Сервер задаёт 100 HP и передаёт здоровье только получателя. Команд изменения
@@ -425,3 +425,12 @@ worldId, playerId, целый неотрицательный tick и weapon (о�
 сохраняются одной записью до публикации нового pickup/melee-state; пока запись
 не подтверждена, атака использует прежнее подтверждённое оружие. Смена/снятие
 не обнуляют nextAttackTick. Остаток cooldown на диске пока не хранится (T029).
+
+## Кровотечение (T030)
+
+HealthVersion=2 требует bleedingTicks: 0 — раны нет, положительное значение —
+оставшиеся шаги до периодического урона. Старый healthVersion=1 отклоняется.
+Сервер выдаёт остаток 1–100; клиент проверяет неотрицательное safe integer и
+показывает наличие раны. Повторный tick, более ранний snapshot и сообщение старой
+комнаты игнорируются существующей health-границей. В клиенте нет таймера урона
+и команды начала раны. Movement/protocolVersion=5 и остальные DTO не меняются.

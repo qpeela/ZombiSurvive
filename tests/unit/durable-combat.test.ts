@@ -18,12 +18,13 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-const setup = ({ health = 100, cooldownTicks = 0 } = {}) => {
+const setup = ({ health = 100, cooldownTicks = 0, bleedingTicks = 0 } = {}) => {
     vi.useFakeTimers();
+    vi.spyOn(Math, 'random').mockReturnValue(0.99);
     const directory = mkdtempSync(join(tmpdir(), 'zombi-combat-step-'));
     const path = join(directory, 'world.sqlite');
     const seed = new SoloWorldStore(path);
-    seed.saveCombat({ health, cooldownTicks });
+    seed.saveCombat({ health, cooldownTicks, bleedingTicks });
     seed.close();
     const store = new SoloWorldStore(path);
     const room = new LocalWorldRoom();
@@ -72,21 +73,28 @@ const setup = ({ health = 100, cooldownTicks = 0 } = {}) => {
 };
 
 test('cooldown commits outside timestep before publication and freezes overlapping steps', () => {
-    const { store, step, send, restored } = setup({ health: 70, cooldownTicks: 9 });
+    const { store, step, send, restored } = setup({
+        health: 70,
+        cooldownTicks: 9,
+        bleedingTicks: 0,
+    });
     const save = vi.spyOn(store, 'saveCombat');
     step();
     step();
     expect(save).not.toHaveBeenCalled();
     expect(send).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
-    expect(save).toHaveBeenCalledExactlyOnceWith({ health: 70, cooldownTicks: 8 }, undefined);
+    expect(save).toHaveBeenCalledExactlyOnceWith(
+        { health: 70, cooldownTicks: 8, bleedingTicks: 0 },
+        undefined,
+    );
     expect(send).toHaveBeenCalledWith(
         'health-state',
         expect.objectContaining({ health: 70, tick: 1 }),
     );
     step();
     vi.advanceTimersByTime(1);
-    expect(restored()).toEqual({ health: 70, cooldownTicks: 7 });
+    expect(restored()).toEqual({ health: 70, cooldownTicks: 7, bleedingTicks: 0 });
 });
 
 test('actual zombie damage is committed before any snapshot from its step', () => {
@@ -108,7 +116,7 @@ test('actual zombie damage is committed before any snapshot from its step', () =
     expect(send).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
     expect(send).toHaveBeenCalledWith('health-state', expect.objectContaining({ health: 90 }));
-    expect(restored()).toEqual({ health: 90, cooldownTicks: 0 });
+    expect(restored()).toEqual({ health: 90, cooldownTicks: 0, bleedingTicks: 0 });
 });
 
 test('failed combat commit emits no snapshots, stops steps and preserves durable health', () => {
@@ -127,15 +135,55 @@ test('failed combat commit emits no snapshots, stops steps and preserves durable
     room.onBeforeShutdown();
     vi.advanceTimersByTime(2000);
     expect(save).toHaveBeenCalledOnce();
-    expect(restored()).toEqual({ health: 0, cooldownTicks: 3 });
+    expect(restored()).toEqual({ health: 0, cooldownTicks: 3, bleedingTicks: 0 });
 });
 
 test('graceful shutdown flushes a prepared combat step exactly once', () => {
-    const { store, room, step, restored } = setup({ health: 0, cooldownTicks: 3 });
+    const { store, room, step, restored } = setup({
+        health: 0,
+        cooldownTicks: 3,
+        bleedingTicks: 0,
+    });
     const save = vi.spyOn(store, 'saveCombat');
     step();
     room.onBeforeShutdown();
     vi.advanceTimersByTime(2);
-    expect(save).toHaveBeenCalledExactlyOnceWith({ health: 0, cooldownTicks: 2 }, undefined);
-    expect(restored()).toEqual({ health: 0, cooldownTicks: 2 });
+    expect(save).toHaveBeenCalledExactlyOnceWith(
+        { health: 0, cooldownTicks: 2, bleedingTicks: 0 },
+        undefined,
+    );
+    expect(restored()).toEqual({ health: 0, cooldownTicks: 2, bleedingTicks: 0 });
+});
+
+test('restored wound commits its countdown and damage before publication, with no connected tabs', () => {
+    const { room, store, step, send, restored } = setup({ health: 1, bleedingTicks: 2 });
+    const save = vi.spyOn(store, 'saveCombat');
+    step();
+    expect(send).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(save).toHaveBeenLastCalledWith(
+        { health: 1, cooldownTicks: 0, bleedingTicks: 1 },
+        undefined,
+    );
+    expect(send).toHaveBeenCalledWith(
+        'health-state',
+        expect.objectContaining({ health: 1, bleedingTicks: 1 }),
+    );
+    room.clients.splice(0);
+    step();
+    vi.advanceTimersByTime(1);
+    expect(restored()).toEqual({ health: 0, cooldownTicks: 0, bleedingTicks: 100 });
+});
+
+test('failed wound countdown commit cannot publish a healed interval or transient damage', () => {
+    const { store, step, send, onSaveError, restored } = setup({ health: 5, bleedingTicks: 1 });
+    vi.spyOn(store, 'saveCombat').mockImplementation(() => {
+        throw new Error('wound disk failure');
+    });
+    step();
+    vi.advanceTimersByTime(1);
+    expect(onSaveError).toHaveBeenCalledOnce();
+    expect(send).not.toHaveBeenCalled();
+    step();
+    expect(restored()).toEqual({ health: 5, cooldownTicks: 0, bleedingTicks: 1 });
 });

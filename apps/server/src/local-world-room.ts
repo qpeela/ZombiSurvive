@@ -42,8 +42,13 @@ export class LocalWorldRoom extends Room {
         let savedCombat: SavedCombat = options.soloStore?.initialCombat ?? {
             health: combatSettings.maxHealth,
             cooldownTicks: 0,
+            bleedingTicks: 0,
         };
-        this.combat = new LocalWorldCombat({ playerId: soloPlayerId, health: savedCombat.health });
+        this.combat = new LocalWorldCombat({
+            playerId: soloPlayerId,
+            health: savedCombat.health,
+            bleedingTicks: savedCombat.bleedingTicks,
+        });
         this.melee = new LocalWorldMelee(snapshot => this.pickup.weapon(snapshot), {
             playerId: soloPlayerId,
             cooldownTicks: savedCombat.cooldownTicks,
@@ -123,10 +128,12 @@ export class LocalWorldRoom extends Room {
             const nextCombat: SavedCombat = {
                 health: this.combat.health(soloPlayerId),
                 cooldownTicks: this.melee.remainingCooldown(soloPlayerId),
+                bleedingTicks: this.combat.bleedingTicks(soloPlayerId),
             };
             const isCombatChanged =
                 nextCombat.health !== savedCombat.health ||
-                nextCombat.cooldownTicks !== savedCombat.cooldownTicks;
+                nextCombat.cooldownTicks !== savedCombat.cooldownTicks ||
+                nextCombat.bleedingTicks !== savedCombat.bleedingTicks;
             const store = options.soloStore;
             const publish = (): void => {
                 for (const client of this.clients) {
