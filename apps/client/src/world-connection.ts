@@ -84,6 +84,7 @@ export const createWorldConnection = (
     sendTarget: (target: WorldPosition, modifiers?: MovementModifiers) => void;
     pickUp: (itemId: string) => void;
     moveItem: (itemId: string, cell: InventoryCell) => void;
+    useBandage: (itemId: string) => void;
     disconnect: () => void;
     dispose: () => void;
 } => {
@@ -495,6 +496,22 @@ export const createWorldConnection = (
         }
     };
 
+    const useBandage = (itemId: string): void => {
+        if (!isReady || activeRoom === null) return;
+
+        try {
+            activeRoom.send('use-bandage', {
+                type: 'use-bandage',
+                protocolVersion,
+                inventoryVersion,
+                itemId,
+            });
+        } catch {
+            closeRoom();
+            onStateChange({ status: 'error' });
+        }
+    };
+
     const renamePlayer = async (displayName: string): Promise<ProfileResult> => {
         const room = activeRoom;
         const accept = acceptProfile;
@@ -535,6 +552,7 @@ export const createWorldConnection = (
         sendTarget,
         pickUp,
         moveItem,
+        useBandage,
         disconnect,
         dispose,
     };

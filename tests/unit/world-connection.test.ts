@@ -667,3 +667,37 @@ test('melee actions deduplicate by tick and ignore inactive rooms and unready co
     expect(onAction).toHaveBeenCalledTimes(2);
     connection.dispose();
 });
+
+test('bandage sends a concrete intent only to a ready current room and handles send failure', async () => {
+    const fake = createRoom();
+    join.mockResolvedValue(fake.room);
+    const states: WorldConnectionState[] = [];
+    const connection = createWorldConnection('http://host', state => states.push(state));
+    connection.useBandage('bandage');
+    expect(fake.room.send).not.toHaveBeenCalled();
+    const connected = connection.connect();
+    await vi.waitFor(() => {
+        expect(fake.room.request).toHaveBeenCalled();
+    });
+    connection.useBandage('bandage');
+    expect(fake.room.send).not.toHaveBeenCalled();
+    fake.resolveInitial(snapshot(1));
+    await connected;
+    connection.useBandage('bandage');
+    expect(fake.room.send).toHaveBeenCalledExactlyOnceWith('use-bandage', {
+        type: 'use-bandage',
+        protocolVersion: 5,
+        inventoryVersion: 2,
+        itemId: 'bandage',
+    });
+    fake.room.send.mockImplementation(() => {
+        throw new Error('closed');
+    });
+    connection.useBandage('bandage');
+    expect(states.at(-1)).toEqual({ status: 'error' });
+    expect(fake.room.connection.close).toHaveBeenCalledOnce();
+    fake.room.send.mockClear();
+    connection.useBandage('bandage');
+    expect(fake.room.send).not.toHaveBeenCalled();
+    connection.dispose();
+});

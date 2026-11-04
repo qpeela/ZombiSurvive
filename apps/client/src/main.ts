@@ -54,6 +54,7 @@ const pickup = document.querySelector<HTMLButtonElement>('#pickup');
 const inventoryGrid = document.querySelector<HTMLElement>('#inventory-grid');
 const inventorySelector = document.querySelector<HTMLButtonElement>('#inventory-select');
 const inventoryMessage = document.querySelector<HTMLElement>('#inventory-message');
+const bandageButton = document.querySelector<HTMLButtonElement>('#use-bandage');
 
 if (
     !profileForm ||
@@ -84,7 +85,8 @@ if (
     !pickup ||
     !inventoryGrid ||
     !inventorySelector ||
-    !inventoryMessage
+    !inventoryMessage ||
+    !bandageButton
 ) {
     throw new Error('Game UI is missing.');
 }
@@ -117,6 +119,14 @@ const inventoryUi = createInventoryGrid({
 });
 let inventoryItems: readonly InventoryItem[] = [];
 let hands: Item | null = null;
+let isBleeding = false;
+const updateBandage = (): void => {
+    const hasBandage = inventoryItems.some(item => item.kind === 'bandage');
+    const isAlive = health.value > 0;
+    bandageButton.disabled = !hasBandage || !isBleeding || !isAlive;
+    bandageButton.title =
+        'Останавливает кровотечение. Без раны бинт не расходуется. HP не восстанавливает.';
+};
 const equipmentButtons = Object.values(meleeWeapons).map(weapon => {
     const button = document.createElement('button');
     button.type = 'button';
@@ -270,6 +280,8 @@ const connection = createWorldConnection(
         groundLabel.textContent = 'На земле: —';
         inventory.textContent = 'Контейнер: —';
         inventoryItems = [];
+        isBleeding = false;
+        updateBandage();
         hands = null;
         unequip.disabled = true;
         inventoryUi.update(null);
@@ -314,6 +326,7 @@ const connection = createWorldConnection(
                 : `Подобрать ${itemDefinitions[groundItem.kind].name.toLocaleLowerCase('ru-RU')}`;
         inventory.textContent = `Контейнер: предметов ${String(snapshot.items.length)}`;
         inventoryItems = snapshot.items;
+        updateBandage();
         hands = snapshot.hands;
         const hasSpace =
             hands === null || findInventorySpace({ items: inventoryItems, item: hands }) !== null;
@@ -329,11 +342,12 @@ const connection = createWorldConnection(
     },
     snapshot => {
         attack.disabled = attack.disabled || snapshot.health <= 0;
-        const isBleeding = snapshot.bleedingTicks > 0;
+        isBleeding = snapshot.bleedingTicks > 0;
         bleedingLabel.textContent = isBleeding ? 'Кровотечение: есть' : 'Кровотечение: нет';
         bleedingLabel.dataset['bleeding'] = String(isBleeding);
         health.max = snapshot.maxHealth;
         health.value = snapshot.health;
+        updateBandage();
         healthLabel.textContent = `Здоровье: ${String(snapshot.health)} / ${String(snapshot.maxHealth)}`;
     },
     snapshot => {
@@ -407,6 +421,12 @@ const onPickup = (): void => {
 const onUnequip = (): void => {
     if (hands !== null) connection.sendMelee({ type: 'unequip-weapon', itemId: hands.itemId });
 };
+const onUseBandage = (): void => {
+    const bandage = inventoryItems.find(item => item.kind === 'bandage');
+
+    if (!bandageButton.disabled && bandage !== undefined) connection.useBandage(bandage.itemId);
+};
+bandageButton.addEventListener('click', onUseBandage);
 unequip.addEventListener('click', onUnequip);
 const onAttack = (): void => {
     if (!attack.disabled) connection.sendMelee({ type: 'melee-attack' });
@@ -447,6 +467,7 @@ if (import.meta.hot) {
             button.remove();
         }
         unequip.removeEventListener('click', onUnequip);
+        bandageButton.removeEventListener('click', onUseBandage);
         attack.removeEventListener('click', onAttack);
         window.removeEventListener('keydown', onAttackKey);
         pickup.removeEventListener('click', onPickup);

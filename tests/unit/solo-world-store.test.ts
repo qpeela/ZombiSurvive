@@ -60,7 +60,7 @@ test('one host exclusively owns a save until close, then the next can load it', 
 });
 
 test.each([
-    'PRAGMA user_version = 8',
+    'PRAGMA user_version = 9',
     "UPDATE solo_world SET seed = 'another-world'",
     'UPDATE solo_world SET generator_version = 2',
     "UPDATE solo_world SET player_id = 'bad'",
@@ -141,7 +141,7 @@ test('schema v1 migrates atomically and keeps character, world and position', ()
     expect(migrated.currentProfile()).toEqual({ displayName: 'Выживший', nameRevision: 0 });
     migrated.close();
     const restored = new DatabaseSync(path);
-    expect(restored.prepare('PRAGMA user_version').get()?.['user_version']).toBe(7);
+    expect(restored.prepare('PRAGMA user_version').get()?.['user_version']).toBe(8);
     restored.close();
 });
 
@@ -441,7 +441,7 @@ test('v4 migration adds the finite overlay once, preserving hands, profile, cell
             )
             .get(),
     ).toEqual(before);
-    expect(saved.prepare('PRAGMA user_version').get()?.['user_version']).toBe(7);
+    expect(saved.prepare('PRAGMA user_version').get()?.['user_version']).toBe(8);
     saved.close();
 });
 
@@ -660,4 +660,66 @@ test.each(['invalid combat', 'failed update'])('v6 wound migration rolls back on
     const before = readFileSync(path);
     expect(() => open(path)).toThrow();
     expect(readFileSync(path)).toEqual(before);
+});
+
+test('v7 migrates to v8 without changing items or wound; consumed bandage remains absent on repeated restore', () => {
+    const path = createPath();
+    const first = open(path);
+    const locations = first.initialItemLocations;
+    first.saveCombat({ health: 63, cooldownTicks: 7, bleedingTicks: 21 });
+    first.close();
+    const legacy = new DatabaseSync(path);
+    legacy.exec('PRAGMA user_version = 7');
+    legacy.close();
+    const migrated = open(path);
+    expect(migrated.initialItemLocations).toEqual(locations);
+    expect(migrated.initialCombat).toEqual({ health: 63, cooldownTicks: 7, bleedingTicks: 21 });
+    const remaining = locations.filter(location => location.item.kind !== 'bandage');
+    migrated.saveCombat({ health: 63, cooldownTicks: 7, bleedingTicks: 0 }, remaining);
+    migrated.close();
+    for (let count = 0; count < 2; count++) {
+        const restored = open(path);
+        expect(restored.initialItemLocations).toEqual(remaining);
+        expect(restored.initialCombat).toEqual({ health: 63, cooldownTicks: 7, bleedingTicks: 0 });
+        restored.close();
+    }
+});
+
+test('v7 missing bandage is corruption, and failed validation cannot partially migrate the schema', () => {
+    const path = createPath();
+    const first = open(path);
+    const remaining = first.initialItemLocations.filter(
+        location => location.item.kind !== 'bandage',
+    );
+    first.close();
+    const legacy = new DatabaseSync(path);
+    legacy.prepare('UPDATE solo_world SET item_location = ?').run(JSON.stringify(remaining));
+    legacy.exec('PRAGMA user_version = 7');
+    legacy.close();
+    const before = readFileSync(path);
+    expect(() => open(path)).toThrow(/invalid item/);
+    expect(readFileSync(path)).toEqual(before);
+});
+
+test('failed SQLite consumption update rolls back both the bandage and wound', () => {
+    const path = createPath();
+    const first = open(path);
+    first.saveCombat({ health: 63, cooldownTicks: 7, bleedingTicks: 21 });
+    const items = first.initialItemLocations;
+    first.close();
+    const database = new DatabaseSync(path);
+    database.exec(`CREATE TRIGGER reject_bandage BEFORE UPDATE OF item_location ON solo_world
+        BEGIN SELECT RAISE(ABORT, 'bandage disk failure'); END`);
+    database.close();
+    const store = open(path);
+    expect(() => {
+        store.saveCombat(
+            { health: 63, cooldownTicks: 7, bleedingTicks: 0 },
+            items.filter(location => location.item.kind !== 'bandage'),
+        );
+    }).toThrow(/bandage disk failure/);
+    store.close();
+    const restored = open(path);
+    expect(restored.initialItemLocations).toEqual(items);
+    expect(restored.initialCombat).toEqual({ health: 63, cooldownTicks: 7, bleedingTicks: 21 });
 });

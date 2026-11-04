@@ -6,11 +6,13 @@ import {
     isInventoryMoveCommand,
     isMeleeCommand,
     isPickupCommand,
+    isUseBandageCommand,
     type MeleeCommand,
     type MovementSnapshot,
     type PickupCommand,
     type PickupSnapshot,
     protocolVersion,
+    type UseBandageCommand,
 } from '@zombi-survive/protocol';
 import {
     addStarterWeapons,
@@ -25,14 +27,16 @@ import { loadWorldChunks } from '@zombi-survive/worldgen';
 import { copyItemLocation } from './saved-item.ts';
 
 type ItemCommand =
-    PickupCommand | InventoryMoveCommand | Exclude<MeleeCommand, { type: 'melee-attack' }>;
+    | PickupCommand
+    | InventoryMoveCommand
+    | UseBandageCommand
+    | Exclude<MeleeCommand, { type: 'melee-attack' }>;
 
 export class LocalWorldPickup {
     private locations: readonly ItemLocation[];
     private readonly requiresCommit: boolean;
     private pendingSave: readonly ItemLocation[] | null = null;
     private isSaveTaken = false;
-    private isSaveComplete = false;
     private readonly initializedPlayers = new Set<string>();
     private readonly pending = new Map<string, ItemCommand>();
 
@@ -59,7 +63,22 @@ export class LocalWorldPickup {
     }
 
     confirmSave(): void {
-        if (this.pendingSave !== null && this.isSaveTaken) this.isSaveComplete = true;
+        if (this.pendingSave === null || !this.isSaveTaken) return;
+
+        this.locations = this.pendingSave;
+        this.pendingSave = null;
+        this.isSaveTaken = false;
+    }
+
+    receiveUseBandage(sessionId: string, value: unknown): void {
+        if (isUseBandageCommand(value)) {
+            this.pending.set(sessionId, {
+                type: value.type,
+                protocolVersion,
+                inventoryVersion,
+                itemId: value.itemId,
+            });
+        }
     }
 
     receive(sessionId: string, value: unknown): void {
@@ -97,15 +116,13 @@ export class LocalWorldPickup {
     step(
         sessions: ReadonlyMap<string, MovementSnapshot>,
         health: (snapshot: MovementSnapshot) => number = () => 100,
+        useBandage: (input: {
+            readonly snapshot: MovementSnapshot;
+            readonly locations: readonly ItemLocation[];
+            readonly itemId: string;
+        }) => readonly ItemLocation[] = input => input.locations,
     ): void {
-        if (this.pendingSave !== null) {
-            if (!this.isSaveComplete) return;
-
-            this.locations = this.pendingSave;
-            this.pendingSave = null;
-            this.isSaveTaken = false;
-            this.isSaveComplete = false;
-        }
+        if (this.pendingSave !== null) return;
 
         let next = this.locations;
 
@@ -116,6 +133,12 @@ export class LocalWorldPickup {
 
             const playerId = snapshot.player.playerId;
             const items = playerInventory(next, playerId);
+
+            if (command.type === 'use-bandage') {
+                next = useBandage({ snapshot, locations: next, itemId: command.itemId });
+
+                continue;
+            }
 
             if (command.type === 'equip-weapon' || command.type === 'unequip-weapon') {
                 if (health(snapshot) > 0)

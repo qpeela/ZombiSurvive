@@ -9,6 +9,12 @@ import {
 import { protocolVersion } from './movement.ts';
 
 export const inventoryVersion = 2;
+export type UseBandageCommand = {
+    readonly type: 'use-bandage';
+    readonly protocolVersion: typeof protocolVersion;
+    readonly inventoryVersion: typeof inventoryVersion;
+    readonly itemId: string;
+};
 export type InventoryMoveCommand = {
     readonly type: 'inventory-move';
     readonly protocolVersion: typeof protocolVersion;
@@ -49,6 +55,17 @@ const isItem = (value: unknown): value is Item => {
     }
 
     return isId(value['itemId']) && (value['kind'] === 'bandage' || isMeleeWeaponId(value['kind']));
+};
+
+export const isUseBandageCommand = (value: unknown): value is UseBandageCommand => {
+    if (!isRecord(value)) return false;
+
+    const isType = value['type'] === 'use-bandage';
+    const isVersion =
+        value['protocolVersion'] === protocolVersion &&
+        value['inventoryVersion'] === inventoryVersion;
+
+    return isType && isVersion && isId(value['itemId']);
 };
 const isCell = (value: unknown): value is InventoryCell => {
     if (!isRecord(value)) {

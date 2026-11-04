@@ -107,12 +107,19 @@ export const readSavedItems = (
     value: unknown,
     playerId: string,
     worldLoot: readonly GroundItem[] = [],
+    isConsumableBandage = false,
 ): readonly ItemLocation[] => {
     if (typeof value !== 'string' || value.length > 16_384) return invalidItem();
 
     const saved: unknown = JSON.parse(value);
 
-    if (!Array.isArray(saved) || saved.length !== 5 + worldLoot.length) return invalidItem();
+    if (!Array.isArray(saved)) return invalidItem();
+
+    const weaponCount = 4 + worldLoot.length;
+    const hasCompleteManifest = saved.length === weaponCount + 1;
+    const hasConsumedBandage = isConsumableBandage && saved.length === weaponCount;
+
+    if (!hasCompleteManifest && !hasConsumedBandage) return invalidItem();
 
     const locations: ItemLocation[] = [];
     const ids = new Set<string>();
@@ -206,6 +213,10 @@ export const readSavedItems = (
         }
     }
 
+    const weapons = locations.filter(location => location.item.kind !== 'bandage');
+
+    if (weapons.length !== weaponCount) return invalidItem();
+
     return locations;
 };
 
@@ -213,4 +224,4 @@ export const writeSavedItems = (
     locations: readonly ItemLocation[],
     playerId: string,
     worldLoot: readonly GroundItem[] = [],
-): string => JSON.stringify(readSavedItems(JSON.stringify(locations), playerId, worldLoot));
+): string => JSON.stringify(readSavedItems(JSON.stringify(locations), playerId, worldLoot, true));

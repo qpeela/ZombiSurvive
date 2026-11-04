@@ -97,6 +97,9 @@ export class LocalWorldRoom extends Room {
         this.onMessage<unknown>('inventory-move', (client, value) => {
             this.pickup.receiveMove(client.sessionId, value);
         });
+        this.onMessage<unknown>('use-bandage', (client, value) => {
+            this.pickup.receiveUseBandage(client.sessionId, value);
+        });
         this.onMessage<unknown>('movement-input', (client, value) => {
             movement.receive(client.sessionId, value);
         });
@@ -113,7 +116,11 @@ export class LocalWorldRoom extends Room {
             const snapshots = new Map(
                 this.clients.map(client => [client.sessionId, movement.snapshot(client.sessionId)]),
             );
-            this.pickup.step(snapshots, snapshot => this.combat.snapshot(snapshot).health);
+            this.pickup.step(
+                snapshots,
+                snapshot => this.combat.snapshot(snapshot).health,
+                input => this.combat.useBandage(input),
+            );
             const itemSave = this.pickup.takePendingSave();
             const zombie = this.zombie.step(snapshots);
             this.melee.step({
@@ -134,17 +141,25 @@ export class LocalWorldRoom extends Room {
                 nextCombat.health !== savedCombat.health ||
                 nextCombat.cooldownTicks !== savedCombat.cooldownTicks ||
                 nextCombat.bleedingTicks !== savedCombat.bleedingTicks;
+            // A committed equipment change becomes active in combat on the next step.
+            const meleeStates = new Map(
+                [...snapshots].map(([sessionId, snapshot]) => [
+                    sessionId,
+                    this.melee.snapshot(snapshot),
+                ]),
+            );
             const store = options.soloStore;
             const publish = (): void => {
                 for (const client of this.clients) {
                     const snapshot = snapshots.get(client.sessionId);
+                    const meleeState = meleeStates.get(client.sessionId);
 
-                    if (snapshot !== undefined) {
+                    if (snapshot !== undefined && meleeState !== undefined) {
                         client.send('movement-snapshot', snapshot);
                         client.send('pickup-state', this.pickup.snapshot(snapshot));
                         client.send('zombie-state', this.zombie.snapshot(snapshot));
                         client.send('health-state', this.combat.snapshot(snapshot));
-                        client.send('melee-state', this.melee.snapshot(snapshot));
+                        client.send('melee-state', meleeState);
                         const action = this.melee.action(snapshot);
 
                         if (action !== null) {

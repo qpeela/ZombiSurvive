@@ -112,7 +112,8 @@ export class SoloWorldStore {
                 version !== 4 &&
                 version !== 5 &&
                 version !== 6 &&
-                version !== 7
+                version !== 7 &&
+                version !== 8
             ) {
                 throw new Error('Unsupported solo save schema version.');
             }
@@ -140,7 +141,7 @@ export class SoloWorldStore {
                 .prepare('SELECT item_location FROM solo_world WHERE id = 1')
                 .get()?.['item_location'];
 
-            if (version !== 4 && version !== 5 && version !== 6 && version !== 7) {
+            if (typeof version === 'number' && version < 4) {
                 const bandage = readSavedItem(savedItems, this.initialWorld.playerId);
                 const locations = addStarterWeapons([bandage], this.initialWorld.playerId);
                 this.database
@@ -149,7 +150,7 @@ export class SoloWorldStore {
                 this.database.exec('PRAGMA user_version = 4');
             }
 
-            if (version !== 5 && version !== 6 && version !== 7) {
+            if (typeof version === 'number' && version < 5) {
                 const oldLocations = readSavedItems(
                     this.database
                         .prepare('SELECT item_location FROM solo_world WHERE id = 1')
@@ -178,8 +179,9 @@ export class SoloWorldStore {
                 ],
                 this.initialWorld.playerId,
                 initialWorldWeaponLoot,
+                version === 8,
             );
-            if (version !== 6 && version !== 7) {
+            if (typeof version === 'number' && version < 6) {
                 this.database.exec(`
                     ALTER TABLE solo_world ADD COLUMN combat_state TEXT NOT NULL
                         DEFAULT '{"health":100,"cooldownTicks":0}';
@@ -187,7 +189,7 @@ export class SoloWorldStore {
                 `);
             }
 
-            if (version !== 7) {
+            if (typeof version === 'number' && version < 7) {
                 const legacy = readSavedCombat(
                     this.database
                         .prepare('SELECT combat_state FROM solo_world WHERE id = 1')
@@ -205,6 +207,8 @@ export class SoloWorldStore {
                     'combat_state'
                 ],
             );
+            // v8 permits only the bandage to be absent. Legacy manifests were validated above.
+            if (version !== 8) this.database.exec('PRAGMA user_version = 8');
             this.profile = {
                 displayName: this.initialWorld.displayName,
                 nameRevision: this.initialWorld.nameRevision,
