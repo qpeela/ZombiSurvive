@@ -142,7 +142,7 @@ test('moves require the real owner, a valid footprint and a server step; retries
     expect(pickup.snapshot(movement.snapshot('rejoined')).items).toEqual(beforeReconnect);
 });
 
-test('durable pickup publishes only after commit on a later step; retries and queued moves stay ordered', () => {
+test('durable pickup publishes immediately after commit; retries and queued moves stay ordered', () => {
     const movement = new LocalWorldMovement('world', 'solo', { xMeters: 2, yMeters: 2 });
     movement.join('first');
     movement.join('tab');
@@ -173,7 +173,7 @@ test('durable pickup publishes only after commit on a later step; retries and qu
     pickup.step(sessions());
     expect(read().items).toEqual([]);
     pickup.confirmSave();
-    expect(read().items).toEqual([]);
+    expect(read().items[0]?.cell).toEqual({ column: 0, row: 0 });
     pickup.step(sessions());
     expect(read().groundItem).toBeNull();
     expect(read().items[0]?.cell).toEqual({ column: 0, row: 0 });

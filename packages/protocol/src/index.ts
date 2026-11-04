@@ -24,9 +24,11 @@ export {
 export {
     isPickupCommand,
     isPickupSnapshot,
+    isUseBandageCommand,
     type PickupCommand,
     type PickupSnapshot,
     pickupStateRequest,
+    type UseBandageCommand,
 } from './pickup.ts';
 export { type InventoryMoveCommand, inventoryVersion, isInventoryMoveCommand } from './pickup.ts';
 export {

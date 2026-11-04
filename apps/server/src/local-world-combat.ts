@@ -1,6 +1,7 @@
 import { combatSettings } from '@zombi-survive/content';
 import type {
     BleedingState,
+    ItemLocation,
     PlayerHealth,
     WorldObstacle,
     ZombieAttackState,
@@ -12,7 +13,12 @@ import {
     type MovementSnapshot,
     protocolVersion,
 } from '@zombi-survive/protocol';
-import { stepBleeding, stepZombieAttack, woundFromZombieHit } from '@zombi-survive/simulation';
+import {
+    stepBleeding,
+    stepZombieAttack,
+    useBandage,
+    woundFromZombieHit,
+} from '@zombi-survive/simulation';
 
 export class LocalWorldCombat {
     private readonly players = new Map<string, PlayerHealth & BleedingState>();
@@ -32,6 +38,25 @@ export class LocalWorldCombat {
 
     bleedingTicks(playerId: string): number {
         return this.players.get(playerId)?.bleedingTicks ?? 0;
+    }
+
+    useBandage({
+        snapshot,
+        locations,
+        itemId,
+    }: {
+        readonly snapshot: MovementSnapshot;
+        readonly locations: readonly ItemLocation[];
+        readonly itemId: string;
+    }): readonly ItemLocation[] {
+        const player = this.players.get(snapshot.player.playerId);
+
+        if (player === undefined) return locations;
+
+        const result = useBandage({ locations, player, itemId });
+        this.players.set(player.playerId, result.player);
+
+        return result.locations;
     }
 
     step({

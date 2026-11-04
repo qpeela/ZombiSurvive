@@ -1,3 +1,4 @@
+export { useBandage } from './bandage.ts';
 export { stepBleeding, woundFromZombieHit } from './bleeding.ts';
 export { resolveMovement } from './collisions.ts';
 export { addStarterWeapons, playerHands, playerInventory, transferWeapon } from './equipment.ts';
