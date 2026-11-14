@@ -19,7 +19,7 @@ for (let tick = 0; tick < combatSettings.attackIntervalTicks; tick++) {
 assert.equal(state.health.health, 90);
 const snapshot = {
     type: 'health-state', protocolVersion, healthVersion, worldId: 'world', tick: 20,
-    ...state.health, lifeState: 'alive', bleedingTicks: 0, maxHealth: combatSettings.maxHealth,
+    ...state.health, lifeState: 'alive', bleedingTicks: 0, combatTicks: 200, maxHealth: combatSettings.maxHealth,
 };
 assert.ok(isHealthSnapshot(JSON.parse(JSON.stringify(snapshot))));
 let wounded = woundFromZombieHit({ ...state.health, lifeState: 'alive', bleedingTicks: 0 }, 0);

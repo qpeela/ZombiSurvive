@@ -1,3 +1,4 @@
+import { combatSettings } from '@zombi-survive/content';
 import { isHealthSnapshot } from '@zombi-survive/protocol';
 import { expect, test } from 'vitest';
 
@@ -33,6 +34,40 @@ test('tabs share health and cannot multiply hits; other players are unaffected',
     expect(combat.snapshot(movement.snapshot('friend')).health).toBe(100);
     Object.assign(snapshot, { health: 999 });
     expect(combat.snapshot(movement.snapshot('first')).health).toBe(90);
+});
+
+test('a confirmed attack starts combat, another extends it, and quiet steps clear it', () => {
+    const { combat, movement, snapshots } = setup();
+    combat.step({ zombies: [], snapshots, obstacles: [] });
+    const quietStep = (): void => {
+        combat.step({ zombies: [], snapshots: new Map(), obstacles: [] });
+    };
+
+    combat.markAttack('solo');
+    expect(combat.snapshot(movement.snapshot('first')).combatTicks).toBe(
+        combatSettings.combatDurationTicks,
+    );
+    for (let tick = 0; tick < 50; tick++) quietStep();
+    combat.markAttack('solo');
+    expect(combat.snapshot(movement.snapshot('tab')).combatTicks).toBe(
+        combatSettings.combatDurationTicks,
+    );
+    for (let tick = 0; tick < combatSettings.combatDurationTicks - 1; tick++) quietStep();
+    expect(combat.remainingCombatTicks('solo')).toBe(1);
+    quietStep();
+    expect(combat.remainingCombatTicks('solo')).toBe(0);
+    expect(combat.snapshot(movement.snapshot('first')).combatTicks).toBe(0);
+});
+
+test('damage starts combat while rejected attacks and respawn do not carry old combat', () => {
+    const { combat, movement, step } = setup();
+    combat.markAttack('unknown');
+    expect(combat.remainingCombatTicks('unknown')).toBe(0);
+    for (let tick = 0; tick < combatSettings.attackIntervalTicks; tick++) step();
+    expect(combat.remainingCombatTicks('solo')).toBe(combatSettings.combatDurationTicks);
+    combat.respawnPlayer('solo');
+    expect(combat.remainingCombatTicks('solo')).toBe(0);
+    expect(combat.snapshot(movement.snapshot('first')).health).toBe(combatSettings.maxHealth);
 });
 
 test('disconnect cancels windup without healing and reconnect requires a full attack delay', () => {

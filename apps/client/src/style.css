@@ -97,6 +97,11 @@ h1 {
     font-weight: bold;
 }
 
+#combat-status:not([hidden]) {
+    color: #ff9b89;
+    text-transform: uppercase;
+}
+
 .pickup-panel {
     margin-top: 20px;
     padding: 12px 16px;

@@ -60,6 +60,7 @@ const staminaLabel = document.querySelector<HTMLElement>('#stamina-label');
 const health = document.querySelector<HTMLProgressElement>('#health');
 const healthLabel = document.querySelector<HTMLElement>('#health-label');
 const bleedingLabel = document.querySelector<HTMLElement>('#bleeding-label');
+const combatStatus = document.querySelector<HTMLElement>('#combat-status');
 const movementLabel = document.querySelector<HTMLElement>('#movement-label');
 const groundLabel = document.querySelector<HTMLElement>('#ground-item');
 const inventory = document.querySelector<HTMLElement>('#inventory');
@@ -100,6 +101,7 @@ if (
     !health ||
     !healthLabel ||
     !bleedingLabel ||
+    !combatStatus ||
     !movementLabel ||
     !groundLabel ||
     !inventory ||
@@ -340,6 +342,8 @@ const connection = createWorldConnection(
         healthLabel.textContent = 'Здоровье: —';
         bleedingLabel.textContent = 'Кровотечение: —';
         bleedingLabel.removeAttribute('data-bleeding');
+        combatStatus.hidden = true;
+        delete combatStatus.dataset['remainingTicks'];
         ammoLabel.textContent = 'Патроны: —';
         groundItem = null;
         corpses = [];
@@ -452,6 +456,8 @@ const connection = createWorldConnection(
         isBleeding = snapshot.bleedingTicks > 0;
         bleedingLabel.textContent = isBleeding ? 'Кровотечение: есть' : 'Кровотечение: нет';
         bleedingLabel.dataset['bleeding'] = String(isBleeding);
+        combatStatus.hidden = !isAlive || snapshot.combatTicks === 0;
+        combatStatus.dataset['remainingTicks'] = String(snapshot.combatTicks);
         health.max = snapshot.maxHealth;
         health.value = snapshot.health;
         updateBandage();
