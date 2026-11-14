@@ -33,6 +33,17 @@ export class LocalWorldCombat {
             this.players.set(initialHealth.playerId, { ...initialHealth });
     }
 
+    respawnPlayer(playerId: string): void {
+        this.players.set(playerId, {
+            playerId,
+            health: combatSettings.maxHealth,
+            bleedingTicks: 0,
+        });
+        for (const [id, attack] of this.attacks) {
+            if (attack.targetPlayerId === playerId) this.attacks.delete(id);
+        }
+    }
+
     health(playerId: string): number {
         return this.players.get(playerId)?.health ?? combatSettings.maxHealth;
     }

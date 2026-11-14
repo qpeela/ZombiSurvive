@@ -222,3 +222,16 @@ test('wire snapshots reject malformed corpse positions, duplicate body and item 
         expect(isPickupSnapshot({ ...snapshot, corpses })).toBe(false);
     }
 });
+
+test('repeated lives keep nearby corpse snapshots within the validated wire bound', () => {
+    const movement = new LocalWorldMovement('world', 'dead');
+    movement.join('tab');
+    const bodies = Array.from({ length: 129 }, (_, index) => ({
+        ...corpse,
+        corpseId: `body-${String(index)}`,
+    }));
+    const pickup = new LocalWorldPickup([], bodies);
+    const snapshot = pickup.snapshot(movement.snapshot('tab'));
+    expect(snapshot.corpses).toHaveLength(128);
+    expect(isPickupSnapshot(snapshot)).toBe(true);
+});

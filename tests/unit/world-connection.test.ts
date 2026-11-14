@@ -702,3 +702,34 @@ test('bandage sends a concrete intent only to a ready current room and handles s
     expect(fake.room.send).not.toHaveBeenCalled();
     connection.dispose();
 });
+
+test('every gameplay intent and respawn retry carries the newest confirmed life revision', async () => {
+    const fake = createRoom();
+    join.mockResolvedValue(fake.room);
+    const connection = createWorldConnection('http://host', () => {});
+    const ready = connection.connect();
+    await vi.waitFor(() => {
+        expect(fake.room.request).toHaveBeenCalled();
+    });
+    fake.resolveInitial(snapshot(1));
+    await ready;
+    fake.publishHealth({ ...healthState(2), lifeRevision: 1 });
+    connection.sendMovement({ x: 1, y: 0 });
+    connection.sendTarget({ xMeters: 2, yMeters: 0 });
+    connection.pickUp('item');
+    connection.moveItem('item', { column: 0, row: 0 });
+    connection.useBandage('bandage');
+    connection.sendMelee({ type: 'melee-attack' });
+    connection.respawn();
+    expect(fake.room.send).toHaveBeenCalledTimes(7);
+    for (const [, value] of fake.room.send.mock.calls)
+        expect(value).toMatchObject({ lifeRevision: 1 });
+    fake.publishHealth({ ...healthState(3), lifeRevision: 2 });
+    connection.respawn();
+    expect(fake.room.send).toHaveBeenLastCalledWith('respawn-player', {
+        type: 'respawn-player',
+        protocolVersion: 5,
+        lifeRevision: 2,
+    });
+    connection.dispose();
+});

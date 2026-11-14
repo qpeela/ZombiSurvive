@@ -29,6 +29,11 @@ export class LocalWorldMelee {
             this.nextAttackTick.set(initialCooldown.playerId, initialCooldown.cooldownTicks);
     }
 
+    respawnPlayer(playerId: string): void {
+        this.nextAttackTick.delete(playerId);
+        this.actions.delete(playerId);
+    }
+
     remainingCooldown(playerId: string): number {
         return Math.max(0, (this.nextAttackTick.get(playerId) ?? 0) - this.tick);
     }

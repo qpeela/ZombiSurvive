@@ -137,6 +137,22 @@ export class LocalWorldMovement {
         input.player = { ...input.player, isSneaking: false, noiseRadiusMeters: 0 };
     }
 
+    respawnPlayer(playerId: string, position: WorldPosition): void {
+        this.stopPlayer(playerId);
+        const input = this.players.get(playerId);
+        if (input !== undefined) {
+            input.player = {
+                ...input.player,
+                position: { ...position },
+                stamina: 1,
+                isExhausted: false,
+            };
+        }
+        for (const session of this.sessions.values()) {
+            if (session.playerId === playerId) session.pending = null;
+        }
+    }
+
     step(health: (playerId: string) => number = () => 100): void {
         this.tick++;
         const pending = [...this.sessions.entries()]

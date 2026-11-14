@@ -85,6 +85,7 @@ export const createWorldConnection = (
     pickUp: (itemId: string) => void;
     moveItem: (itemId: string, cell: InventoryCell) => void;
     useBandage: (itemId: string) => void;
+    respawn: () => void;
     disconnect: () => void;
     dispose: () => void;
 } => {
@@ -93,6 +94,9 @@ export const createWorldConnection = (
     let isDisposed = false;
     let abortController: AbortController | null = null;
     let sequence = 0;
+    let lifeRevision = 0;
+    const lifeFields = (): { readonly lifeRevision?: number } =>
+        lifeRevision === 0 ? {} : { lifeRevision };
     let isReady = false;
     let acceptProfile: ((value: unknown) => boolean) | null = null;
 
@@ -100,6 +104,7 @@ export const createWorldConnection = (
         const room = activeRoom;
         activeRoom = null;
         isReady = false;
+        lifeRevision = 0;
         acceptProfile = null;
         room?.connection.close();
     };
@@ -378,6 +383,7 @@ export const createWorldConnection = (
                 }
 
                 healthTick = value.tick;
+                lifeRevision = value.lifeRevision ?? 0;
                 onHealthChange?.(value);
             });
             room.onLeave(() => {
@@ -423,7 +429,7 @@ export const createWorldConnection = (
 
         try {
             const command = createMovementInput(++sequence, direction, modifiers);
-            activeRoom.send('movement-input', command);
+            activeRoom.send('movement-input', { ...command, ...lifeFields() });
             onCommandSent?.(command);
         } catch {
             closeRoom();
@@ -445,7 +451,7 @@ export const createWorldConnection = (
 
         try {
             const command = createMovementTarget(++sequence, target, modifiers);
-            activeRoom.send('movement-target', command);
+            activeRoom.send('movement-target', { ...command, ...lifeFields() });
             onCommandSent?.(command);
         } catch {
             closeRoom();
@@ -459,7 +465,12 @@ export const createWorldConnection = (
         }
 
         try {
-            activeRoom.send('pickup-item', { type: 'pickup-item', protocolVersion, itemId });
+            activeRoom.send('pickup-item', {
+                type: 'pickup-item',
+                protocolVersion,
+                itemId,
+                ...lifeFields(),
+            });
         } catch {
             closeRoom();
             onStateChange({ status: 'error' });
@@ -476,6 +487,7 @@ export const createWorldConnection = (
                 type: 'inventory-move',
                 protocolVersion,
                 inventoryVersion,
+                ...lifeFields(),
                 itemId,
                 cell,
             });
@@ -489,7 +501,12 @@ export const createWorldConnection = (
         if (!isReady || activeRoom === null) return;
 
         try {
-            activeRoom.send(intent.type, { ...intent, protocolVersion, meleeVersion });
+            activeRoom.send(intent.type, {
+                ...intent,
+                protocolVersion,
+                meleeVersion,
+                ...lifeFields(),
+            });
         } catch {
             closeRoom();
             onStateChange({ status: 'error' });
@@ -504,6 +521,7 @@ export const createWorldConnection = (
                 type: 'use-bandage',
                 protocolVersion,
                 inventoryVersion,
+                ...lifeFields(),
                 itemId,
             });
         } catch {
@@ -539,6 +557,20 @@ export const createWorldConnection = (
         return value;
     };
 
+    const respawn = (): void => {
+        if (!isReady || activeRoom === null) return;
+        try {
+            activeRoom.send('respawn-player', {
+                type: 'respawn-player',
+                protocolVersion,
+                lifeRevision,
+            });
+        } catch {
+            closeRoom();
+            onStateChange({ status: 'error' });
+        }
+    };
+
     const dispose = (): void => {
         isDisposed = true;
         disconnect();
@@ -553,6 +585,7 @@ export const createWorldConnection = (
         pickUp,
         moveItem,
         useBandage,
+        respawn,
         disconnect,
         dispose,
     };

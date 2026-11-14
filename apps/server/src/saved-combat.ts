@@ -2,6 +2,7 @@ import { combatSettings, meleeWeapons } from '@zombi-survive/content';
 
 export type SavedCombat = {
     readonly health: number;
+    readonly lifeRevision?: number;
     readonly cooldownTicks: number;
     readonly bleedingTicks: number;
 };
@@ -40,5 +41,9 @@ export const readSavedCombat = (value: unknown, isLegacy = false): SavedCombat =
     if (!isHealth || !isCooldown || !isBleeding)
         throw new Error('Solo save contains invalid combat state.');
 
-    return { health, cooldownTicks, bleedingTicks };
+    const lifeRevision = 'lifeRevision' in state ? state.lifeRevision : undefined;
+    if (lifeRevision === undefined) return { health, cooldownTicks, bleedingTicks };
+    if (typeof lifeRevision !== 'number' || !Number.isSafeInteger(lifeRevision) || lifeRevision < 0)
+        throw new Error('Solo save contains invalid life revision.');
+    return { health, cooldownTicks, bleedingTicks, lifeRevision };
 };
