@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { type Client, Room } from '@colyseus/core';
+import type { ItemLocation } from '@zombi-survive/domain';
 import { firearmVersion, protocolVersion } from '@zombi-survive/protocol';
 import { afterEach, expect, test, vi } from 'vitest';
 
@@ -17,7 +18,13 @@ afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
 });
-const setup = ({ health = 100, bleedingTicks = 0, lifeRevision = 0 } = {}) => {
+const setup = ({
+    health = 100,
+    bleedingTicks = 0,
+    lifeRevision = 0,
+    rounds = 8,
+    ammoQuantity = 0,
+} = {}) => {
     vi.useFakeTimers();
     const directory = mkdtempSync(join(tmpdir(), 'zombi-shot-commit-'));
     const path = join(directory, 'world.sqlite');
@@ -26,15 +33,22 @@ const setup = ({ health = 100, bleedingTicks = 0, lifeRevision = 0 } = {}) => {
     const gun = seed.initialItemLocations.find(location => location.item.kind === 'pistol')?.item;
     if (gun?.kind !== 'pistol') throw new Error('Missing gun');
     seed.saveItemLocations(
-        seed.initialItemLocations.map(location =>
-            location.item.itemId === gun.itemId
-                ? {
-                      type: 'hands',
-                      playerId,
-                      item: { itemId: gun.itemId, kind: 'pistol', rounds: 8, magazineCapacity: 8 },
-                  }
-                : location,
-        ),
+        seed.initialItemLocations.map((location): ItemLocation => {
+            if (location.item.itemId === gun.itemId)
+                return {
+                    type: 'hands',
+                    playerId,
+                    item: { itemId: gun.itemId, kind: 'pistol', rounds, magazineCapacity: 8 },
+                };
+            if (location.item.kind === 'ammo9mm' && ammoQuantity > 0)
+                return {
+                    type: 'container',
+                    playerId,
+                    item: { itemId: location.item.itemId, kind: 'ammo9mm', quantity: ammoQuantity },
+                    cell: { column: 0, row: 0 },
+                };
+            return location;
+        }),
     );
     seed.saveCombat({
         health,
@@ -94,6 +108,39 @@ const setup = ({ health = 100, bleedingTicks = 0, lifeRevision = 0 } = {}) => {
                 lifeRevision: token,
             });
     };
+    const reloadWeapon = (revision = 0, token = lifeRevision) => {
+        for (const client of clients)
+            handlers.get('reload-pistol')?.(client, {
+                type: 'reload-pistol',
+                protocolVersion,
+                firearmVersion,
+                itemId: gun.itemId,
+                weaponRevision: revision,
+                lifeRevision: token,
+            });
+    };
+    const unequip = () => {
+        const client = clients[0];
+        if (client !== undefined)
+            handlers.get('unequip-weapon')?.(client, {
+                type: 'unequip-weapon',
+                protocolVersion,
+                meleeVersion: 3,
+                itemId: gun.itemId,
+                lifeRevision,
+            });
+    };
+    const equipAxe = () => {
+        const client = clients[0];
+        if (client !== undefined)
+            handlers.get('equip-weapon')?.(client, {
+                type: 'equip-weapon',
+                protocolVersion,
+                meleeVersion: 3,
+                itemId: `${playerId}:axe`,
+                lifeRevision,
+            });
+    };
     const read = () => {
         store.close();
         const loaded = new SoloWorldStore(path);
@@ -113,6 +160,9 @@ const setup = ({ health = 100, bleedingTicks = 0, lifeRevision = 0 } = {}) => {
         send,
         failure,
         shoot,
+        reloadWeapon,
+        unequip,
+        equipAxe,
         tick: () => {
             tick();
         },
@@ -196,4 +246,142 @@ test('graceful shutdown flushes a prepared shot once, and stale life commands ca
     state.flush();
     expect(state.read().combat).toMatchObject({ cooldownTicks: 10, lifeRevision: 2 });
     expect(state.damage).toHaveBeenCalledOnce();
+});
+
+test('reload progress is shared; only completion durably moves rounds and pending shots cannot interrupt it', () => {
+    const state = setup({ rounds: 3, ammoQuantity: 8 });
+    const save = vi.spyOn(state.store, 'saveItemLocations');
+    state.reloadWeapon();
+    state.tick();
+    state.flush();
+    expect(state.send.mock.calls.find(([type]) => type === 'firearm-state')?.[1]).toMatchObject({
+        reload: { remainingTicks: 40 },
+    });
+    for (let tick = 1; tick < 40; tick++) {
+        state.reloadWeapon();
+        state.shoot();
+        state.tick();
+        state.flush();
+    }
+    expect(save).not.toHaveBeenCalled();
+    expect(state.damage).not.toHaveBeenCalled();
+    state.send.mockClear();
+    state.tick();
+    expect(save).not.toHaveBeenCalled();
+    expect(state.send).not.toHaveBeenCalled();
+    state.flush();
+    expect(save).toHaveBeenCalledOnce();
+    expect(state.send.mock.calls.find(([type]) => type === 'pickup-state')?.[1]).toMatchObject({
+        hands: { rounds: 8, revision: 1 },
+    });
+    const saved = state.read();
+    expect(saved.items.find(location => location.item.kind === 'pistol')).toMatchObject({
+        type: 'hands',
+        item: { rounds: 8, revision: 1 },
+    });
+    expect(saved.items.find(location => location.item.kind === 'ammo9mm')).toMatchObject({
+        type: 'container',
+        item: { quantity: 3 },
+    });
+});
+test('failed reload completion cannot publish or persist one half of the transfer', () => {
+    const state = setup({ rounds: 3, ammoQuantity: 8 });
+    state.reloadWeapon();
+    state.tick();
+    state.flush();
+    for (let tick = 1; tick < 40; tick++) {
+        state.tick();
+        state.flush();
+    }
+    vi.spyOn(state.store, 'saveItemLocations').mockImplementation(() => {
+        throw new Error('reload disk full');
+    });
+    state.send.mockClear();
+    state.tick();
+    state.flush();
+    expect(state.failure).toHaveBeenCalledExactlyOnceWith(new Error('reload disk full'));
+    expect(state.send).not.toHaveBeenCalled();
+    const saved = state.read();
+    expect(saved.items.find(location => location.item.kind === 'pistol')).toMatchObject({
+        item: { rounds: 3 },
+    });
+    expect(saved.items.find(location => location.item.kind === 'ammo9mm')).toMatchObject({
+        item: { quantity: 8 },
+    });
+});
+test('bleeding death on the completion step keeps the complete pack and partial gun in the body', () => {
+    const state = setup({ health: 1, bleedingTicks: 41, rounds: 3, ammoQuantity: 8 });
+    state.reloadWeapon();
+    state.tick();
+    state.flush();
+    for (let tick = 1; tick < 40; tick++) {
+        state.tick();
+        state.flush();
+    }
+    const save = vi.spyOn(state.store, 'saveCombat');
+    state.send.mockClear();
+    state.tick();
+    expect(state.send).not.toHaveBeenCalled();
+    state.flush();
+    expect(save).toHaveBeenCalledOnce();
+    const saved = state.read();
+    expect(saved.combat.health).toBe(0);
+    expect(saved.items.find(location => location.item.kind === 'pistol')).toMatchObject({
+        type: 'corpse',
+        item: { rounds: 3 },
+    });
+    expect(saved.items.find(location => location.item.kind === 'ammo9mm')).toMatchObject({
+        type: 'corpse',
+        item: { quantity: 8 },
+    });
+});
+test('equipping away on the completion step cancels reload and stale life requests cannot begin it', () => {
+    const state = setup({ lifeRevision: 2, rounds: 3, ammoQuantity: 8 });
+    state.reloadWeapon(0, 1);
+    state.tick();
+    state.flush();
+    expect(state.send.mock.calls.find(([type]) => type === 'firearm-state')?.[1]).toMatchObject({
+        reload: null,
+    });
+    state.reloadWeapon();
+    state.tick();
+    state.flush();
+    for (let tick = 1; tick < 40; tick++) {
+        state.tick();
+        state.flush();
+    }
+    state.equipAxe();
+    state.tick();
+    state.flush();
+    const saved = state.read();
+    expect(saved.items.find(location => location.item.kind === 'pistol')).toMatchObject({
+        type: 'container',
+        item: { rounds: 3 },
+    });
+    expect(saved.items.find(location => location.item.kind === 'ammo9mm')).toMatchObject({
+        type: 'container',
+        item: { quantity: 8 },
+    });
+});
+
+test('a rejected overweight unequip does not cancel a valid reload', () => {
+    const state = setup({ rounds: 3, ammoQuantity: 8 });
+    state.reloadWeapon();
+    state.tick();
+    state.flush();
+    for (let tick = 1; tick < 40; tick++) {
+        state.tick();
+        state.flush();
+    }
+    state.unequip();
+    state.tick();
+    state.flush();
+    const saved = state.read();
+    expect(saved.items.find(location => location.item.kind === 'pistol')).toMatchObject({
+        type: 'hands',
+        item: { rounds: 8, revision: 1 },
+    });
+    expect(saved.items.find(location => location.item.kind === 'ammo9mm')).toMatchObject({
+        item: { quantity: 3 },
+    });
 });

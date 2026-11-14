@@ -1,4 +1,4 @@
-import { initialGroundItem, pistolSettings } from '@zombi-survive/content';
+import { ammoSettings, initialGroundItem, pistolSettings } from '@zombi-survive/content';
 import {
     copyItem,
     type GroundItem,
@@ -98,7 +98,8 @@ export const copyItemLocation = (location: ItemLocation): ItemLocation => {
         };
     }
 
-    if (location.type === 'expired') return { type: 'expired', item: { ...location.item } };
+    if (location.type === 'consumed') return { ...location, item: { ...location.item } };
+    if (location.type === 'expired') return { ...location, item: { ...location.item } };
 
     if (location.type === 'corpse') {
         return { ...location, item: { ...location.item } };
@@ -120,6 +121,19 @@ const readKnownItem = (
     const itemId = item['itemId'];
     if (typeof itemId !== 'string') return invalidItem();
     if (kind === 'bandage' && itemId === initialGroundItem.itemId) return { itemId, kind };
+    if (kind === 'ammo9mm') {
+        const spawn = worldLoot.find(
+            candidate => candidate.itemId === itemId && candidate.kind === kind,
+        );
+        const quantity = item['quantity'];
+        const isQuantity =
+            typeof quantity === 'number' &&
+            Number.isSafeInteger(quantity) &&
+            quantity >= 0 &&
+            quantity <= ammoSettings.stackQuantity;
+        if (spawn === undefined || !isQuantity) return invalidItem();
+        return { itemId, kind, quantity };
+    }
     if (!isWeaponId(kind)) return invalidItem();
     const spawn = worldLoot.find(candidate => candidate.itemId === itemId);
     const isStarter = isMeleeWeaponId(kind) && itemId === `${playerId}:${kind}`;
@@ -161,9 +175,9 @@ export const readSavedItems = (
     if (typeof value !== 'string' || value.length > 16_384) return invalidItem();
     const saved: unknown = JSON.parse(value);
     if (!Array.isArray(saved)) return invalidItem();
-    const weaponCount = 4 + worldLoot.length;
-    const hasCompleteManifest = saved.length === weaponCount + 1;
-    const hasConsumedBandage = isConsumableBandage && saved.length === weaponCount;
+    const finiteItemCount = 4 + worldLoot.length;
+    const hasCompleteManifest = saved.length === finiteItemCount + 1;
+    const hasConsumedBandage = isConsumableBandage && saved.length === finiteItemCount;
     if (!hasCompleteManifest && !hasConsumedBandage) return invalidItem();
     const locations: ItemLocation[] = [];
     const ids = new Set<string>();
@@ -173,10 +187,25 @@ export const readSavedItems = (
         if (!isRecord(entry) || !isRecord(entry['item'])) return invalidItem();
         const rawItem = entry['item'];
         const item = readKnownItem(rawItem, playerId, worldLoot);
+        if (item.kind === 'ammo9mm') {
+            const isConsumed = entry['type'] === 'consumed';
+            if (isConsumed !== (item.quantity === 0)) return invalidItem();
+        }
         if (ids.has(item.itemId)) return invalidItem();
         ids.add(item.itemId);
         let location: ItemLocation;
-        if (entry['type'] === 'corpse' || entry['type'] === 'expired') {
+        if (entry['type'] === 'consumed') {
+            if (
+                item.kind !== 'ammo9mm' ||
+                item.quantity !== 0 ||
+                entry['playerId'] !== undefined ||
+                entry['cell'] !== undefined ||
+                entry['corpseId'] !== undefined ||
+                rawItem['position'] !== undefined
+            )
+                return invalidItem();
+            location = { type: 'consumed', item };
+        } else if (entry['type'] === 'corpse' || entry['type'] === 'expired') {
             const corpseId = entry['corpseId'];
             const isUnowned =
                 entry['playerId'] === undefined &&
@@ -207,7 +236,8 @@ export const readSavedItems = (
             const isOwner = entry['playerId'] === playerId;
             if (!isOwner || rawItem['position'] !== undefined) return invalidItem();
             if (entry['type'] === 'hands') {
-                if (hasHands || entry['cell'] !== undefined) return invalidItem();
+                if (hasHands || entry['cell'] !== undefined || !isWeaponId(item.kind))
+                    return invalidItem();
                 hasHands = true;
                 location = { type: 'hands', playerId, item };
             } else {
@@ -226,7 +256,7 @@ export const readSavedItems = (
             items = placed;
         }
     }
-    if (locations.filter(location => location.item.kind !== 'bandage').length !== weaponCount)
+    if (locations.filter(location => location.item.kind !== 'bandage').length !== finiteItemCount)
         return invalidItem();
     return locations;
 };

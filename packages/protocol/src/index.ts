@@ -8,6 +8,12 @@ export {
     type ShotAction,
     type ShotAim,
 } from './firearm.ts';
+export {
+    type FirearmSnapshot,
+    isFirearmSnapshot,
+    isReloadCommand,
+    type ReloadCommand,
+} from './firearm.ts';
 export { type HealthSnapshot, healthVersion, isHealthSnapshot } from './health.ts';
 export { isCurrentLifeCommand, isRespawnCommand, type RespawnCommand } from './lifecycle.ts';
 export {

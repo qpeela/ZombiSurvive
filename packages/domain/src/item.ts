@@ -9,13 +9,22 @@ export type PistolItem = {
     /** Persisted compare-and-set token; old instances begin at zero. */
     readonly revision?: number;
 };
+export type AmmoStack = {
+    readonly itemId: string;
+    readonly kind: 'ammo9mm';
+    readonly quantity: number;
+};
+
 export type Item =
-    { readonly itemId: string; readonly kind: 'bandage' | MeleeWeaponId } | PistolItem;
+    { readonly itemId: string; readonly kind: 'bandage' | MeleeWeaponId } | PistolItem | AmmoStack;
 export type GroundItem = Item & { readonly position: WorldPosition };
 
 /** Copy item state without retaining a ground position or inventory cell. */
 export const copyItem = (item: Item): Item => {
     const base = { itemId: item.itemId, kind: item.kind };
+
+    if (item.kind === 'ammo9mm')
+        return { itemId: item.itemId, kind: item.kind, quantity: item.quantity };
     if (item.kind === 'pistol')
         return {
             itemId: item.itemId,

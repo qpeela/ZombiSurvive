@@ -270,10 +270,21 @@ export class LocalWorldPickup {
         return playerHands(this.locations, playerId);
     }
 
+    stagedLocations(): readonly ItemLocation[] {
+        return (this.pendingSave ?? this.locations).map(copyItemLocation);
+    }
+
+    stageLocations(locations: readonly ItemLocation[]): void {
+        const next = locations.map(copyItemLocation);
+        if (this.requiresCommit) this.pendingSave = next;
+        else this.locations = next;
+    }
+
     stageItem(item: Item): void {
         const source = this.pendingSave ?? this.locations;
         const next = source.map(location => {
-            if (location.item.itemId !== item.itemId) return location;
+            if (location.item.itemId !== item.itemId || location.type === 'consumed')
+                return location;
             if (location.type === 'ground')
                 return { ...location, item: { ...item, position: { ...location.item.position } } };
             return { ...location, item: { ...item } };

@@ -99,7 +99,7 @@ test('v2 migrates; inventory and hands survive tabs, reload and SIGKILL in a fre
         // UI confirmation is already a durable commit: no checkpoint delay is allowed here.
         await stop(running, 'SIGKILL');
         const saved = new DatabaseSync(path);
-        expect(saved.prepare('PRAGMA user_version').get().user_version).toBe(10);
+        expect(saved.prepare('PRAGMA user_version').get().user_version).toBe(11);
         expect(
             JSON.parse(
                 saved.prepare('SELECT item_location FROM solo_world').get().item_location,
@@ -112,7 +112,7 @@ test('v2 migrates; inventory and hands survive tabs, reload and SIGKILL in a fre
         const savedLocations = JSON.parse(
             saved.prepare('SELECT item_location FROM solo_world').get().item_location,
         );
-        expect(savedLocations).toHaveLength(10);
+        expect(savedLocations).toHaveLength(11);
         expect(savedLocations.filter(location => location.item.kind === 'pistol')).toHaveLength(1);
         expect(savedLocations.find(location => location.item.kind === 'pistol')).toMatchObject({
             type: 'ground',

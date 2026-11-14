@@ -57,6 +57,16 @@ const isItem = (value: unknown): value is Item => {
     }
 
     if (!isId(value['itemId'])) return false;
+    if (value['kind'] === 'ammo9mm') {
+        const quantity = value['quantity'];
+        return (
+            typeof quantity === 'number' &&
+            Number.isSafeInteger(quantity) &&
+            quantity > 0 &&
+            quantity <= 1024
+        );
+    }
+
     if (value['kind'] === 'pistol') {
         const rounds = value['rounds'];
         const capacity = value['magazineCapacity'];

@@ -1,4 +1,9 @@
-import { inventorySettings, itemDefinitions } from '@zombi-survive/content';
+import {
+    inventorySettings,
+    itemDefinitions,
+    itemDisplayName,
+    itemWeightGrams,
+} from '@zombi-survive/content';
 import type { InventoryCell, InventoryItem } from '@zombi-survive/domain';
 import { inventoryWeightGrams, placeInventoryItem } from '@zombi-survive/simulation';
 
@@ -86,7 +91,7 @@ export const createInventoryGrid = ({
             const definition = itemDefinitions[item.kind];
             const footprint = document.createElement('span');
             footprint.className = 'inventory-item';
-            footprint.textContent = definition.name;
+            footprint.textContent = itemDisplayName(item);
             footprint.setAttribute('aria-hidden', 'true');
             footprint.style.gridColumn = `${String(item.cell.column + 1)} / span ${String(definition.columns)}`;
             footprint.style.gridRow = `${String(item.cell.row + 1)} / span ${String(definition.rows)}`;
@@ -98,7 +103,7 @@ export const createInventoryGrid = ({
                 button.type = 'button';
                 button.disabled = !isEnabled;
                 button.dataset['itemId'] = item.itemId;
-                button.textContent = `Переместить: ${definition.name} · ${String(definition.columns)} × ${String(definition.rows)} · ${String(definition.weightGrams)} г`;
+                button.textContent = `Переместить: ${itemDisplayName(item)} · ${String(definition.columns)} × ${String(definition.rows)} · ${String(itemWeightGrams(item))} г`;
                 const hasDuplicates =
                     next?.some(candidate => {
                         const isOtherItem = candidate.itemId !== item.itemId;
@@ -132,9 +137,9 @@ export const createInventoryGrid = ({
             const definition = item === undefined ? null : itemDefinitions[item.kind];
             button.setAttribute(
                 'aria-description',
-                definition === null
+                definition === null || item === undefined
                     ? 'Свободно'
-                    : `${definition.name} · часть предмета ${String(definition.columns)} × ${String(definition.rows)}`,
+                    : `${itemDisplayName(item)} · часть предмета ${String(definition.columns)} × ${String(definition.rows)}`,
             );
             button.dataset['occupied'] = String(item !== undefined);
         }

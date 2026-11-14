@@ -1,4 +1,4 @@
-import { itemDefinitions } from '@zombi-survive/content';
+import { itemDisplayName } from '@zombi-survive/content';
 import {
     type Corpse,
     type GroundItem,
@@ -250,7 +250,7 @@ export class BootScene extends Scene {
 
         if (item !== null) {
             const label = this.itemMarker?.list[1];
-            if (label instanceof GameObjects.Text) label.setText(itemDefinitions[item.kind].name);
+            if (label instanceof GameObjects.Text) label.setText(itemDisplayName(item));
             this.itemMarker?.setPosition(
                 480 + item.position.xMeters * pixelsPerMeter,
                 270 + item.position.yMeters * pixelsPerMeter,

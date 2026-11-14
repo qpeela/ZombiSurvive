@@ -1,6 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
 
-/** New-store fixtures must remove the later overlay when recreating v4–v9. */
+/** New-store fixtures must remove the later overlays when recreating v4–v9. */
 export const removePistolForLegacySave = (database: DatabaseSync): void => {
     const raw = database.prepare('SELECT item_location FROM solo_world WHERE id = 1').get()?.[
         'item_location'
@@ -12,7 +12,7 @@ export const removePistolForLegacySave = (database: DatabaseSync): void => {
         if (typeof entry !== 'object' || entry === null || !('item' in entry)) return true;
         const item = entry.item;
         if (typeof item !== 'object' || item === null || !('kind' in item)) return true;
-        return item.kind !== 'pistol';
+        return item.kind !== 'pistol' && item.kind !== 'ammo9mm';
     });
     database
         .prepare('UPDATE solo_world SET item_location = ? WHERE id = 1')
