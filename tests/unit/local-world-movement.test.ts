@@ -155,6 +155,47 @@ test('disconnect cancels pending input and movement even while another tab remai
     });
 });
 
+test('safe logout hides the solo character only after its last tab leaves and restores its position', () => {
+    const movement = setup();
+    movement.receive('first', command(1));
+    movement.step();
+    movement.leave('first');
+    expect(movement.hideDisconnectedSoloPlayer()).toBe(false);
+    movement.receive('second', command(1, { x: 0, y: 1 }));
+    movement.step();
+    expect(movement.soloPosition()).toEqual({ xMeters: 0.2, yMeters: 0.2 });
+
+    movement.leave('second');
+    expect(movement.hideDisconnectedSoloPlayer()).toBe(true);
+    expect(movement.hideDisconnectedSoloPlayer()).toBe(false);
+    movement.join('friend', 'other');
+    expect(movement.snapshot('friend').otherPlayers).toEqual([]);
+
+    movement.join('return');
+    expect(movement.snapshot('return')).toMatchObject({
+        player: { position: { xMeters: 0.2, yMeters: 0.2 } },
+        lastProcessedInputSequence: null,
+    });
+});
+
+test('rejoining a running host keeps stamina but clears movement intentions', () => {
+    const movement = new LocalWorldMovement('world', 'player');
+    movement.join('first');
+    movement.receive('first', { ...command(1), isSprinting: true });
+    movement.step();
+    const previous = movement.snapshot('first').player;
+    expect(previous.stamina).toBeLessThan(1);
+    movement.leave('first');
+    expect(movement.hideDisconnectedSoloPlayer()).toBe(true);
+    movement.join('return');
+    expect(movement.snapshot('return').player).toMatchObject({
+        stamina: previous.stamina,
+        position: previous.position,
+    });
+    movement.step();
+    expect(movement.snapshot('return').player.position).toEqual(previous.position);
+});
+
 test('participants move independently and cannot select another character through a command', () => {
     const movement = new LocalWorldMovement('world', 'host');
     movement.join('host-tab', 'host');

@@ -36,10 +36,14 @@ const clickWorld = async (page, x, y) => {
         box.y + (box.height * (270 + y * 24 - camera.y)) / 540,
     );
 };
-const arrive = async (page, x, y) => {
+const arrive = async (page, x, y, toleranceMeters = 0.05) => {
     await clickWorld(page, x, y);
-    await expect.poll(async () => (await position(page)).x).toBeCloseTo(x, 1);
-    await expect.poll(async () => (await position(page)).y).toBeCloseTo(y, 1);
+    await expect
+        .poll(async () => {
+            const current = await position(page);
+            return Math.hypot(current.x - x, current.y - y);
+        })
+        .toBeLessThanOrEqual(toleranceMeters);
     await expect(page.locator('canvas')).toHaveAttribute('data-target-visible', 'false');
 };
 
@@ -170,7 +174,9 @@ test('crossing two seams releases distant chunks and reload restores the same co
             expected.flatMap(chunk => chunk.obstacles),
         );
         // The central y=-10 corridor avoids ruins and rocks throughout every chunk.
-        await arrive(page, 115, -10);
+        // The camera can settle a few pixels between reading it and the real pointer click.
+        // This waypoint only clears the corridor; exact seam and collider checks stay strict.
+        await arrive(page, 115, -10, 0.3);
         await arrive(page, 128, -10);
         await arrive(page, 128, 0);
         await expect(canvas).toHaveAttribute('data-visible-world-chunk-count', '1');

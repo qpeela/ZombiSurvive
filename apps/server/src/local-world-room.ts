@@ -44,7 +44,7 @@ export class LocalWorldRoom extends Room {
     private saveTimer: ReturnType<typeof setInterval> | undefined;
     private isStopping = false;
     private pendingStep: (() => void) | null = null;
-    private save: (() => void) | undefined;
+    private save: (() => boolean) | undefined;
 
     override onCreate(options: {
         access: WorldAccess;
@@ -95,10 +95,12 @@ export class LocalWorldRoom extends Room {
             this.save = () => {
                 try {
                     store.savePosition(movement.soloPosition());
+                    return true;
                 } catch (error) {
                     this.isStopping = true;
                     clearInterval(this.saveTimer);
                     options.onSaveError(error);
+                    return false;
                 }
             };
             this.saveTimer = setInterval(this.save, 1000);
@@ -432,6 +434,22 @@ export class LocalWorldRoom extends Room {
         this.melee.leave(client.sessionId);
         this.firearm.leave(client.sessionId);
         this.reload.leave(client.sessionId);
+
+        const playerId: unknown = client.auth;
+        if (
+            typeof playerId !== 'string' ||
+            playerId !== this.access?.soloPlayerId ||
+            this.movement?.isPlayerConnected(playerId) === true ||
+            this.combat.remainingCombatTicks(playerId) > 0 ||
+            this.combat.bleedingTicks(playerId) > 0
+        ) {
+            return;
+        }
+
+        this.pendingStep?.();
+        if (this.isStopping) return;
+
+        if (this.save?.() !== false) this.movement?.hideDisconnectedSoloPlayer();
     }
 
     override onBeforeShutdown(): void {
