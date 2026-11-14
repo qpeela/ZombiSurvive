@@ -1,9 +1,9 @@
 import { zombieSettings } from '@zombi-survive/content';
 import type { PlayerMovementState, WorldObstacle, ZombieState } from '@zombi-survive/domain';
 
-import { resolveMovement } from './collisions.ts';
 import { movementStepSeconds } from './movement.ts';
-import { distanceBetween, findZombieWaypoint, isSegmentClear } from './zombie-navigation.ts';
+import { moveZombieToward } from './zombie-movement.ts';
+import { distanceBetween, isSegmentClear } from './zombie-navigation.ts';
 
 /** Only connected players participate. Inputs are server-owned, validated world state. */
 export const stepZombie = ({
@@ -58,39 +58,14 @@ export const stepZombie = ({
         return { ...zombie, targetPlayerId: null };
     }
 
-    const next = { ...zombie, targetPlayerId: target.playerId };
-    const distance = distanceBetween(zombie.position, target.position);
-
-    if (distance <= zombieSettings.stopRangeMeters) {
-        return next;
-    }
-
-    const waypoint = findZombieWaypoint({
-        start: zombie.position,
-        target: target.position,
-        obstacles,
-    });
-
-    if (waypoint === null) {
-        return next;
-    }
-
-    const waypointDistance = distanceBetween(zombie.position, waypoint);
-    const travel = Math.min(
-        zombieSettings.speedMetersPerSecond * stepSeconds,
-        waypointDistance,
-        distance - zombieSettings.stopRangeMeters,
-    );
-
-    if (waypointDistance === 0) {
-        return next;
-    }
-
-    const ratio = travel / waypointDistance;
-    const desired = {
-        xMeters: zombie.position.xMeters + (waypoint.xMeters - zombie.position.xMeters) * ratio,
-        yMeters: zombie.position.yMeters + (waypoint.yMeters - zombie.position.yMeters) * ratio,
+    return {
+        ...zombie,
+        targetPlayerId: target.playerId,
+        position: moveZombieToward({
+            position: zombie.position,
+            target: target.position,
+            obstacles,
+            stepSeconds,
+        }),
     };
-
-    return { ...next, position: resolveMovement(zombie.position, desired, obstacles) };
 };

@@ -3,6 +3,7 @@ export { stepBleeding, woundFromZombieHit } from './bleeding.ts';
 export { resolveMovement } from './collisions.ts';
 export { expireCorpses } from './corpse-expiry.ts';
 export { addStarterWeapons, playerHands, playerInventory, transferWeapon } from './equipment.ts';
+export { type HeardGunshot, hearGunshot, stepGunshotInvestigation } from './gunshot-noise.ts';
 export { findInventorySpace, inventoryWeightGrams, placeInventoryItem } from './inventory.ts';
 export { findMeleeTarget } from './melee.ts';
 export { movementStepSeconds, stepPlayerMovement, stepPlayerToward } from './movement.ts';

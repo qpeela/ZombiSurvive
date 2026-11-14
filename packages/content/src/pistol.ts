@@ -9,4 +9,6 @@ export const pistolSettings = Object.freeze({
     cooldownTicks: 10,
     reloadTicks: 40,
     targetRadiusMeters: 0.35,
+    noiseRadiusMeters: 24,
+    noiseInterestTicks: 200,
 });

@@ -3,6 +3,8 @@ import { once } from 'node:events';
 
 import { expect, test } from '@playwright/test';
 
+import { activateStartingZombie, distanceToStartingZombie } from '../fixtures/game-controls.mjs';
+
 const effects = page =>
     page.locator('canvas').evaluate(canvas => JSON.parse(canvas.dataset.meleeEffects ?? '[]'));
 const outcome = (page, expected) =>
@@ -39,19 +41,9 @@ test('confirmed miss, damage and kill are distinct, expire and clear on disconne
             .toEqual({ outcome: 'miss', position: { xMeters: 0, yMeters: 0 } });
         await canvas.screenshot({ path: '.cache/t025-miss.png' });
         await expect.poll(() => effects(page)).toEqual([]);
+        await activateStartingZombie(page);
         await expect
-            .poll(
-                async () => {
-                    const zombies = await canvas.evaluate(element =>
-                        JSON.parse(element.dataset.zombies ?? '[]'),
-                    );
-                    const zombie = zombies.find(state => state.zombieId === 'slow-zombie-1');
-                    return zombie === undefined
-                        ? 99
-                        : Math.hypot(zombie.position.xMeters, zombie.position.yMeters);
-                },
-                { timeout: 10000 },
-            )
+            .poll(() => distanceToStartingZombie(page), { timeout: 10000 })
             .toBeLessThanOrEqual(1.8);
         for (let index = 0; index < 3; index++) {
             await attack.click();

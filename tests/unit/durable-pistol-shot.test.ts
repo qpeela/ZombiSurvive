@@ -30,7 +30,9 @@ const setup = ({
     const path = join(directory, 'world.sqlite');
     const seed = new SoloWorldStore(path);
     const playerId = seed.initialWorld.playerId;
-    const gun = seed.initialItemLocations.find(location => location.item.kind === 'pistol')?.item;
+    const gun = seed.initialItemLocations.find(
+        location => location.item.itemId === 'pistol-v1:0:0' && location.item.kind === 'pistol',
+    )?.item;
     if (gun?.kind !== 'pistol') throw new Error('Missing gun');
     seed.saveItemLocations(
         seed.initialItemLocations.map((location): ItemLocation => {
@@ -40,7 +42,7 @@ const setup = ({
                     playerId,
                     item: { itemId: gun.itemId, kind: 'pistol', rounds, magazineCapacity: 8 },
                 };
-            if (location.item.kind === 'ammo9mm' && ammoQuantity > 0)
+            if (location.item.itemId === 'ammo9mm-v1:0:0' && ammoQuantity > 0)
                 return {
                     type: 'container',
                     playerId,
@@ -183,7 +185,9 @@ test('ammo/revision and cooldown commit together outside the step before any sho
     expect(save).toHaveBeenCalledOnce();
     expect(save.mock.calls[0]?.[0]).toMatchObject({ cooldownTicks: 10 });
     expect(
-        save.mock.calls[0]?.[1]?.find(location => location.item.kind === 'pistol'),
+        save.mock.calls[0]?.[1]?.find(
+            location => location.item.itemId === 'pistol-v1:0:0' && location.item.kind === 'pistol',
+        ),
     ).toMatchObject({ type: 'hands', item: { rounds: 7, revision: 1 } });
     const action = state.send.mock.calls.find(([type]) => type === 'shot-action')?.[1];
     expect(action).toMatchObject({ weaponRevision: 1, impact: { damage: 30 } });
@@ -197,12 +201,20 @@ test('ammo/revision and cooldown commit together outside the step before any sho
     state.tick();
     state.flush();
     expect(state.damage).toHaveBeenCalledOnce();
-    expect(state.read().items.find(location => location.item.kind === 'pistol')).toMatchObject({
+    expect(
+        state
+            .read()
+            .items.find(
+                location =>
+                    location.item.itemId === 'pistol-v1:0:0' && location.item.kind === 'pistol',
+            ),
+    ).toMatchObject({
         item: { rounds: 7, revision: 1 },
     });
 });
 test('failed shot commit publishes nothing, stops the host and retains the previous magazine', () => {
     const state = setup();
+    const hear = vi.spyOn(LocalWorldZombie.prototype, 'hearShot');
     vi.spyOn(state.store, 'saveCombat').mockImplementation(() => {
         throw new Error('disk full');
     });
@@ -211,10 +223,18 @@ test('failed shot commit publishes nothing, stops the host and retains the previ
     state.flush();
     expect(state.failure).toHaveBeenCalledExactlyOnceWith(new Error('disk full'));
     expect(state.send).not.toHaveBeenCalled();
+    expect(hear).not.toHaveBeenCalled();
     state.tick();
     state.flush();
     expect(state.failure).toHaveBeenCalledOnce();
-    expect(state.read().items.find(location => location.item.kind === 'pistol')).toMatchObject({
+    expect(
+        state
+            .read()
+            .items.find(
+                location =>
+                    location.item.itemId === 'pistol-v1:0:0' && location.item.kind === 'pistol',
+            ),
+    ).toMatchObject({
         item: { rounds: 8 },
     });
 });
@@ -227,7 +247,11 @@ test('a simultaneous bleeding death stores the spent magazine in its new body in
     expect(save).toHaveBeenCalledOnce();
     const saved = state.read();
     expect(saved.combat).toMatchObject({ health: 0, cooldownTicks: 10 });
-    expect(saved.items.find(location => location.item.kind === 'pistol')).toMatchObject({
+    expect(
+        saved.items.find(
+            location => location.item.itemId === 'pistol-v1:0:0' && location.item.kind === 'pistol',
+        ),
+    ).toMatchObject({
         type: 'corpse',
         item: { rounds: 7, revision: 1 },
     });
@@ -275,11 +299,20 @@ test('reload progress is shared; only completion durably moves rounds and pendin
         hands: { rounds: 8, revision: 1 },
     });
     const saved = state.read();
-    expect(saved.items.find(location => location.item.kind === 'pistol')).toMatchObject({
+    expect(
+        saved.items.find(
+            location => location.item.itemId === 'pistol-v1:0:0' && location.item.kind === 'pistol',
+        ),
+    ).toMatchObject({
         type: 'hands',
         item: { rounds: 8, revision: 1 },
     });
-    expect(saved.items.find(location => location.item.kind === 'ammo9mm')).toMatchObject({
+    expect(
+        saved.items.find(
+            location =>
+                location.item.itemId === 'ammo9mm-v1:0:0' && location.item.kind === 'ammo9mm',
+        ),
+    ).toMatchObject({
         type: 'container',
         item: { quantity: 3 },
     });
@@ -302,10 +335,19 @@ test('failed reload completion cannot publish or persist one half of the transfe
     expect(state.failure).toHaveBeenCalledExactlyOnceWith(new Error('reload disk full'));
     expect(state.send).not.toHaveBeenCalled();
     const saved = state.read();
-    expect(saved.items.find(location => location.item.kind === 'pistol')).toMatchObject({
+    expect(
+        saved.items.find(
+            location => location.item.itemId === 'pistol-v1:0:0' && location.item.kind === 'pistol',
+        ),
+    ).toMatchObject({
         item: { rounds: 3 },
     });
-    expect(saved.items.find(location => location.item.kind === 'ammo9mm')).toMatchObject({
+    expect(
+        saved.items.find(
+            location =>
+                location.item.itemId === 'ammo9mm-v1:0:0' && location.item.kind === 'ammo9mm',
+        ),
+    ).toMatchObject({
         item: { quantity: 8 },
     });
 });
@@ -326,11 +368,20 @@ test('bleeding death on the completion step keeps the complete pack and partial 
     expect(save).toHaveBeenCalledOnce();
     const saved = state.read();
     expect(saved.combat.health).toBe(0);
-    expect(saved.items.find(location => location.item.kind === 'pistol')).toMatchObject({
+    expect(
+        saved.items.find(
+            location => location.item.itemId === 'pistol-v1:0:0' && location.item.kind === 'pistol',
+        ),
+    ).toMatchObject({
         type: 'corpse',
         item: { rounds: 3 },
     });
-    expect(saved.items.find(location => location.item.kind === 'ammo9mm')).toMatchObject({
+    expect(
+        saved.items.find(
+            location =>
+                location.item.itemId === 'ammo9mm-v1:0:0' && location.item.kind === 'ammo9mm',
+        ),
+    ).toMatchObject({
         type: 'corpse',
         item: { quantity: 8 },
     });
@@ -354,11 +405,20 @@ test('equipping away on the completion step cancels reload and stale life reques
     state.tick();
     state.flush();
     const saved = state.read();
-    expect(saved.items.find(location => location.item.kind === 'pistol')).toMatchObject({
+    expect(
+        saved.items.find(
+            location => location.item.itemId === 'pistol-v1:0:0' && location.item.kind === 'pistol',
+        ),
+    ).toMatchObject({
         type: 'container',
         item: { rounds: 3 },
     });
-    expect(saved.items.find(location => location.item.kind === 'ammo9mm')).toMatchObject({
+    expect(
+        saved.items.find(
+            location =>
+                location.item.itemId === 'ammo9mm-v1:0:0' && location.item.kind === 'ammo9mm',
+        ),
+    ).toMatchObject({
         type: 'container',
         item: { quantity: 8 },
     });
@@ -377,11 +437,43 @@ test('a rejected overweight unequip does not cancel a valid reload', () => {
     state.tick();
     state.flush();
     const saved = state.read();
-    expect(saved.items.find(location => location.item.kind === 'pistol')).toMatchObject({
+    expect(
+        saved.items.find(
+            location => location.item.itemId === 'pistol-v1:0:0' && location.item.kind === 'pistol',
+        ),
+    ).toMatchObject({
         type: 'hands',
         item: { rounds: 8, revision: 1 },
     });
-    expect(saved.items.find(location => location.item.kind === 'ammo9mm')).toMatchObject({
+    expect(
+        saved.items.find(
+            location =>
+                location.item.itemId === 'ammo9mm-v1:0:0' && location.item.kind === 'ammo9mm',
+        ),
+    ).toMatchObject({
         item: { quantity: 3 },
     });
+});
+
+test('gunshot hearing is published only after the durable shot, once per character despite two tabs', () => {
+    const state = setup();
+    const hear = vi.spyOn(LocalWorldZombie.prototype, 'hearShot');
+    state.shoot();
+    state.tick();
+    expect(hear).not.toHaveBeenCalled();
+    state.flush();
+    expect(hear).toHaveBeenCalledOnce();
+    expect(hear.mock.calls[0]?.[0]).toMatchObject({ type: 'shot-action', weaponRevision: 1 });
+    state.shoot(1);
+    state.tick();
+    state.flush();
+    expect(hear).toHaveBeenCalledOnce();
+});
+test('empty shots never create hearing events', () => {
+    const state = setup({ rounds: 0 });
+    const hear = vi.spyOn(LocalWorldZombie.prototype, 'hearShot');
+    state.shoot();
+    state.tick();
+    state.flush();
+    expect(hear).not.toHaveBeenCalled();
 });

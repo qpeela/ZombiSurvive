@@ -93,6 +93,10 @@ export class LocalWorldFirearm {
         }
         this.pending.clear();
     }
+    acceptedShots(): readonly ShotAction[] {
+        return [...this.actions.values()];
+    }
+
     action(movement: MovementSnapshot): ShotAction | null {
         return this.actions.get(movement.player.playerId) ?? null;
     }

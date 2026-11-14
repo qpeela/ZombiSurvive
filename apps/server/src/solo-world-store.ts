@@ -18,6 +18,7 @@ import {
 } from '@zombi-survive/domain';
 import { addStarterWeapons, expireCorpses } from '@zombi-survive/simulation';
 import {
+    initialExpandedLoot,
     initialWorldAmmoLoot,
     initialWorldPistolLoot,
     initialWorldWeaponLoot,
@@ -29,7 +30,8 @@ import { readSavedCorpses } from './saved-corpse.ts';
 import { readSavedItem, readSavedItems, writeSavedItems } from './saved-item.ts';
 
 const pistolManifest = [...initialWorldWeaponLoot, ...initialWorldPistolLoot];
-const worldItemManifest = [...pistolManifest, ...initialWorldAmmoLoot];
+const ammoManifest = [...pistolManifest, ...initialWorldAmmoLoot];
+const worldItemManifest = [...ammoManifest, ...initialExpandedLoot];
 
 export type SavedSoloWorld = {
     readonly worldId: string;
@@ -133,7 +135,8 @@ export class SoloWorldStore {
                 version !== 8 &&
                 version !== 9 &&
                 version !== 10 &&
-                version !== 11
+                version !== 11 &&
+                version !== 12
             ) {
                 throw new Error('Unsupported solo save schema version.');
             }
@@ -193,7 +196,8 @@ export class SoloWorldStore {
                 this.database.exec('PRAGMA user_version = 5');
             }
 
-            const firearmManifest = version === 11 ? worldItemManifest : pistolManifest;
+            const priorManifest = version === 10 ? pistolManifest : ammoManifest;
+            const firearmManifest = version === 12 ? worldItemManifest : priorManifest;
             this.initialItemLocations = readSavedItems(
                 this.database.prepare('SELECT item_location FROM solo_world WHERE id = 1').get()?.[
                     'item_location'
@@ -204,14 +208,18 @@ export class SoloWorldStore {
                     : initialWorldWeaponLoot,
                 typeof version === 'number' && version >= 8,
             );
-            if (typeof version === 'number' && version < 11) {
+            if (typeof version === 'number' && version < 12) {
                 this.initialItemLocations = [
                     ...this.initialItemLocations,
                     ...(version < 10 ? initialWorldPistolLoot : []).map(item => ({
                         type: 'ground' as const,
                         item,
                     })),
-                    ...initialWorldAmmoLoot.map(item => ({ type: 'ground' as const, item })),
+                    ...(version < 11 ? initialWorldAmmoLoot : []).map(item => ({
+                        type: 'ground' as const,
+                        item,
+                    })),
+                    ...initialExpandedLoot.map(item => ({ type: 'ground' as const, item })),
                 ];
                 this.database
                     .prepare('UPDATE solo_world SET item_location = ? WHERE id = 1')
@@ -313,7 +321,7 @@ export class SoloWorldStore {
                         ),
                     );
             }
-            if (version !== 11) this.database.exec('PRAGMA user_version = 11');
+            if (version !== 12) this.database.exec('PRAGMA user_version = 12');
             this.profile = {
                 displayName: this.initialWorld.displayName,
                 nameRevision: this.initialWorld.nameRevision,

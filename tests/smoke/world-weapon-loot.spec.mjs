@@ -128,7 +128,7 @@ test('world weapon refuses an overweight pickup, then survives pickup, exact-ins
         const locations = JSON.parse(
             saved.prepare('SELECT item_location FROM solo_world').get().item_location,
         );
-        expect(locations).toHaveLength(11);
+        expect(locations).toHaveLength(19);
         expect(locations.filter(location => location.item.itemId === loot.itemId)).toMatchObject([
             { type: 'hands' },
         ]);

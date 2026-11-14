@@ -211,7 +211,10 @@ export class LocalWorldRoom extends Room {
                 snapshot => this.combat.snapshot(snapshot).health,
                 input => this.combat.useBandage(input),
             );
-            const zombie = this.zombie.step(snapshots);
+            const zombie = this.zombie.step(
+                snapshots,
+                playerId => this.combat.health(playerId) > 0,
+            );
             this.melee.step({
                 ...zombie,
                 snapshots,
@@ -292,6 +295,7 @@ export class LocalWorldRoom extends Room {
                 this.pickup.setCorpses(corpses);
             }
             const publish = (): void => {
+                for (const shot of this.firearm.acceptedShots()) this.zombie.hearShot(shot);
                 for (const client of this.clients) {
                     const snapshot = snapshots.get(client.sessionId);
                     const meleeState = meleeStates.get(client.sessionId);

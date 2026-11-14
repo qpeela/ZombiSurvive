@@ -12,7 +12,11 @@ export const removePistolForLegacySave = (database: DatabaseSync): void => {
         if (typeof entry !== 'object' || entry === null || !('item' in entry)) return true;
         const item = entry.item;
         if (typeof item !== 'object' || item === null || !('kind' in item)) return true;
-        return item.kind !== 'pistol' && item.kind !== 'ammo9mm';
+        const isExpanded =
+            'itemId' in item &&
+            typeof item.itemId === 'string' &&
+            item.itemId.startsWith('scatter-v1:');
+        return !isExpanded && item.kind !== 'pistol' && item.kind !== 'ammo9mm';
     });
     database
         .prepare('UPDATE solo_world SET item_location = ? WHERE id = 1')

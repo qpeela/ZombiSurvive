@@ -3,6 +3,8 @@ import { once } from 'node:events';
 
 import { expect, test } from '@playwright/test';
 
+import { activateStartingZombie, distanceToStartingZombie } from '../fixtures/game-controls.mjs';
+
 const origin = 'http://127.0.0.1:3114';
 const zombies = page =>
     page.locator('canvas').evaluate(canvas => JSON.parse(canvas.dataset.zombies ?? '[]'));
@@ -35,16 +37,10 @@ test('equip club, kill with three swings, reconnect and meet zombies in a new ma
         await expect(attack).toBeDisabled();
         await page.getByRole('button', { name: 'Экипировать дубинку' }).click();
         await expect(page.locator('#weapon-label')).toHaveText('Оружие: дубинка');
+        await activateStartingZombie(page);
         // Wait for authoritative reach rather than a guessed wall-clock pursuit delay.
         await expect
-            .poll(
-                async () =>
-                    Math.abs(
-                        (await zombies(page)).find(zombie => zombie.zombieId === 'slow-zombie-1')
-                            ?.position.xMeters ?? 99,
-                    ),
-                { timeout: 10000 },
-            )
+            .poll(() => distanceToStartingZombie(page), { timeout: 10000 })
             .toBeLessThanOrEqual(1.8);
         await attack.click();
         expect(await hasStarter(page)).toBe(true);

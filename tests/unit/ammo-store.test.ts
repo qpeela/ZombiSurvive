@@ -36,13 +36,13 @@ const open = (path: string) => {
 const equip = (store: SoloWorldStore, rounds = 3, quantity = 8): readonly ItemLocation[] => {
     const playerId = store.initialWorld.playerId;
     return store.initialItemLocations.map(location => {
-        if (location.item.kind === 'pistol')
+        if (location.item.itemId === 'pistol-v1:0:0')
             return {
                 type: 'hands',
                 playerId,
                 item: { itemId: location.item.itemId, kind: 'pistol', rounds, magazineCapacity: 8 },
             };
-        if (location.item.kind === 'ammo9mm')
+        if (location.item.itemId === 'ammo9mm-v1:0:0')
             return {
                 type: 'container',
                 playerId,
@@ -66,9 +66,14 @@ test('v10 adds ammo exactly once without changing a partial pistol or profile', 
     const { path, store } = create();
     store.saveDisplayName('Перезаряжающий');
     const old = store.initialItemLocations
-        .filter(location => location.item.kind !== 'ammo9mm')
+        .filter(
+            location =>
+                location.item.kind !== 'ammo9mm' && !location.item.itemId.startsWith('scatter-v1:'),
+        )
         .map(location =>
-            location.type === 'ground' && location.item.kind === 'pistol'
+            location.type === 'ground' &&
+            location.item.itemId === 'pistol-v1:0:0' &&
+            location.item.kind === 'pistol'
                 ? { ...location, item: { ...location.item, rounds: 2, revision: 4 } }
                 : location,
         );
@@ -82,15 +87,17 @@ test('v10 adds ammo exactly once without changing a partial pistol or profile', 
     expect(loaded.initialWorld.worldId).toBe(world.worldId);
     expect(loaded.initialWorld.displayName).toBe('Перезаряжающий');
     expect(
-        loaded.initialItemLocations.find(location => location.item.kind === 'pistol')?.item,
+        loaded.initialItemLocations.find(
+            location => location.item.itemId === 'pistol-v1:0:0' && location.item.kind === 'pistol',
+        )?.item,
     ).toMatchObject({ rounds: 2, revision: 4 });
     expect(
-        loaded.initialItemLocations.filter(location => location.item.kind === 'ammo9mm'),
+        loaded.initialItemLocations.filter(location => location.item.itemId === 'ammo9mm-v1:0:0'),
     ).toHaveLength(1);
     loaded.close();
     loaded = open(path);
     expect(
-        loaded.initialItemLocations.filter(location => location.item.kind === 'ammo9mm'),
+        loaded.initialItemLocations.filter(location => location.item.itemId === 'ammo9mm-v1:0:0'),
     ).toHaveLength(1);
 });
 test('partial and consumed packs survive reload/restart without ever respawning', () => {
@@ -98,7 +105,9 @@ test('partial and consumed packs survive reload/restart without ever respawning'
     const playerId = store.initialWorld.playerId;
     const source = equip(store);
     store.saveItemLocations(source);
-    const gun = source.find(location => location.item.kind === 'pistol');
+    const gun = source.find(
+        location => location.item.itemId === 'pistol-v1:0:0' && location.item.kind === 'pistol',
+    );
     if (gun === undefined) throw new Error('Missing gun');
     store.saveItemLocations(
         reloadPistol({ locations: source, playerId, itemId: gun.item.itemId, revision: 0 }),
@@ -106,10 +115,15 @@ test('partial and consumed packs survive reload/restart without ever respawning'
     store.close();
     let loaded = open(path);
     expect(
-        loaded.initialItemLocations.find(location => location.item.kind === 'ammo9mm'),
+        loaded.initialItemLocations.find(
+            location =>
+                location.item.itemId === 'ammo9mm-v1:0:0' && location.item.kind === 'ammo9mm',
+        ),
     ).toMatchObject({ type: 'container', item: { quantity: 3 } });
     const next = loaded.initialItemLocations.map(location =>
-        location.type === 'hands' && location.item.kind === 'pistol'
+        location.type === 'hands' &&
+        location.item.itemId === 'pistol-v1:0:0' &&
+        location.item.kind === 'pistol'
             ? { ...location, item: { ...location.item, rounds: 0 } }
             : location,
     );
@@ -119,15 +133,23 @@ test('partial and consumed packs survive reload/restart without ever respawning'
     loaded.close();
     loaded = open(path);
     expect(
-        loaded.initialItemLocations.find(location => location.item.kind === 'pistol'),
+        loaded.initialItemLocations.find(
+            location => location.item.itemId === 'pistol-v1:0:0' && location.item.kind === 'pistol',
+        ),
     ).toMatchObject({ type: 'hands', item: { rounds: 3, revision: 2 } });
     expect(
-        loaded.initialItemLocations.find(location => location.item.kind === 'ammo9mm'),
+        loaded.initialItemLocations.find(
+            location =>
+                location.item.itemId === 'ammo9mm-v1:0:0' && location.item.kind === 'ammo9mm',
+        ),
     ).toMatchObject({ type: 'consumed', item: { quantity: 0 } });
     loaded.close();
     loaded = open(path);
     expect(
-        loaded.initialItemLocations.find(location => location.item.kind === 'ammo9mm')?.type,
+        loaded.initialItemLocations.find(
+            location =>
+                location.item.itemId === 'ammo9mm-v1:0:0' && location.item.kind === 'ammo9mm',
+        )?.type,
     ).toBe('consumed');
 });
 test('zero stacks exist only as consumed markers; wrong kind, hands and malformed quantities fail closed', () => {
@@ -135,7 +157,9 @@ test('zero stacks exist only as consumed markers; wrong kind, hands and malforme
     const source = store.initialItemLocations;
     for (const quantity of [-1, 0, 0.5, 9, Infinity, NaN]) {
         const next = source.map(location =>
-            location.type === 'ground' && location.item.kind === 'ammo9mm'
+            location.type === 'ground' &&
+            location.item.itemId === 'ammo9mm-v1:0:0' &&
+            location.item.kind === 'ammo9mm'
                 ? { ...location, item: { ...location.item, quantity } }
                 : location,
         );
@@ -144,7 +168,7 @@ test('zero stacks exist only as consumed markers; wrong kind, hands and malforme
         }).toThrow();
     }
     const inHands = source.map(location =>
-        location.item.kind === 'ammo9mm'
+        location.item.itemId === 'ammo9mm-v1:0:0' && location.item.kind === 'ammo9mm'
             ? {
                   type: 'hands' as const,
                   playerId: store.initialWorld.playerId,
@@ -156,7 +180,7 @@ test('zero stacks exist only as consumed markers; wrong kind, hands and malforme
         store.saveItemLocations(inHands);
     }).toThrow();
     const malformed: readonly ItemLocation[] = source.map(location =>
-        location.item.kind === 'pistol'
+        location.item.itemId === 'pistol-v1:0:0' && location.item.kind === 'pistol'
             ? {
                   type: 'consumed',
                   item: { itemId: location.item.itemId, kind: 'ammo9mm', quantity: 0 },
@@ -169,7 +193,10 @@ test('zero stacks exist only as consumed markers; wrong kind, hands and malforme
 });
 test('failed ammo migration rolls back the complete v10 file', () => {
     const { path, store } = create();
-    const old = store.initialItemLocations.filter(location => location.item.kind !== 'ammo9mm');
+    const old = store.initialItemLocations.filter(
+        location =>
+            location.item.kind !== 'ammo9mm' && !location.item.itemId.startsWith('scatter-v1:'),
+    );
     store.close();
     const database = new DatabaseSync(path);
     database.prepare('UPDATE solo_world SET item_location = ?').run(JSON.stringify(old));
@@ -203,6 +230,9 @@ test('ammo state travels into a body and expired packs retain quantity and canno
     const loaded = open(path);
     expect(loaded.initialCorpses).toHaveLength(0);
     expect(
-        loaded.initialItemLocations.find(location => location.item.kind === 'ammo9mm'),
+        loaded.initialItemLocations.find(
+            location =>
+                location.item.itemId === 'ammo9mm-v1:0:0' && location.item.kind === 'ammo9mm',
+        ),
     ).toMatchObject({ type: 'expired', item: { quantity: 3 } });
 });
