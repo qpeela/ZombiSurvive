@@ -3,7 +3,15 @@ import { randomUUID } from 'node:crypto';
 import { type AuthContext, type Client, Room } from '@colyseus/core';
 import { combatSettings, movementSettings } from '@zombi-survive/content';
 import type { Corpse } from '@zombi-survive/domain';
-import { initialStateRequest, localWorldRoomId, pickupStateRequest } from '@zombi-survive/protocol';
+import {
+    initialStateRequest,
+    isCurrentLifeCommand,
+    isRespawnCommand,
+    localWorldRoomId,
+    pickupStateRequest,
+} from '@zombi-survive/protocol';
+import { findRespawnPosition } from '@zombi-survive/simulation';
+import { loadWorldChunks } from '@zombi-survive/worldgen';
 
 import { LocalWorldCombat } from './local-world-combat.ts';
 import { LocalWorldMelee } from './local-world-melee.ts';
@@ -45,6 +53,8 @@ export class LocalWorldRoom extends Room {
             cooldownTicks: 0,
             bleedingTicks: 0,
         };
+        let lifeRevision = savedCombat.lifeRevision ?? 0;
+        let pendingRespawn: number | null = null;
         this.combat = new LocalWorldCombat({
             playerId: soloPlayerId,
             health: savedCombat.health,
@@ -87,30 +97,87 @@ export class LocalWorldRoom extends Room {
         );
         for (const type of ['equip-weapon', 'unequip-weapon']) {
             this.onMessage<unknown>(type, (client, value) => {
-                this.pickup.receiveEquipment(client.sessionId, value);
+                if (isCurrentLifeCommand(value, lifeRevision))
+                    this.pickup.receiveEquipment(client.sessionId, value);
             });
         }
         this.onMessage<unknown>('melee-attack', (client, value) => {
-            this.melee.receive(client.sessionId, value);
+            if (isCurrentLifeCommand(value, lifeRevision))
+                this.melee.receive(client.sessionId, value);
         });
         this.onMessage<unknown>('pickup-item', (client, value) => {
-            this.pickup.receive(client.sessionId, value);
+            if (isCurrentLifeCommand(value, lifeRevision))
+                this.pickup.receive(client.sessionId, value);
         });
         this.onMessage<unknown>('inventory-move', (client, value) => {
-            this.pickup.receiveMove(client.sessionId, value);
+            if (isCurrentLifeCommand(value, lifeRevision))
+                this.pickup.receiveMove(client.sessionId, value);
         });
         this.onMessage<unknown>('use-bandage', (client, value) => {
-            this.pickup.receiveUseBandage(client.sessionId, value);
+            if (isCurrentLifeCommand(value, lifeRevision))
+                this.pickup.receiveUseBandage(client.sessionId, value);
         });
         this.onMessage<unknown>('movement-input', (client, value) => {
-            movement.receive(client.sessionId, value);
+            if (isCurrentLifeCommand(value, lifeRevision))
+                movement.receive(client.sessionId, value);
         });
         this.onMessage<unknown>('movement-target', (client, value) => {
-            movement.receive(client.sessionId, value);
+            if (isCurrentLifeCommand(value, lifeRevision))
+                movement.receive(client.sessionId, value);
+        });
+        this.onMessage<unknown>('respawn-player', (client, value) => {
+            if (options.soloStore === undefined || client.auth !== soloPlayerId) return;
+            if (isRespawnCommand(value) && value.lifeRevision === lifeRevision)
+                pendingRespawn = value.lifeRevision;
         });
         this.setTimestep(() => {
             if (this.isStopping || this.pendingStep !== null) {
                 return;
+            }
+
+            const expectedLife = pendingRespawn;
+            pendingRespawn = null;
+            const storeForRespawn = options.soloStore;
+            if (
+                expectedLife !== null &&
+                expectedLife === lifeRevision &&
+                this.combat.health(soloPlayerId) === 0 &&
+                storeForRespawn !== undefined
+            ) {
+                const position = findRespawnPosition({
+                    obstacles: loadWorldChunks({
+                        positions: [{ xMeters: 0, yMeters: 0 }],
+                        previousChunks: [],
+                    }).flatMap(chunk => chunk.obstacles),
+                    occupied: this.clients.flatMap(client =>
+                        movement
+                            .snapshot(client.sessionId)
+                            .otherPlayers.map(player => player.position),
+                    ),
+                    zombies: this.zombie.spawnBlockers(),
+                });
+                if (position !== null) {
+                    const finishRespawn = (): void => {
+                        this.pendingStep = null;
+                        try {
+                            savedCombat = storeForRespawn.saveRespawn(expectedLife, position);
+                            lifeRevision = savedCombat.lifeRevision ?? 0;
+                            movement.respawnPlayer(soloPlayerId, position);
+                            this.combat.respawnPlayer(soloPlayerId);
+                            this.melee.respawnPlayer(soloPlayerId);
+                            for (const client of this.clients) {
+                                this.pickup.leave(client.sessionId);
+                                this.melee.leave(client.sessionId);
+                            }
+                        } catch (error) {
+                            this.isStopping = true;
+                            clearInterval(this.saveTimer);
+                            options.onSaveError(error);
+                        }
+                    };
+                    this.deferStep(finishRespawn);
+                    return;
+                }
             }
 
             movement.step(playerId => this.combat.health(playerId));
@@ -141,6 +208,7 @@ export class LocalWorldRoom extends Room {
             }
 
             const nextCombat: SavedCombat = {
+                ...(lifeRevision === 0 ? {} : { lifeRevision }),
                 health: this.combat.health(soloPlayerId),
                 cooldownTicks: this.melee.remainingCooldown(soloPlayerId),
                 bleedingTicks: this.combat.bleedingTicks(soloPlayerId),
@@ -185,7 +253,10 @@ export class LocalWorldRoom extends Room {
                         client.send('movement-snapshot', snapshot);
                         client.send('pickup-state', this.pickup.snapshot(snapshot));
                         client.send('zombie-state', this.zombie.snapshot(snapshot));
-                        client.send('health-state', this.combat.snapshot(snapshot));
+                        client.send('health-state', {
+                            ...this.combat.snapshot(snapshot),
+                            lifeRevision,
+                        });
                         client.send('melee-state', meleeState);
                         const action = this.melee.action(snapshot);
 
@@ -239,11 +310,15 @@ export class LocalWorldRoom extends Room {
 
                 publish();
             };
-            this.pendingStep = finishStep;
-            setImmediate(() => {
-                if (!this.isStopping && this.pendingStep === finishStep) finishStep();
-            });
+            this.deferStep(finishStep);
         }, 1000 / movementSettings.ticksPerSecond);
+    }
+
+    private deferStep(finish: () => void): void {
+        this.pendingStep = finish;
+        setImmediate(() => {
+            if (!this.isStopping && this.pendingStep === finish) finish();
+        });
     }
 
     override onAuth(_client: Client, _options: unknown, context: AuthContext): string | false {

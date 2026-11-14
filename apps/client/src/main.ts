@@ -15,6 +15,7 @@ import type {
     PlayerMovementState,
     WorldPosition,
 } from '@zombi-survive/domain';
+import type { MovementSnapshot } from '@zombi-survive/protocol';
 import { findInventorySpace } from '@zombi-survive/simulation';
 import { AUTO, Game, Scale } from 'phaser';
 
@@ -59,6 +60,7 @@ const inventorySelector = document.querySelector<HTMLButtonElement>('#inventory-
 const inventoryMessage = document.querySelector<HTMLElement>('#inventory-message');
 const bandageButton = document.querySelector<HTMLButtonElement>('#use-bandage');
 const corpseItems = document.querySelector<HTMLElement>('#corpse-items');
+const respawnButton = document.querySelector<HTMLButtonElement>('#respawn');
 const deathScreen = document.querySelector<HTMLElement>('#death-screen');
 
 if (
@@ -93,7 +95,8 @@ if (
     !inventoryMessage ||
     !bandageButton ||
     !deathScreen ||
-    !corpseItems
+    !corpseItems ||
+    !respawnButton
 ) {
     throw new Error('Game UI is missing.');
 }
@@ -166,6 +169,8 @@ const profileUi = createPlayerProfileControls({
     rename: name => connection.renamePlayer(name),
 });
 const prediction = new MovementPrediction();
+let lifeRevision: number | null = null;
+let lastMovement: MovementSnapshot | null = null;
 let groundItem: GroundItem | null = null;
 let confirmedPosition: WorldPosition | null = null;
 let corpses: readonly (Corpse & { readonly items: readonly Item[] })[] = [];
@@ -265,6 +270,7 @@ const connection = createWorldConnection(
 
         if (state.status === 'connected') {
             const { snapshot } = state;
+            lastMovement = snapshot;
             prediction.accept(snapshot, performance.now());
             confirmedPosition = snapshot.player.position;
             updatePickup();
@@ -290,6 +296,9 @@ const connection = createWorldConnection(
 
         profileUi.update(null);
         lifeState = null;
+        lifeRevision = null;
+        lastMovement = null;
+        respawnButton.disabled = true;
         deathScreen.hidden = true;
         prediction.reset();
         health.value = 0;
@@ -368,9 +377,19 @@ const connection = createWorldConnection(
         scene.setZombies(snapshot.zombies);
     },
     snapshot => {
+        const nextLife = snapshot.lifeRevision ?? 0;
+        if (lifeRevision !== null && nextLife !== lifeRevision) {
+            input.reset();
+            prediction.reset();
+            if (lastMovement !== null) prediction.accept(lastMovement, performance.now());
+            scene.setDestination(null);
+        }
+        lifeRevision = nextLife;
+        health.dataset['lifeRevision'] = String(nextLife);
         lifeState = snapshot.lifeState;
         const isAlive = lifeState === 'alive';
         deathScreen.hidden = isAlive;
+        respawnButton.disabled = isAlive;
         input.setEnabled(isAlive);
 
         if (!isAlive) {
@@ -489,6 +508,10 @@ const onAttackKey = (event: KeyboardEvent): void => {
 };
 attack.addEventListener('click', onAttack);
 window.addEventListener('keydown', onAttackKey);
+const onRespawn = (): void => {
+    if (lifeState === 'dead') connection.respawn();
+};
+respawnButton.addEventListener('click', onRespawn);
 pickup.addEventListener('click', onPickup);
 reconnect.addEventListener('click', onConnect);
 window.addEventListener('pagehide', onPageHide);
@@ -515,6 +538,7 @@ if (import.meta.hot) {
         bandageButton.removeEventListener('click', onUseBandage);
         attack.removeEventListener('click', onAttack);
         window.removeEventListener('keydown', onAttackKey);
+        respawnButton.removeEventListener('click', onRespawn);
         pickup.removeEventListener('click', onPickup);
         reconnect.removeEventListener('click', onConnect);
         window.removeEventListener('pagehide', onPageHide);

@@ -278,6 +278,8 @@ export class LocalWorldPickup {
             hands: playerHands(this.locations, playerId),
             corpses: this.corpses
                 .filter(corpse => distance(corpse) <= worldLootSettings.visibilityMeters)
+                .sort((first, second) => distance(first) - distance(second))
+                .slice(0, 128)
                 .map(corpse => ({
                     ...corpse,
                     position: { ...corpse.position },

@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 import {
     collisionSettings,
+    combatSettings,
     initialGroundItem,
     worldGenerationSettings,
 } from '@zombi-survive/content';
@@ -358,6 +359,37 @@ export class SoloWorldStore {
         if (Number(result.changes) !== 1) {
             throw new Error('Solo combat save lost its world row.');
         }
+    }
+
+    saveRespawn(expectedLifeRevision: number, position: WorldPosition): SavedCombat {
+        validatePosition(position);
+        const current = readSavedCombat(
+            this.database.prepare('SELECT combat_state FROM solo_world WHERE id = 1').get()?.[
+                'combat_state'
+            ],
+        );
+        if (current.health !== 0 || (current.lifeRevision ?? 0) !== expectedLifeRevision)
+            throw new Error('Respawn belongs to an obsolete or living player.');
+        const lifeRevision = expectedLifeRevision + 1;
+        if (!Number.isSafeInteger(lifeRevision)) throw new Error('Life revision limit reached.');
+        const locations = readSavedItems(
+            this.database.prepare('SELECT item_location FROM solo_world WHERE id = 1').get()?.[
+                'item_location'
+            ],
+            this.initialWorld.playerId,
+            initialWorldWeaponLoot,
+            true,
+        );
+        if (locations.some(location => location.type === 'container' || location.type === 'hands'))
+            throw new Error('Dead player still owns items.');
+        const next = {
+            health: combatSettings.maxHealth,
+            cooldownTicks: 0,
+            bleedingTicks: 0,
+            lifeRevision,
+        };
+        this.saveCombat(next, undefined, position);
+        return next;
     }
 
     close(): void {

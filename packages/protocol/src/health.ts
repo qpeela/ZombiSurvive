@@ -17,6 +17,7 @@ export type HealthSnapshot = PlayerHealth &
         readonly tick: number;
         readonly maxHealth: number;
         readonly lifeState: PlayerLifeState;
+        readonly lifeRevision?: number;
     };
 const isId = (value: unknown): value is string => {
     if (typeof value !== 'string') {
@@ -54,7 +55,13 @@ export const isHealthSnapshot = (value: unknown): value is HealthSnapshot => {
         return false;
     }
 
+    const revision = record['lifeRevision'];
+    const isRevision =
+        revision === undefined ||
+        (typeof revision === 'number' && Number.isSafeInteger(revision) && revision >= 0);
+
     return (
+        isRevision &&
         isType &&
         isVersion &&
         isTick &&

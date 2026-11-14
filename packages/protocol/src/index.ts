@@ -1,5 +1,6 @@
 export { initialStateRequest, localWorldRoomId } from './connection.ts';
 export { type HealthSnapshot, healthVersion, isHealthSnapshot } from './health.ts';
+export { isCurrentLifeCommand, isRespawnCommand, type RespawnCommand } from './lifecycle.ts';
 export {
     isMeleeAction,
     isMeleeCommand,
