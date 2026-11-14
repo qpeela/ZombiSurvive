@@ -69,3 +69,48 @@ export const isShotAction = (value: unknown): value is ShotAction => {
         isMeleeImpact(value['impact'])
     );
 };
+
+export type ReloadCommand = Omit<ShootCommand, 'type' | 'aim'> & { readonly type: 'reload-pistol' };
+export type FirearmSnapshot = {
+    readonly type: 'firearm-state';
+    readonly protocolVersion: typeof protocolVersion;
+    readonly firearmVersion: typeof firearmVersion;
+    readonly worldId: string;
+    readonly playerId: string;
+    readonly tick: number;
+    readonly reload: null | {
+        readonly itemId: string;
+        readonly remainingTicks: number;
+        readonly totalTicks: number;
+    };
+};
+export const isReloadCommand = (value: unknown): value is ReloadCommand =>
+    isRecord(value) &&
+    value['type'] === 'reload-pistol' &&
+    isVersion(value) &&
+    isId(value['itemId']) &&
+    isRevision(value['weaponRevision']);
+export const isFirearmSnapshot = (value: unknown): value is FirearmSnapshot => {
+    if (!isRecord(value)) return false;
+    const reload = value['reload'];
+    let isReload = reload === null;
+    if (isRecord(reload)) {
+        const remaining = reload['remainingTicks'];
+        const total = reload['totalTicks'];
+        isReload =
+            isId(reload['itemId']) &&
+            isRevision(remaining) &&
+            isRevision(total) &&
+            total > 0 &&
+            total <= 1200 &&
+            remaining <= total;
+    }
+    return (
+        value['type'] === 'firearm-state' &&
+        isVersion(value) &&
+        isId(value['worldId']) &&
+        isId(value['playerId']) &&
+        isRevision(value['tick']) &&
+        isReload
+    );
+};

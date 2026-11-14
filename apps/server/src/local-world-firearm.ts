@@ -28,6 +28,7 @@ export class LocalWorldFirearm {
         snapshots: ReadonlyMap<string, MovementSnapshot>;
         zombies: readonly ZombieState[];
         obstacles: readonly WorldObstacle[];
+        isReloading?: (playerId: string) => boolean;
         health: (snapshot: MovementSnapshot) => number;
         hands: (playerId: string) => Item | null;
         stageItem: (item: Item) => void;
@@ -43,6 +44,7 @@ export class LocalWorldFirearm {
             const snapshot = input.snapshots.get(sessionId);
             if (snapshot === undefined || input.health(snapshot) <= 0) continue;
             const { player, tick } = snapshot;
+            if (input.isReloading?.(player.playerId) ?? false) continue;
             const hands = input.hands(player.playerId);
             const isPistol = hands?.kind === 'pistol' && hands.itemId === command.itemId;
             if (!isPistol) continue;

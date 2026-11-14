@@ -7,10 +7,12 @@ import type {
     WorldPosition,
 } from '@zombi-survive/domain';
 import {
+    type FirearmSnapshot,
     firearmVersion,
     type HealthSnapshot,
     initialStateRequest,
     inventoryVersion,
+    isFirearmSnapshot,
     isHealthSnapshot,
     isMeleeAction,
     isMeleeSnapshot,
@@ -83,9 +85,11 @@ export const createWorldConnection = (
     onProfileChange?: (snapshot: ProfileSnapshot) => void,
     onMeleeAction?: (action: MeleeAction) => void,
     onShotAction?: (action: ShotAction) => void,
+    onFirearmChange?: (snapshot: FirearmSnapshot) => void,
 ): {
     connect: () => Promise<void>;
     shoot: (aim: ShotAim) => void;
+    reloadWeapon: () => void;
     sendMelee: (intent: MeleeIntent) => void;
     renamePlayer: (displayName: string) => Promise<ProfileResult>;
     sendMovement: (direction: MovementDirection, modifiers?: MovementModifiers) => void;
@@ -104,6 +108,7 @@ export const createWorldConnection = (
     let sequence = 0;
     let lifeRevision = 0;
     let heldPistol: PistolItem | null = null;
+    let isReloading = false;
     const lifeFields = (): { readonly lifeRevision?: number } =>
         lifeRevision === 0 ? {} : { lifeRevision };
     let isReady = false;
@@ -115,6 +120,7 @@ export const createWorldConnection = (
         isReady = false;
         lifeRevision = 0;
         heldPistol = null;
+        isReloading = false;
         acceptProfile = null;
         room?.connection.close();
     };
@@ -366,6 +372,31 @@ export const createWorldConnection = (
                 actionTick = value.tick;
                 onMeleeAction?.(value);
             });
+            let firearmTick = -1;
+            room.onMessage<unknown>('firearm-state', value => {
+                if (!isActiveRoom() || !isReady || received.snapshot === null) return;
+
+                if (!isFirearmSnapshot(value)) {
+                    closeRoom();
+                    onStateChange({ status: 'error' });
+                    return;
+                }
+
+                const isSameWorld = value.worldId === received.snapshot.worldId;
+                const isSamePlayer = value.playerId === received.snapshot.player.playerId;
+
+                if (!isSameWorld || !isSamePlayer) {
+                    closeRoom();
+                    onStateChange({ status: 'error' });
+                    return;
+                }
+
+                if (value.tick <= firearmTick) return;
+
+                firearmTick = value.tick;
+                isReloading = value.reload !== null;
+                onFirearmChange?.(value);
+            });
             let shotTick = -1;
             room.onMessage<unknown>('shot-action', value => {
                 if (!isActiveRoom() || !isReady || received.snapshot === null) return;
@@ -588,7 +619,14 @@ export const createWorldConnection = (
     };
 
     const shoot = (aim: ShotAim): void => {
-        if (!isReady || activeRoom === null || heldPistol === null || !isShotAim(aim)) return;
+        if (
+            !isReady ||
+            activeRoom === null ||
+            heldPistol === null ||
+            isReloading ||
+            !isShotAim(aim)
+        )
+            return;
         try {
             activeRoom.send('shoot-pistol', {
                 type: 'shoot-pistol',
@@ -597,6 +635,24 @@ export const createWorldConnection = (
                 itemId: heldPistol.itemId,
                 weaponRevision: heldPistol.revision ?? 0,
                 aim: { ...aim },
+                ...lifeFields(),
+            });
+        } catch {
+            closeRoom();
+            onStateChange({ status: 'error' });
+        }
+    };
+
+    const reloadWeapon = (): void => {
+        if (!isReady || activeRoom === null || heldPistol === null || isReloading) return;
+
+        try {
+            activeRoom.send('reload-pistol', {
+                type: 'reload-pistol',
+                protocolVersion,
+                firearmVersion,
+                itemId: heldPistol.itemId,
+                weaponRevision: heldPistol.revision ?? 0,
                 ...lifeFields(),
             });
         } catch {
@@ -627,6 +683,7 @@ export const createWorldConnection = (
     return {
         connect,
         shoot,
+        reloadWeapon,
         renamePlayer,
         sendMelee,
         sendMovement,

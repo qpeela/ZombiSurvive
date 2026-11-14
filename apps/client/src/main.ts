@@ -2,6 +2,8 @@ import './style.css';
 
 import {
     itemDefinitions,
+    itemDisplayName,
+    itemWeightGrams,
     meleeWeapons,
     movementSettings,
     pickupSettings,
@@ -47,6 +49,9 @@ const itemSelectors = document.querySelector<HTMLElement>('#inventory-items');
 const weaponStats = document.querySelector<HTMLElement>('#weapon-stats');
 const attack = document.querySelector<HTMLButtonElement>('#melee-attack');
 const shotButton = document.querySelector<HTMLButtonElement>('#pistol-shot');
+const reloadButton = document.querySelector<HTMLButtonElement>('#pistol-reload');
+const reloadLabel = document.querySelector<HTMLElement>('#reload-label');
+const reloadProgress = document.querySelector<HTMLProgressElement>('#reload-progress');
 const ammoLabel = document.querySelector<HTMLElement>('#ammo-label');
 const weaponLabel = document.querySelector<HTMLElement>('#weapon-label');
 const reconnect = document.querySelector<HTMLButtonElement>('#reconnect');
@@ -82,6 +87,9 @@ if (
     !weaponStats ||
     !attack ||
     !shotButton ||
+    !reloadButton ||
+    !reloadLabel ||
+    !reloadProgress ||
     !weaponLabel ||
     !ammoLabel ||
     !container ||
@@ -137,6 +145,25 @@ let inventoryItems: readonly InventoryItem[] = [];
 let hands: Item | null = null;
 let isBleeding = false;
 let lifeState: PlayerLifeState | null = null;
+let reloadTicks = 0;
+const updateFirearm = (): void => {
+    const isAlive = lifeState === 'alive';
+    const pistol = hands?.kind === 'pistol' ? hands : null;
+    const isPistol = pistol !== null;
+    const isReloading = reloadTicks > 0;
+    const rounds = pistol?.rounds ?? 0;
+    const isFull = pistol !== null && rounds >= pistol.magazineCapacity;
+    const hasAmmo = inventoryItems.some(item => item.kind === 'ammo9mm' && item.quantity > 0);
+
+    shotButton.disabled = !isAlive || !isPistol || rounds <= 0 || isReloading;
+    reloadButton.disabled = !isAlive || !isPistol || isFull || !hasAmmo || isReloading;
+    reloadProgress.hidden = !isReloading;
+    reloadProgress.max = pistolSettings.reloadTicks;
+    reloadProgress.value = pistolSettings.reloadTicks - reloadTicks;
+    reloadLabel.textContent = isReloading
+        ? `Перезарядка: ${(reloadTicks / movementSettings.ticksPerSecond).toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} с`
+        : 'Перезарядка: нет';
+};
 const updateBandage = (): void => {
     const hasBandage = inventoryItems.some(item => item.kind === 'bandage');
     const isAlive = health.value > 0;
@@ -210,7 +237,7 @@ const updatePickup = (): void => {
     }
 
     const definition = itemDefinitions[groundItem.kind];
-    const details = `${definition.name} · ${String(definition.columns)} × ${String(definition.rows)} · ${String(definition.weightGrams)} г`;
+    const details = `${itemDisplayName(groundItem)} · ${String(definition.columns)} × ${String(definition.rows)} · ${String(itemWeightGrams(groundItem))} г`;
     pickup.title = hasSpace
         ? details
         : `${details} · Недостаточно места или превышена масса контейнера.`;
@@ -334,7 +361,8 @@ const connection = createWorldConnection(
             button.setAttribute('aria-pressed', 'false');
         }
         attack.disabled = true;
-        shotButton.disabled = true;
+        reloadTicks = 0;
+        updateFirearm();
         scene.setWeapon(null);
         weaponLabel.textContent = 'Оружие: —';
         weaponStats.textContent = 'Характеристики: —';
@@ -364,16 +392,16 @@ const connection = createWorldConnection(
         groundLabel.textContent =
             groundItem === null
                 ? 'На земле: пусто'
-                : `На земле: ${itemDefinitions[groundItem.kind].name} · ${String(groundItem.position.xMeters)}, ${String(groundItem.position.yMeters)} м`;
+                : `На земле: ${itemDisplayName(groundItem)} · ${String(groundItem.position.xMeters)}, ${String(groundItem.position.yMeters)} м`;
         pickup.textContent =
             groundItem === null
                 ? 'Подобрать предмет'
-                : `Подобрать ${itemDefinitions[groundItem.kind].name.toLocaleLowerCase('ru-RU')}`;
+                : `Подобрать ${itemDisplayName(groundItem).toLocaleLowerCase('ru-RU')}`;
         inventory.textContent = `Контейнер: предметов ${String(snapshot.items.length)}`;
         inventoryItems = snapshot.items;
         updateBandage();
         hands = snapshot.hands;
-        shotButton.disabled = hands?.kind !== 'pistol' || hands.rounds <= 0 || health.value <= 0;
+        updateFirearm();
         ammoLabel.textContent =
             hands?.kind === 'pistol'
                 ? `Патроны: ${String(hands.rounds)}/${String(hands.magazineCapacity)}`
@@ -418,7 +446,7 @@ const connection = createWorldConnection(
         inventoryUi.update(inventoryItems, isAlive);
         updatePickup();
         attack.disabled = attack.disabled || snapshot.health <= 0;
-        shotButton.disabled = hands?.kind !== 'pistol' || hands.rounds <= 0 || snapshot.health <= 0;
+        updateFirearm();
         isBleeding = snapshot.bleedingTicks > 0;
         bleedingLabel.textContent = isBleeding ? 'Кровотечение: есть' : 'Кровотечение: нет';
         bleedingLabel.dataset['bleeding'] = String(isBleeding);
@@ -454,6 +482,10 @@ const connection = createWorldConnection(
     },
     action => {
         if (lifeState === 'alive') scene.playShot(action);
+    },
+    snapshot => {
+        reloadTicks = snapshot.reload?.remainingTicks ?? 0;
+        updateFirearm();
     },
 );
 const session = createWorldSession();
@@ -521,6 +553,11 @@ scene.onShoot = aim => {
 };
 
 shotButton.addEventListener('click', onShot);
+const onReload = (): void => {
+    if (!reloadButton.disabled) connection.reloadWeapon();
+};
+
+reloadButton.addEventListener('click', onReload);
 const onAttackKey = (event: KeyboardEvent): void => {
     const target = event.target;
     const isEditing =
@@ -531,6 +568,13 @@ const onAttackKey = (event: KeyboardEvent): void => {
     if (event.code === 'Space' && !isEditing && !isModified) {
         event.preventDefault();
         if (!event.repeat) onShot();
+
+        return;
+    }
+
+    if (event.code === 'KeyR' && !isEditing && !isModified) {
+        event.preventDefault();
+        if (!event.repeat) onReload();
 
         return;
     }
@@ -574,6 +618,7 @@ if (import.meta.hot) {
         bandageButton.removeEventListener('click', onUseBandage);
         attack.removeEventListener('click', onAttack);
         shotButton.removeEventListener('click', onShot);
+        reloadButton.removeEventListener('click', onReload);
         window.removeEventListener('keydown', onAttackKey);
         respawnButton.removeEventListener('click', onRespawn);
         pickup.removeEventListener('click', onPickup);

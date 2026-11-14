@@ -8,6 +8,7 @@ export { findMeleeTarget } from './melee.ts';
 export { movementStepSeconds, stepPlayerMovement, stepPlayerToward } from './movement.ts';
 export { pickUpItem } from './pickup.ts';
 export { spendPistolRound, tracePistolShot } from './pistol.ts';
+export { reloadPistol } from './reload.ts';
 export { findRespawnPosition } from './respawn.ts';
 export { stepZombie } from './zombie.ts';
 export { stepZombieAttack } from './zombie-attack.ts';

@@ -1,4 +1,4 @@
-import { inventorySettings, itemDefinitions } from '@zombi-survive/content';
+import { inventorySettings, itemDefinitions, itemWeightGrams } from '@zombi-survive/content';
 import {
     copyItem,
     type InventoryCell,
@@ -8,7 +8,7 @@ import {
 } from '@zombi-survive/domain';
 
 export const inventoryWeightGrams = (items: readonly Item[]): number =>
-    items.reduce((weight, item) => weight + itemDefinitions[item.kind].weightGrams, 0);
+    items.reduce((weight, item) => weight + itemWeightGrams(item), 0);
 
 /** Replaces the same item atomically; null leaves the original inventory unchanged. */
 export const placeInventoryItem = ({

@@ -8,6 +8,7 @@ import {
     isCurrentLifeCommand,
     isRespawnCommand,
     localWorldRoomId,
+    type MovementSnapshot,
     pickupStateRequest,
 } from '@zombi-survive/protocol';
 import { findRespawnPosition } from '@zombi-survive/simulation';
@@ -19,12 +20,14 @@ import { LocalWorldMelee } from './local-world-melee.ts';
 import { LocalWorldMovement } from './local-world-movement.ts';
 import { LocalWorldPickup } from './local-world-pickup.ts';
 import { createLocalWorldProfile } from './local-world-profile.ts';
+import { LocalWorldReload } from './local-world-reload.ts';
 import { LocalWorldZombie } from './local-world-zombie.ts';
 import type { SavedCombat } from './saved-combat.ts';
 import type { SoloWorldStore } from './solo-world-store.ts';
 import type { WorldAccess } from './world-access.ts';
 
 export class LocalWorldRoom extends Room {
+    private readonly reload = new LocalWorldReload();
     private readonly firearm = new LocalWorldFirearm();
     private pickup = new LocalWorldPickup();
     private readonly zombie = new LocalWorldZombie();
@@ -105,6 +108,10 @@ export class LocalWorldRoom extends Room {
                     this.pickup.receiveEquipment(client.sessionId, value);
             });
         }
+        this.onMessage<unknown>('reload-pistol', (client, value) => {
+            if (isCurrentLifeCommand(value, lifeRevision))
+                this.reload.receive(client.sessionId, value);
+        });
         this.onMessage<unknown>('shoot-pistol', (client, value) => {
             if (isCurrentLifeCommand(value, lifeRevision))
                 this.firearm.receive(client.sessionId, value);
@@ -175,10 +182,12 @@ export class LocalWorldRoom extends Room {
                             this.combat.respawnPlayer(soloPlayerId);
                             this.melee.respawnPlayer(soloPlayerId);
                             this.firearm.clearPlayer(soloPlayerId);
+                            this.reload.clearPlayer(soloPlayerId);
                             for (const client of this.clients) {
                                 this.pickup.leave(client.sessionId);
                                 this.melee.leave(client.sessionId);
                                 this.firearm.leave(client.sessionId);
+                                this.reload.leave(client.sessionId);
                             }
                         } catch (error) {
                             this.isStopping = true;
@@ -209,7 +218,14 @@ export class LocalWorldRoom extends Room {
                 health: snapshot => this.combat.snapshot(snapshot).health,
                 damage: (id, amount) => this.zombie.damage(id, amount),
             });
+            const reloadInput = {
+                snapshots,
+                health: (snapshot: MovementSnapshot) => this.combat.snapshot(snapshot).health,
+                locations: () => this.pickup.stagedLocations(),
+            };
+            this.reload.prepare(reloadInput);
             this.firearm.step({
+                isReloading: playerId => this.reload.isReloading(playerId),
                 snapshots,
                 zombies: this.zombie.shotTargets(),
                 obstacles: zombie.obstacles,
@@ -223,6 +239,12 @@ export class LocalWorldRoom extends Room {
             });
             const living = zombie.zombies.filter(state => this.zombie.isAlive(state.zombieId));
             this.combat.step({ ...zombie, zombies: living, snapshots });
+            this.reload.finish({
+                ...reloadInput,
+                stage: locations => {
+                    this.pickup.stageLocations(locations);
+                },
+            });
 
             for (const [sessionId, snapshot] of snapshots) {
                 if (this.combat.health(snapshot.player.playerId) > 0) continue;
@@ -283,6 +305,7 @@ export class LocalWorldRoom extends Room {
                             lifeRevision,
                         });
                         client.send('melee-state', meleeState);
+                        client.send('firearm-state', this.reload.snapshot(snapshot));
                         const action = this.melee.action(snapshot);
 
                         if (action !== null) {
@@ -369,6 +392,7 @@ export class LocalWorldRoom extends Room {
         this.pickup.leave(client.sessionId);
         this.melee.leave(client.sessionId);
         this.firearm.leave(client.sessionId);
+        this.reload.leave(client.sessionId);
     }
 
     override onBeforeShutdown(): void {

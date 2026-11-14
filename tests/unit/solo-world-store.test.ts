@@ -7,13 +7,21 @@ import { initialGroundItem } from '@zombi-survive/content';
 import type { ItemLocation } from '@zombi-survive/domain';
 import { copyItem } from '@zombi-survive/domain';
 import { addStarterWeapons } from '@zombi-survive/simulation';
-import { initialWorldPistolLoot, initialWorldWeaponLoot } from '@zombi-survive/worldgen';
+import {
+    initialWorldAmmoLoot,
+    initialWorldPistolLoot,
+    initialWorldWeaponLoot,
+} from '@zombi-survive/worldgen';
 import { afterEach, expect, test } from 'vitest';
 
 import { SoloWorldStore } from '../../apps/server/src/solo-world-store.ts';
 import { removePistolForLegacySave } from './legacy-save-fixture.ts';
 
-const worldItemManifest = [...initialWorldWeaponLoot, ...initialWorldPistolLoot];
+const worldItemManifest = [
+    ...initialWorldWeaponLoot,
+    ...initialWorldPistolLoot,
+    ...initialWorldAmmoLoot,
+];
 const directories: string[] = [];
 const stores: SoloWorldStore[] = [];
 const createPath = (): string => {
@@ -63,7 +71,7 @@ test('one host exclusively owns a save until close, then the next can load it', 
 });
 
 test.each([
-    'PRAGMA user_version = 11',
+    'PRAGMA user_version = 12',
     "UPDATE solo_world SET seed = 'another-world'",
     'UPDATE solo_world SET generator_version = 2',
     "UPDATE solo_world SET player_id = 'bad'",
@@ -144,7 +152,7 @@ test('schema v1 migrates atomically and keeps character, world and position', ()
     expect(migrated.currentProfile()).toEqual({ displayName: 'Выживший', nameRevision: 0 });
     migrated.close();
     const restored = new DatabaseSync(path);
-    expect(restored.prepare('PRAGMA user_version').get()?.['user_version']).toBe(10);
+    expect(restored.prepare('PRAGMA user_version').get()?.['user_version']).toBe(11);
     restored.close();
 });
 
@@ -324,7 +332,7 @@ test.each([
     );
     database.close();
     const migrated = open(path);
-    expect(migrated.initialItemLocations).toHaveLength(10);
+    expect(migrated.initialItemLocations).toHaveLength(11);
     expect(migrated.initialItemLocations[0]).toEqual(bandage);
     const equipped = migrated.initialItemLocations.map(location =>
         location.item.itemId === `${playerId}:axe`
@@ -336,7 +344,7 @@ test.each([
     const restored = open(path);
     expect(restored.initialItemLocations).toEqual(equipped);
     expect(new Set(restored.initialItemLocations.map(location => location.item.itemId)).size).toBe(
-        10,
+        11,
     );
 });
 
@@ -401,7 +409,9 @@ test('v4 migration adds the finite overlay once, preserving hands, profile, cell
     const oldItems = original.initialItemLocations
         .filter(
             location =>
-                !location.item.itemId.startsWith('loot-v1:') && location.item.kind !== 'pistol',
+                !location.item.itemId.startsWith('loot-v1:') &&
+                location.item.kind !== 'pistol' &&
+                location.item.kind !== 'ammo9mm',
         )
         .map(location =>
             location.item.itemId === `${playerId}:axe`
@@ -452,7 +462,7 @@ test('v4 migration adds the finite overlay once, preserving hands, profile, cell
             )
             .get(),
     ).toEqual(before);
-    expect(saved.prepare('PRAGMA user_version').get()?.['user_version']).toBe(10);
+    expect(saved.prepare('PRAGMA user_version').get()?.['user_version']).toBe(11);
     saved.close();
 });
 

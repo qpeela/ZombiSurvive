@@ -74,6 +74,9 @@ const createRoom = () => {
         publishAction: (value: unknown) => {
             messages.get('melee-action')?.(value);
         },
+        publishFirearm: (value: unknown) => {
+            messages.get('firearm-state')?.(value);
+        },
         publishShot: (value: unknown) => {
             messages.get('shot-action')?.(value);
         },
@@ -807,5 +810,77 @@ test('shots use the latest confirmed instance/revision/life and discard stale ac
     expect(fake.room.send).not.toHaveBeenCalled();
     fake.publishShot({ ...action, tick: 5 });
     expect(onShot).toHaveBeenCalledTimes(1);
+    connection.dispose();
+});
+
+test('reload intents use confirmed revision/life; confirmed progress blocks shots and stale progress cannot unlock', async () => {
+    const fake = createRoom();
+    join.mockResolvedValue(fake.room);
+    const changed = vi.fn();
+    const connection = createWorldConnection(
+        'http://host',
+        () => {},
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        changed,
+    );
+    connection.reloadWeapon();
+    expect(fake.room.send).not.toHaveBeenCalled();
+    const ready = connection.connect();
+    await vi.waitFor(() => {
+        expect(fake.room.request).toHaveBeenCalled();
+    });
+    fake.resolveInitial(snapshot(1));
+    await ready;
+    fake.publishPickup({
+        type: 'pickup-state',
+        protocolVersion: 5,
+        inventoryVersion: 2,
+        worldId: 'world',
+        playerId: 'player',
+        tick: 2,
+        groundItem: null,
+        items: [],
+        hands: { itemId: 'gun', kind: 'pistol', rounds: 3, magazineCapacity: 8, revision: 4 },
+    });
+    fake.publishHealth({ ...healthState(2), lifeRevision: 2 });
+    connection.reloadWeapon();
+    expect(fake.room.send).toHaveBeenCalledExactlyOnceWith('reload-pistol', {
+        type: 'reload-pistol',
+        protocolVersion: 5,
+        firearmVersion: 1,
+        itemId: 'gun',
+        weaponRevision: 4,
+        lifeRevision: 2,
+    });
+    const state = {
+        type: 'firearm-state',
+        protocolVersion: 5,
+        firearmVersion: 1,
+        worldId: 'world',
+        playerId: 'player',
+        tick: 3,
+        reload: { itemId: 'gun', totalTicks: 40, remainingTicks: 39 },
+    };
+    fake.publishFirearm(state);
+    fake.publishFirearm(state);
+    fake.publishFirearm({ ...state, tick: 2, reload: null });
+    expect(changed).toHaveBeenCalledExactlyOnceWith(state);
+    connection.shoot({ x: 1, y: 0 });
+    connection.reloadWeapon();
+    expect(fake.room.send).toHaveBeenCalledTimes(1);
+    fake.publishFirearm({ ...state, tick: 4, reload: null });
+    connection.shoot({ x: 1, y: 0 });
+    expect(fake.room.send).toHaveBeenCalledTimes(2);
+    fake.publishFirearm({ ...state, tick: 5, worldId: 'other' });
+    expect(fake.room.connection.close).toHaveBeenCalledOnce();
+    connection.reloadWeapon();
+    expect(fake.room.send).toHaveBeenCalledTimes(2);
     connection.dispose();
 });

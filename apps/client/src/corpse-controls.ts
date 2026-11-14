@@ -1,4 +1,4 @@
-import { itemDefinitions, pickupSettings } from '@zombi-survive/content';
+import { itemDisplayName, pickupSettings } from '@zombi-survive/content';
 import type { Corpse, InventoryItem, Item, WorldPosition } from '@zombi-survive/domain';
 import { findInventorySpace } from '@zombi-survive/simulation';
 
@@ -51,7 +51,7 @@ export const createCorpseControls = (
                         buttons.set(item.itemId, button);
                         element.append(button);
                     }
-                    button.textContent = `Забрать с тела: ${itemDefinitions[item.kind].name} · ${String(corpse.position.xMeters)}, ${String(corpse.position.yMeters)} м`;
+                    button.textContent = `Забрать с тела: ${itemDisplayName(item)} · ${String(corpse.position.xMeters)}, ${String(corpse.position.yMeters)} м`;
                     const hasSpace = findInventorySpace({ items, item }) !== null;
                     button.disabled =
                         !isAlive || distance > pickupSettings.rangeMeters || !hasSpace;
