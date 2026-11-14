@@ -5,7 +5,9 @@ import { join, resolve } from 'node:path';
 
 import { Client } from '@colyseus/sdk';
 import { expect, test } from '@playwright/test';
+import { worldGenerationSettings } from '@zombi-survive/content';
 import { localWorldRoomId } from '@zombi-survive/protocol';
+import { generateChunkLoot } from '@zombi-survive/worldgen';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
 
@@ -199,9 +201,28 @@ test('bleeding death cancels held movement in both tabs and survives late comman
         const saved = new SoloWorldStore(path);
         expect(saved.initialCombat.health).toBe(0);
         expect(saved.initialCorpses).toHaveLength(1);
+        const generated = [];
+        const lastChunkX = Math.floor((deadPosition.xMeters + 32) / 64);
+        const chunkY = Math.floor((deadPosition.yMeters + 32) / 64);
+        for (let chunkX = Math.floor((startX + 32) / 64); chunkX <= lastChunkX; chunkX++)
+            generated.push(
+                ...generateChunkLoot({
+                    seed: worldGenerationSettings.initialSeed,
+                    generatorVersion: worldGenerationSettings.generatorVersion,
+                    chunkX,
+                    chunkY,
+                }),
+            );
         expect(saved.initialItemLocations.map(location => location.item.itemId).sort()).toEqual(
-            items.map(location => location.item.itemId).sort(),
+            [
+                ...items.map(location => location.item.itemId),
+                ...generated.map(item => item.itemId),
+            ].sort(),
         );
+        for (const item of generated)
+            expect(
+                saved.initialItemLocations.find(location => location.item.itemId === item.itemId),
+            ).toEqual({ type: 'ground', item });
         expect(
             saved.initialItemLocations.filter(
                 location => location.type === 'container' || location.type === 'hands',

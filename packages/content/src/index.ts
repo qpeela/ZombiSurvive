@@ -7,5 +7,10 @@ export { collisionSettings, startingRuins } from './obstacles.ts';
 export { pistolSettings } from './pistol.ts';
 export { meleeWeapons } from './weapons.ts';
 export { worldGenerationSettings } from './world-generation.ts';
-export { expandedWeaponLootSites, weaponLootSites, worldLootSettings } from './world-loot.ts';
+export {
+    chunkLootSettings,
+    expandedWeaponLootSites,
+    weaponLootSites,
+    worldLootSettings,
+} from './world-loot.ts';
 export { initialZombie, zombieSettings } from './zombies.ts';

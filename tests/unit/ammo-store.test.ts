@@ -81,7 +81,7 @@ test('v10 adds ammo exactly once without changing a partial pistol or profile', 
     store.close();
     const database = new DatabaseSync(path);
     database.prepare('UPDATE solo_world SET item_location = ?').run(JSON.stringify(old));
-    database.exec('PRAGMA user_version = 10');
+    database.exec('ALTER TABLE solo_world DROP COLUMN loot_chunks; PRAGMA user_version = 10');
     database.close();
     let loaded = open(path);
     expect(loaded.initialWorld.worldId).toBe(world.worldId);
@@ -201,7 +201,7 @@ test('failed ammo migration rolls back the complete v10 file', () => {
     const database = new DatabaseSync(path);
     database.prepare('UPDATE solo_world SET item_location = ?').run(JSON.stringify(old));
     database.exec(
-        "PRAGMA user_version = 10; CREATE TRIGGER reject_ammo BEFORE UPDATE OF item_location ON solo_world BEGIN SELECT RAISE(ABORT, 'fixture ammo migration failure'); END",
+        "ALTER TABLE solo_world DROP COLUMN loot_chunks; PRAGMA user_version = 10; CREATE TRIGGER reject_ammo BEFORE UPDATE OF item_location ON solo_world BEGIN SELECT RAISE(ABORT, 'fixture ammo migration failure'); END",
     );
     database.close();
     const before = readFileSync(path);

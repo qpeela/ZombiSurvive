@@ -138,6 +138,7 @@ test('complete solo cycle uses real UI, retains one life and finite items across
         await movePlayerTo({ page, position: { xMeters: -10, yMeters: -6 } });
         await page.getByRole('button', { name: 'Подобрать пистолет 9 мм', exact: true }).click();
         await page.getByRole('button', { name: 'Экипировать пистолет', exact: true }).click();
+        await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
         await page.getByRole('button', { name: 'Подобрать патроны 9 мм ×8', exact: true }).click();
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
         const targetId = await canvas.evaluate(
@@ -195,6 +196,7 @@ test('complete solo cycle uses real UI, retains one life and finite items across
         await movePlayerTo({ page, position: corpsePosition });
         await page.locator(`#corpse-items button[data-item-id="${gunId}"]`).click();
         await page.getByRole('button', { name: 'Экипировать пистолет', exact: true }).click();
+        await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
         await page.locator(`#corpse-items button[data-item-id="${ammoId}"]`).click();
         await assertRecovered(page);
         await page.screenshot({ path: '.cache/t040-return.png', fullPage: true });

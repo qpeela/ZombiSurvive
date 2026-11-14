@@ -44,7 +44,7 @@ const stripExpanded = (path: string, locations: readonly ItemLocation[]) => {
                 locations.filter(location => !location.item.itemId.startsWith('scatter-v1:')),
             ),
         );
-    database.exec('PRAGMA user_version = 11');
+    database.exec('ALTER TABLE solo_world DROP COLUMN loot_chunks; PRAGMA user_version = 11');
     database.close();
 };
 

@@ -133,7 +133,9 @@ test('a v8 dead save migrates once, retains every ID and restores its corpse acr
     store.close();
     const database = new DatabaseSync(path);
     removePistolForLegacySave(database);
-    database.exec('ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 8');
+    database.exec(
+        'ALTER TABLE solo_world DROP COLUMN corpses; ALTER TABLE solo_world DROP COLUMN loot_chunks; PRAGMA user_version = 8',
+    );
     database.close();
     store = new SoloWorldStore(path);
     const bodies = store.initialCorpses;

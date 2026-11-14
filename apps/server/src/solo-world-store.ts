@@ -12,6 +12,7 @@ import {
 } from '@zombi-survive/content';
 import {
     type Corpse,
+    type GroundItem,
     isDisplayName,
     type ItemLocation,
     type WorldPosition,
@@ -25,6 +26,11 @@ import {
     loadWorldChunks,
 } from '@zombi-survive/worldgen';
 
+import {
+    chunkLootForKey,
+    chunkLootKeyFromItemId,
+    readSavedLootChunks,
+} from './saved-chunk-loot.ts';
 import { readSavedCombat, type SavedCombat } from './saved-combat.ts';
 import { readSavedCorpses } from './saved-corpse.ts';
 import { readSavedItem, readSavedItems, writeSavedItems } from './saved-item.ts';
@@ -74,6 +80,8 @@ export class SoloWorldStore {
     readonly initialCorpses: readonly Corpse[];
     private readonly database: DatabaseSync;
     private isClosed = false;
+    private lootChunks: readonly string[] = [];
+    private worldLoot: readonly GroundItem[] = worldItemManifest;
     private profile: { readonly displayName: string; readonly nameRevision: number };
 
     constructor(path: string, now: () => number = Date.now) {
@@ -136,7 +144,8 @@ export class SoloWorldStore {
                 version !== 9 &&
                 version !== 10 &&
                 version !== 11 &&
-                version !== 12
+                version !== 12 &&
+                version !== 13
             ) {
                 throw new Error('Unsupported solo save schema version.');
             }
@@ -196,8 +205,20 @@ export class SoloWorldStore {
                 this.database.exec('PRAGMA user_version = 5');
             }
 
+            if (version === 13) {
+                this.lootChunks = readSavedLootChunks(
+                    this.database
+                        .prepare('SELECT loot_chunks FROM solo_world WHERE id = 1')
+                        .get()?.['loot_chunks'],
+                );
+                this.worldLoot = [
+                    ...worldItemManifest,
+                    ...this.lootChunks.flatMap(chunkLootForKey),
+                ];
+            }
             const priorManifest = version === 10 ? pistolManifest : ammoManifest;
-            const firearmManifest = version === 12 ? worldItemManifest : priorManifest;
+            const firearmManifest =
+                typeof version === 'number' && version >= 12 ? this.worldLoot : priorManifest;
             this.initialItemLocations = readSavedItems(
                 this.database.prepare('SELECT item_location FROM solo_world WHERE id = 1').get()?.[
                     'item_location'
@@ -230,6 +251,11 @@ export class SoloWorldStore {
                             worldItemManifest,
                         ),
                     );
+            }
+            if (typeof version === 'number' && version < 13) {
+                this.database.exec(
+                    "ALTER TABLE solo_world ADD COLUMN loot_chunks TEXT NOT NULL DEFAULT '[]'",
+                );
             }
             if (typeof version === 'number' && version < 6) {
                 this.database.exec(`
@@ -289,7 +315,7 @@ export class SoloWorldStore {
                             writeSavedItems(
                                 this.initialItemLocations,
                                 this.initialWorld.playerId,
-                                worldItemManifest,
+                                this.worldLoot,
                             ),
                         );
                 }
@@ -317,11 +343,11 @@ export class SoloWorldStore {
                         writeSavedItems(
                             this.initialItemLocations,
                             this.initialWorld.playerId,
-                            worldItemManifest,
+                            this.worldLoot,
                         ),
                     );
             }
-            if (version !== 12) this.database.exec('PRAGMA user_version = 12');
+            if (version !== 13) this.database.exec('PRAGMA user_version = 13');
             this.profile = {
                 displayName: this.initialWorld.displayName,
                 nameRevision: this.initialWorld.nameRevision,
@@ -367,15 +393,17 @@ export class SoloWorldStore {
     }
 
     saveItemLocations(locations: readonly ItemLocation[]): void {
-        const saved = writeSavedItems(locations, this.initialWorld.playerId, worldItemManifest);
+        const saved = this.prepareItems(locations);
         // One UPDATE is an atomic, synchronous FULL commit of ground/owner/cell together.
         const result = this.database
-            .prepare('UPDATE solo_world SET item_location = ? WHERE id = 1')
-            .run(saved);
+            .prepare('UPDATE solo_world SET item_location = ?, loot_chunks = ? WHERE id = 1')
+            .run(saved.items, JSON.stringify(saved.chunks));
 
         if (Number(result.changes) !== 1) {
             throw new Error('Solo item save lost its world row.');
         }
+        this.lootChunks = saved.chunks;
+        this.worldLoot = saved.manifest;
     }
 
     saveCombat(
@@ -385,17 +413,14 @@ export class SoloWorldStore {
         corpses?: readonly Corpse[],
     ): void {
         const saved = JSON.stringify(readSavedCombat(JSON.stringify(state)));
-        const items =
-            locations === undefined
-                ? undefined
-                : writeSavedItems(locations, this.initialWorld.playerId, worldItemManifest);
+        const items = locations === undefined ? undefined : this.prepareItems(locations);
         // Death, its final position and simultaneous items share one FULL commit.
         const assignments = ['combat_state = ?'];
         const values: (string | number)[] = [saved];
 
         if (items !== undefined) {
-            assignments.push('item_location = ?');
-            values.push(items);
+            assignments.push('item_location = ?', 'loot_chunks = ?');
+            values.push(items.items, JSON.stringify(items.chunks));
         }
 
         if (corpses !== undefined) {
@@ -419,6 +444,10 @@ export class SoloWorldStore {
         if (Number(result.changes) !== 1) {
             throw new Error('Solo combat save lost its world row.');
         }
+        if (items !== undefined) {
+            this.lootChunks = items.chunks;
+            this.worldLoot = items.manifest;
+        }
     }
 
     saveRespawn(expectedLifeRevision: number, position: WorldPosition): SavedCombat {
@@ -437,7 +466,7 @@ export class SoloWorldStore {
                 'item_location'
             ],
             this.initialWorld.playerId,
-            worldItemManifest,
+            this.worldLoot,
             true,
         );
         if (locations.some(location => location.type === 'container' || location.type === 'hands'))
@@ -457,6 +486,30 @@ export class SoloWorldStore {
             this.database.close();
             this.isClosed = true;
         }
+    }
+
+    private prepareItems(locations: readonly ItemLocation[]): {
+        readonly items: string;
+        readonly chunks: readonly string[];
+        readonly manifest: readonly GroundItem[];
+    } {
+        const known = new Set(this.lootChunks);
+        const additions: string[] = [];
+        for (const location of locations) {
+            const key = chunkLootKeyFromItemId(location.item.itemId);
+            if (key !== null && !known.has(key)) {
+                known.add(key);
+                additions.push(key);
+            }
+        }
+        const chunks = additions.length === 0 ? this.lootChunks : [...known].sort();
+        const manifest =
+            additions.length === 0
+                ? this.worldLoot
+                : [...this.worldLoot, ...additions.flatMap(chunkLootForKey)];
+        const items = writeSavedItems(locations, this.initialWorld.playerId, manifest);
+
+        return { items, chunks, manifest };
     }
 
     private readWorld(): SavedSoloWorld {
