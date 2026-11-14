@@ -16,12 +16,13 @@ export const createInventoryGrid = ({
     readonly onMove: (itemId: string, cell: InventoryCell) => void;
 }): {
     selectedItem: () => InventoryItem | null;
-    update: (items: readonly InventoryItem[] | null) => void;
+    update: (items: readonly InventoryItem[] | null, isEnabled?: boolean) => void;
     dispose: () => void;
 } => {
     let items: readonly InventoryItem[] | null = null;
     let selectedId: string | null = null;
     let lastState = '';
+    let isEnabled = false;
     const cells: HTMLButtonElement[] = [];
     const footprints: HTMLElement[] = [];
     grid.style.setProperty('--inventory-columns', String(inventorySettings.columns));
@@ -60,17 +61,18 @@ export const createInventoryGrid = ({
                 ? 'Перенос отменён.'
                 : 'Выберите верхнюю левую ячейку или экипируйте выбранное оружие.';
     };
-    const update = (next: readonly InventoryItem[] | null): void => {
-        const state = JSON.stringify(next);
+    const update = (next: readonly InventoryItem[] | null, enabled = true): void => {
+        const state = JSON.stringify([next, enabled]);
 
         if (state === lastState) return;
 
         lastState = state;
+        isEnabled = enabled;
         items = next;
         selectedId = null;
         selector.setAttribute('aria-pressed', 'false');
         const hasBandage = next?.some(item => item.kind === 'bandage') ?? false;
-        selector.disabled = !hasBandage;
+        selector.disabled = !hasBandage || !isEnabled;
         message.textContent =
             next === null
                 ? 'Сетка недоступна.'
@@ -94,6 +96,7 @@ export const createInventoryGrid = ({
             if (item.kind !== 'bandage') {
                 const button = document.createElement('button');
                 button.type = 'button';
+                button.disabled = !isEnabled;
                 button.dataset['itemId'] = item.itemId;
                 button.textContent = `Переместить: ${definition.name} · ${String(definition.columns)} × ${String(definition.rows)} · ${String(definition.weightGrams)} г`;
                 const hasDuplicates =
@@ -114,7 +117,7 @@ export const createInventoryGrid = ({
         }
 
         for (const button of cells) {
-            button.disabled = next === null;
+            button.disabled = next === null || !isEnabled;
             const column = Number(button.dataset['column']);
             const row = Number(button.dataset['row']);
             const item = next?.find(candidate => {
@@ -137,11 +140,15 @@ export const createInventoryGrid = ({
         }
     };
     const onSelect = (): void => {
+        if (!isEnabled) return;
+
         const bandage = items?.find(item => item.kind === 'bandage');
 
         if (bandage !== undefined) select(bandage.itemId);
     };
     const onItemSelect = (event: MouseEvent): void => {
+        if (!isEnabled) return;
+
         const target = event.target;
 
         if (!(target instanceof HTMLButtonElement)) return;
@@ -151,6 +158,8 @@ export const createInventoryGrid = ({
         if (itemId !== undefined) select(itemId);
     };
     const onCellClick = (event: MouseEvent): void => {
+        if (!isEnabled) return;
+
         const target = event.target;
         const item = items?.find(candidate => candidate.itemId === selectedId);
 

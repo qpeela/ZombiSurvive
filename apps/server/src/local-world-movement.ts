@@ -124,7 +124,20 @@ export class LocalWorldMovement {
         session.pending = { command, order: ++this.inputOrder };
     }
 
-    step(): void {
+    stopPlayer(playerId: string): void {
+        const input = this.players.get(playerId);
+
+        if (input === undefined) return;
+
+        input.controllerId = null;
+        input.direction = { x: 0, y: 0 };
+        input.target = null;
+        input.isSprinting = false;
+        input.isSneaking = false;
+        input.player = { ...input.player, isSneaking: false, noiseRadiusMeters: 0 };
+    }
+
+    step(health: (playerId: string) => number = () => 100): void {
         this.tick++;
         const pending = [...this.sessions.entries()]
             .filter(([, session]) => session.pending !== null)
@@ -146,6 +159,11 @@ export class LocalWorldMovement {
             if (player === undefined) {
                 throw new Error('Session player is missing.');
             }
+
+            session.lastProcessedSequence = command.sequence;
+            session.pending = null;
+
+            if (health(session.playerId) <= 0) continue;
 
             const isMoving =
                 command.type === 'movement-target' ||
@@ -176,6 +194,12 @@ export class LocalWorldMovement {
         const obstacles = this.chunks.flatMap(chunk => chunk.obstacles);
 
         for (const player of this.players.values()) {
+            if (health(player.player.playerId) <= 0) {
+                this.stopPlayer(player.player.playerId);
+
+                continue;
+            }
+
             const previousPosition = player.player.position;
             const isControllerPresent =
                 player.controllerId !== null && this.sessions.has(player.controllerId);

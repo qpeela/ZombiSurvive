@@ -1,8 +1,13 @@
-import type { BleedingState, PlayerHealth } from '@zombi-survive/domain';
+import {
+    type BleedingState,
+    type PlayerHealth,
+    type PlayerLifeState,
+    playerLifeState,
+} from '@zombi-survive/domain';
 
 import { protocolVersion } from './movement.ts';
 
-export const healthVersion = 2;
+export const healthVersion = 3;
 export type HealthSnapshot = PlayerHealth &
     BleedingState & {
         readonly type: 'health-state';
@@ -11,6 +16,7 @@ export type HealthSnapshot = PlayerHealth &
         readonly worldId: string;
         readonly tick: number;
         readonly maxHealth: number;
+        readonly lifeState: PlayerLifeState;
     };
 const isId = (value: unknown): value is string => {
     if (typeof value !== 'string') {
@@ -53,6 +59,7 @@ export const isHealthSnapshot = (value: unknown): value is HealthSnapshot => {
         isVersion &&
         isTick &&
         isBleeding &&
+        record['lifeState'] === playerLifeState(health) &&
         isId(record['worldId']) &&
         isId(record['playerId']) &&
         health <= maxHealth

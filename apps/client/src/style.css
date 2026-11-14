@@ -78,6 +78,20 @@ h1 {
     accent-color: #cf7864;
 }
 
+#death-screen:not([hidden]) {
+    position: absolute;
+    inset: 0;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding: 24px;
+    background: #100b0be6;
+    color: #ff9b89;
+    text-align: center;
+}
+
 #bleeding-label[data-bleeding='true'] {
     color: #ff9b89;
     font-weight: bold;

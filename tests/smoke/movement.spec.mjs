@@ -1,6 +1,35 @@
+import { spawn } from 'node:child_process';
+
 import { Client } from '@colyseus/sdk';
 import { expect, test } from '@playwright/test';
 import { initialStateRequest, localWorldRoomId } from '@zombi-survive/protocol';
+
+const origin = 'http://127.0.0.1:3128';
+test.use({ baseURL: origin });
+let host;
+let exited;
+
+// Each scenario owns a fresh real world. Death and position persist across connections.
+test.beforeEach(async () => {
+    const env = { ...process.env, PORT: '3128', CLIENT_ORIGIN: origin };
+    delete env.COOP_HOST;
+    delete env.COOP_NETWORK;
+    host = spawn(process.execPath, ['tests/fixtures/solo-host.mjs'], {
+        env,
+        stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    exited = new Promise(resolve => host.once('exit', resolve));
+    let output = '';
+    for (const stream of [host.stdout, host.stderr])
+        stream.on('data', chunk => {
+            output += chunk.toString();
+        });
+    await expect.poll(() => output).toContain('Local world ready');
+});
+test.afterEach(async () => {
+    if (host?.exitCode === null && host.signalCode === null) host.kill('SIGTERM');
+    await exited;
+});
 
 const readPosition = page =>
     page.getByRole('status').evaluate(element => ({
@@ -103,8 +132,8 @@ test('blur and connection loss clear held keys; retry waits for fresh input', as
 });
 
 test('real transport applies intentions once per tick and isolates session acknowledgements', async () => {
-    const client = new Client('http://127.0.0.1:3101', {
-        headers: { Origin: 'http://127.0.0.1:4173' },
+    const client = new Client(origin, {
+        headers: { Origin: origin },
     });
     const first = await client.joinById(localWorldRoomId);
     const second = await client.joinById(localWorldRoomId);

@@ -259,3 +259,16 @@ test('equipment commits before publication; racing tabs and queued stale command
     pickup.step(sessions);
     expect(pickup.takePendingSave()).toBeNull();
 });
+
+test('dead players cannot pick up an otherwise reachable item; discarded commands do not replay', () => {
+    const { movement, pickup, snapshots } = setup();
+    pickup.receive('first', command);
+    pickup.step(snapshots(), () => 0);
+    expect(pickup.snapshot(movement.snapshot('first')).items).toEqual([]);
+    expect(pickup.snapshot(movement.snapshot('first')).groundItem?.itemId).toBe(command.itemId);
+    pickup.step(snapshots());
+    expect(pickup.snapshot(movement.snapshot('first')).items).toEqual([]);
+    pickup.receive('first', command);
+    pickup.step(snapshots());
+    expect(pickup.snapshot(movement.snapshot('first')).items).toHaveLength(1);
+});

@@ -7,6 +7,7 @@ import type {
     ZombieAttackState,
     ZombieState,
 } from '@zombi-survive/domain';
+import { playerLifeState } from '@zombi-survive/domain';
 import {
     type HealthSnapshot,
     healthVersion,
@@ -122,6 +123,7 @@ export class LocalWorldCombat {
             playerId: movement.player.playerId,
             tick: movement.tick,
             health: this.health(movement.player.playerId),
+            lifeState: playerLifeState(this.health(movement.player.playerId)),
             maxHealth: combatSettings.maxHealth,
             bleedingTicks: this.bleedingTicks(movement.player.playerId),
         };

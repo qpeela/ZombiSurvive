@@ -7,7 +7,7 @@ import { combatSettings } from '@zombi-survive/content';
 import { isHealthSnapshot, localWorldRoomId } from '@zombi-survive/protocol';
 
 const origin = 'http://127.0.0.1:3113';
-test('server attacks reduce shared health on fixed ticks; zero, movement and reconnect work in Chromium', async ({
+test('server attacks reduce shared health on fixed ticks; death blocks movement and survives reconnect in Chromium', async ({
     page,
     context,
 }) => {
@@ -65,15 +65,16 @@ test('server attacks reduce shared health on fixed ticks; zero, movement and rec
                 combatSettings.zombieDamage + combatSettings.bleedingDamage,
             );
         }
-        // Zero health has no death/respawn mechanic yet; ordinary movement still works.
+        await expect(page.locator('#death-screen')).toBeVisible();
+        const deathX = await page.getByRole('status').getAttribute('data-x-meters');
+        const deathTick = Number(await page.getByRole('status').getAttribute('data-tick'));
         await page.locator('canvas').scrollIntoViewIfNeeded();
         await page.keyboard.down('d');
         try {
             await expect
-                .poll(async () =>
-                    Number(await page.getByRole('status').getAttribute('data-x-meters')),
-                )
-                .toBeGreaterThan(1);
+                .poll(async () => Number(await page.getByRole('status').getAttribute('data-tick')))
+                .toBeGreaterThan(deathTick + 3);
+            await expect(page.getByRole('status')).toHaveAttribute('data-x-meters', deathX);
         } finally {
             await page.keyboard.up('d');
         }

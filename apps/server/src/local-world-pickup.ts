@@ -131,6 +131,8 @@ export class LocalWorldPickup {
 
             if (snapshot === undefined) continue;
 
+            if (health(snapshot) <= 0) continue;
+
             const playerId = snapshot.player.playerId;
             const items = playerInventory(next, playerId);
 

@@ -111,7 +111,7 @@ export class LocalWorldRoom extends Room {
                 return;
             }
 
-            movement.step();
+            movement.step(playerId => this.combat.health(playerId));
 
             const snapshots = new Map(
                 this.clients.map(client => [client.sessionId, movement.snapshot(client.sessionId)]),
@@ -132,6 +132,13 @@ export class LocalWorldRoom extends Room {
             const living = zombie.zombies.filter(state => this.zombie.isAlive(state.zombieId));
             this.combat.step({ ...zombie, zombies: living, snapshots });
 
+            for (const [sessionId, snapshot] of snapshots) {
+                if (this.combat.health(snapshot.player.playerId) > 0) continue;
+
+                movement.stopPlayer(snapshot.player.playerId);
+                snapshots.set(sessionId, movement.snapshot(sessionId));
+            }
+
             const nextCombat: SavedCombat = {
                 health: this.combat.health(soloPlayerId),
                 cooldownTicks: this.melee.remainingCooldown(soloPlayerId),
@@ -149,6 +156,8 @@ export class LocalWorldRoom extends Room {
                 ]),
             );
             const store = options.soloStore;
+            const isDying = savedCombat.health > 0 && nextCombat.health === 0;
+            const deathPosition = isDying ? movement.soloPosition() : undefined;
             const publish = (): void => {
                 for (const client of this.clients) {
                     const snapshot = snapshots.get(client.sessionId);
@@ -185,7 +194,8 @@ export class LocalWorldRoom extends Room {
             const finishStep = (): void => {
                 this.pendingStep = null;
                 try {
-                    if (isCombatChanged) store.saveCombat(nextCombat, itemSave ?? undefined);
+                    if (isDying) store.saveCombat(nextCombat, itemSave ?? undefined, deathPosition);
+                    else if (isCombatChanged) store.saveCombat(nextCombat, itemSave ?? undefined);
                     else if (itemSave !== null) store.saveItemLocations(itemSave);
 
                     if (itemSave !== null) {

@@ -96,6 +96,12 @@ export class MovementPrediction {
         this.chunks = [];
     }
 
+    suspend(): void {
+        this.pending = [];
+        this.acknowledged = null;
+        this.isSuspended = true;
+    }
+
     setIntent(intent: MovementIntent, nowMs: number): void {
         if (this.snapshot === null || this.isSuspended) {
             return;
