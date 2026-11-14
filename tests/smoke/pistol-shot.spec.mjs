@@ -33,7 +33,9 @@ const stop = async (running, signal = 'SIGTERM') => {
 };
 const seed = (path, rounds) => {
     const store = new SoloWorldStore(path);
-    const gun = store.initialItemLocations.find(location => location.item.kind === 'pistol')?.item;
+    const gun = store.initialItemLocations.find(
+        location => location.item.itemId === 'pistol-v1:0:0' && location.item.kind === 'pistol',
+    )?.item;
     if (gun === undefined) throw new Error('Missing gun');
     store.saveItemLocations(
         store.initialItemLocations.map(location =>

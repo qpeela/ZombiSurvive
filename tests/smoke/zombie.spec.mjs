@@ -8,6 +8,8 @@ import { localWorldRoomId } from '@zombi-survive/protocol';
 import { resolveMovement } from '@zombi-survive/simulation';
 import { loadWorldChunks } from '@zombi-survive/worldgen';
 
+import { activateStartingZombie } from '../fixtures/game-controls.mjs';
+
 const origin = 'http://127.0.0.1:3112';
 const readZombies = page =>
     page
@@ -71,6 +73,7 @@ test('a server-owned zombie pursues around ruins and is cleared/restored on reco
         await expect.poll(async () => (await readZombies(page)).length).toBe(1);
         const zombie = (await readZombies(page))[0];
         expect(zombie.zombieId).toBe(initialZombie.zombieId);
+        await activateStartingZombie(page);
         const playerId = await page.getByRole('status').getAttribute('data-player-id');
         await expect.poll(async () => (await readZombies(page))[0]?.targetPlayerId).toBe(playerId);
         const client = new Client(origin, { headers: { Origin: origin } });

@@ -6,7 +6,7 @@ import { LocalWorldMovement } from '../../apps/server/src/local-world-movement.t
 import { LocalWorldZombie } from '../../apps/server/src/local-world-zombie.ts';
 
 test('one world step updates one zombie regardless of tabs; no connections pauses and releases the target', () => {
-    const movement = new LocalWorldMovement('world', 'solo');
+    const movement = new LocalWorldMovement('world', 'solo', { xMeters: -3, yMeters: 0 });
     movement.join('first');
     movement.join('tab');
     const zombie = new LocalWorldZombie();

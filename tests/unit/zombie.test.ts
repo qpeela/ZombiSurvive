@@ -26,7 +26,8 @@ const step = (
 
 test('sight needs range and unobstructed geometry; nearest visible player wins deterministically', () => {
     expect(step(initialZombie, [player(5)]).targetPlayerId).toBeNull();
-    expect(step(initialZombie, [player(2)], [wall])).toEqual(initialZombie);
+    const nearWall = { ...initialZombie, position: { xMeters: -3, yMeters: 0 } };
+    expect(step(nearWall, [player(2)], [wall])).toEqual(nearWall);
     const forward = step(initialZombie, [player(-10, 0, 'b'), player(-6, 0, 'a')]);
     const reverse = step(initialZombie, [player(-6, 0, 'a'), player(-10, 0, 'b')]);
     expect(forward).toEqual(reverse);
@@ -36,13 +37,13 @@ test('sight needs range and unobstructed geometry; nearest visible player wins d
 
 test('fixed speed is independent of diagonal direction and stops without overshooting', () => {
     for (const target of [player(0), player(-2, 6)]) {
-        const next = step(initialZombie, [target]);
+        const next = step({ ...initialZombie, targetPlayerId: target.playerId }, [target]);
         expect(Math.hypot(next.position.xMeters + 8, next.position.yMeters)).toBeCloseTo(
             zombieSettings.speedMetersPerSecond * movementStepSeconds,
             12,
         );
     }
-    let zombie = initialZombie;
+    let zombie: ZombieState = { ...initialZombie, targetPlayerId: 'player' };
     for (let tick = 0; tick < 300; tick++) zombie = step(zombie, [player(0)]);
     expect(zombie.position.xMeters).toBeCloseTo(-zombieSettings.stopRangeMeters, 10);
     expect(step(zombie, [player(0)])).toEqual(zombie);

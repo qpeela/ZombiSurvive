@@ -6,3 +6,28 @@ export const weaponLootSites = Object.freeze([
     Object.freeze({ chunkX: 0, chunkY: 1, kind: 'crowbar' as const }),
     Object.freeze({ chunkX: -1, chunkY: 0, kind: 'axe' as const }),
 ]);
+
+/** Additional starting-region sites; IDs and anchors are stable across saves. */
+export const expandedWeaponLootSites = Object.freeze([
+    Object.freeze({ itemId: 'scatter-v1:club', kind: 'club' as const, xMeters: -18, yMeters: -14 }),
+    Object.freeze({ itemId: 'scatter-v1:knife', kind: 'knife' as const, xMeters: 18, yMeters: 14 }),
+    Object.freeze({
+        itemId: 'scatter-v1:crowbar',
+        kind: 'crowbar' as const,
+        xMeters: -4,
+        yMeters: 20,
+    }),
+    Object.freeze({ itemId: 'scatter-v1:axe', kind: 'axe' as const, xMeters: 20, yMeters: 4 }),
+    Object.freeze({
+        itemId: 'scatter-v1:pistol:west',
+        kind: 'pistol' as const,
+        xMeters: -18,
+        yMeters: 14,
+    }),
+    Object.freeze({
+        itemId: 'scatter-v1:pistol:east',
+        kind: 'pistol' as const,
+        xMeters: 18,
+        yMeters: -14,
+    }),
+]);

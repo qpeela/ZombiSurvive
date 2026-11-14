@@ -6,6 +6,8 @@ import { expect, test } from '@playwright/test';
 import { combatSettings } from '@zombi-survive/content';
 import { isHealthSnapshot, localWorldRoomId } from '@zombi-survive/protocol';
 
+import { activateStartingZombie } from '../fixtures/game-controls.mjs';
+
 const origin = 'http://127.0.0.1:3113';
 test('server attacks reduce shared health on fixed ticks; death blocks movement and survives reconnect in Chromium', async ({
     page,
@@ -32,6 +34,7 @@ test('server attacks reduce shared health on fixed ticks; death blocks movement 
         await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
         const health = page.getByRole('progressbar', { name: 'Здоровье:' });
         await expect(health).toHaveJSProperty('value', 100);
+        await activateStartingZombie(page);
         const client = new Client(origin, { headers: { Origin: origin } });
         observer = await client.joinById(localWorldRoomId);
         observer.onMessage('movement-snapshot', () => {});

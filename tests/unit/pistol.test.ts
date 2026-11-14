@@ -180,7 +180,9 @@ test('v9 adds one pistol once, preserving existing health/profile and later save
     legacy.close();
     store = new SoloWorldStore(path);
     expect(
-        store.initialItemLocations.filter(location => location.item.kind === 'pistol'),
+        store.initialItemLocations.filter(
+            location => location.item.itemId === pistol.itemId && location.item.kind === 'pistol',
+        ),
     ).toHaveLength(1);
     expect(store.initialWorld.playerId).toBe(world.playerId);
     expect(store.initialWorld.displayName).toBe('Стрелок');
@@ -192,7 +194,9 @@ test('v9 adds one pistol once, preserving existing health/profile and later save
     });
     store.saveItemLocations(
         store.initialItemLocations.map(location =>
-            location.type === 'ground' && location.item.kind === 'pistol'
+            location.type === 'ground' &&
+            location.item.itemId === pistol.itemId &&
+            location.item.kind === 'pistol'
                 ? { type: 'ground', item: { ...location.item, rounds: 0 } }
                 : location,
         ),
@@ -201,7 +205,7 @@ test('v9 adds one pistol once, preserving existing health/profile and later save
     for (let count = 0; count < 2; count++) {
         store = new SoloWorldStore(path);
         const pistols = store.initialItemLocations.filter(
-            location => location.item.kind === 'pistol',
+            location => location.item.itemId === pistol.itemId,
         );
         expect(pistols).toHaveLength(1);
         expect(pistols[0]).toMatchObject({ item: { rounds: 0, magazineCapacity: 8 } });
@@ -222,7 +226,7 @@ test('death, empty-handed respawn and recovered pistol keep the same instance an
         position: { xMeters: 0, yMeters: 0 },
     };
     const held = store.initialItemLocations.map(location =>
-        location.item.kind === 'pistol'
+        location.item.itemId === pistol.itemId && location.item.kind === 'pistol'
             ? { type: 'hands' as const, playerId, item: pistol }
             : location,
     );
@@ -262,7 +266,7 @@ test.each([
     const path = pathForTest();
     const store = new SoloWorldStore(path);
     const locations = store.initialItemLocations.map(location =>
-        location.item.kind === 'pistol'
+        location.item.itemId === pistol.itemId && location.item.kind === 'pistol'
             ? { ...location, item: { ...location.item, ...fields } }
             : location,
     );
@@ -294,7 +298,9 @@ test('expired pistol markers preserve the finite manifest and never produce repl
     let store = new SoloWorldStore(path);
     store.saveItemLocations(
         store.initialItemLocations.map(location =>
-            location.item.kind === 'pistol' ? { type: 'expired', item: pistol } : location,
+            location.item.itemId === pistol.itemId && location.item.kind === 'pistol'
+                ? { type: 'expired', item: pistol }
+                : location,
         ),
     );
     store.close();
@@ -303,7 +309,9 @@ test('expired pistol markers preserve the finite manifest and never produce repl
         store.initialItemLocations.find(location => location.item.itemId === pistol.itemId),
     ).toEqual({ type: 'expired', item: pistol });
     expect(
-        store.initialItemLocations.filter(location => location.item.kind === 'pistol'),
+        store.initialItemLocations.filter(
+            location => location.item.itemId === pistol.itemId && location.item.kind === 'pistol',
+        ),
     ).toHaveLength(1);
     store.close();
 });
@@ -315,7 +323,9 @@ test('saved pistol revisions are optional but must be safe nonnegative integers'
             expect(() => {
                 store.saveItemLocations(
                     store.initialItemLocations.map(location =>
-                        location.type === 'ground' && location.item.kind === 'pistol'
+                        location.type === 'ground' &&
+                        location.item.itemId === pistol.itemId &&
+                        location.item.kind === 'pistol'
                             ? { ...location, item: { ...location.item, revision } }
                             : location,
                     ),
@@ -324,7 +334,9 @@ test('saved pistol revisions are optional but must be safe nonnegative integers'
         }
         store.saveItemLocations(
             store.initialItemLocations.map(location =>
-                location.type === 'ground' && location.item.kind === 'pistol'
+                location.type === 'ground' &&
+                location.item.itemId === pistol.itemId &&
+                location.item.kind === 'pistol'
                     ? { ...location, item: { ...location.item, revision: 3, rounds: 5 } }
                     : location,
             ),

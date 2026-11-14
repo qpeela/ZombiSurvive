@@ -183,7 +183,7 @@ test('confirmed swing is durable before SIGKILL; faster equipment cannot bypass 
 test('acknowledged zombie damage survives immediate SIGKILL and a new host', async () => {
     const directory = mkdtempSync(join(tmpdir(), 'zombi-damage-persist-'));
     const path = join(directory, 'world.sqlite');
-    seed(path);
+    seed(path, 100, { xMeters: -3, yMeters: 0 });
     let running = start(path);
     let room;
     try {
@@ -221,7 +221,11 @@ for (const action of ['health', 'attack']) {
     test(`failed ${action} commit stops the real host without publishing a transient result`, async () => {
         const directory = mkdtempSync(join(tmpdir(), 'zombi-combat-failure-'));
         const path = join(directory, 'world.sqlite');
-        seed(path);
+        seed(
+            path,
+            100,
+            action === 'health' ? { xMeters: -3, yMeters: 0 } : { xMeters: 0, yMeters: 0 },
+        );
         const database = new DatabaseSync(path);
         database.exec(`CREATE TRIGGER reject_combat BEFORE UPDATE OF combat_state ON solo_world
             BEGIN SELECT RAISE(ABORT, 'fixture combat failure'); END`);

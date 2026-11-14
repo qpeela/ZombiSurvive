@@ -3,6 +3,8 @@ import { once } from 'node:events';
 
 import { expect, test } from '@playwright/test';
 
+import { activateStartingZombie, distanceToStartingZombie } from '../fixtures/game-controls.mjs';
+
 const origin = 'http://127.0.0.1:3115';
 const cases = [
     {
@@ -80,10 +82,9 @@ for (const weapon of cases) {
                 await page.getByRole('button', { name: weapon.equip }).click();
             }
             await expect(label).toHaveText(`Оружие: ${weapon.name}`);
+            await activateStartingZombie(page);
             await expect
-                .poll(async () => Math.abs((await starter(page))?.position.xMeters ?? 99), {
-                    timeout: 10000,
-                })
+                .poll(() => distanceToStartingZombie(page), { timeout: 10000 })
                 .toBeLessThanOrEqual(weapon.range);
             for (let hit = 1; hit <= weapon.hits; hit++) {
                 await attack.click();

@@ -38,7 +38,7 @@ const seed = (path, rounds = 3, quantity = 8) => {
     let itemId;
     store.saveItemLocations(
         store.initialItemLocations.map(location => {
-            if (location.item.kind === 'pistol') {
+            if (location.item.itemId === 'pistol-v1:0:0') {
                 itemId = location.item.itemId;
                 return {
                     type: 'hands',
@@ -46,7 +46,7 @@ const seed = (path, rounds = 3, quantity = 8) => {
                     item: { itemId, kind: 'pistol', rounds, magazineCapacity: 8 },
                 };
             }
-            if (location.item.kind === 'ammo9mm')
+            if (location.item.itemId === 'ammo9mm-v1:0:0')
                 return {
                     type: 'container',
                     playerId,
@@ -166,10 +166,16 @@ test('SIGKILL during progress cancels without spending; a short pack then fills 
         await stop(running, 'SIGKILL');
         const cancelled = new SoloWorldStore(path);
         expect(
-            cancelled.initialItemLocations.find(location => location.item.kind === 'pistol'),
+            cancelled.initialItemLocations.find(
+                location =>
+                    location.item.itemId === 'pistol-v1:0:0' && location.item.kind === 'pistol',
+            ),
         ).toMatchObject({ item: { rounds: 0 } });
         expect(
-            cancelled.initialItemLocations.find(location => location.item.kind === 'ammo9mm'),
+            cancelled.initialItemLocations.find(
+                location =>
+                    location.item.itemId === 'ammo9mm-v1:0:0' && location.item.kind === 'ammo9mm',
+            ),
         ).toMatchObject({ type: 'container', item: { quantity: 3 } });
         cancelled.close();
         running = start(path);
@@ -216,10 +222,16 @@ test('first reload completion ack survives SIGKILL; stale retry cannot consume t
         await running.exited;
         const saved = new SoloWorldStore(path);
         expect(
-            saved.initialItemLocations.find(location => location.item.kind === 'pistol'),
+            saved.initialItemLocations.find(
+                location =>
+                    location.item.itemId === 'pistol-v1:0:0' && location.item.kind === 'pistol',
+            ),
         ).toMatchObject({ item: { rounds: 8, revision: 1 } });
         expect(
-            saved.initialItemLocations.find(location => location.item.kind === 'ammo9mm'),
+            saved.initialItemLocations.find(
+                location =>
+                    location.item.itemId === 'ammo9mm-v1:0:0' && location.item.kind === 'ammo9mm',
+            ),
         ).toMatchObject({ item: { quantity: 3 } });
         saved.close();
         running = start(path);
@@ -287,10 +299,16 @@ test('failed completion stops the real host without publishing a filled magazine
         ).toBe(true);
         const saved = new SoloWorldStore(path);
         expect(
-            saved.initialItemLocations.find(location => location.item.kind === 'pistol'),
+            saved.initialItemLocations.find(
+                location =>
+                    location.item.itemId === 'pistol-v1:0:0' && location.item.kind === 'pistol',
+            ),
         ).toMatchObject({ item: { rounds: 3 } });
         expect(
-            saved.initialItemLocations.find(location => location.item.kind === 'ammo9mm'),
+            saved.initialItemLocations.find(
+                location =>
+                    location.item.itemId === 'ammo9mm-v1:0:0' && location.item.kind === 'ammo9mm',
+            ),
         ).toMatchObject({ item: { quantity: 8 } });
         saved.close();
     } finally {
@@ -307,12 +325,14 @@ test('world ammo pickup preserves a partial quantity through inventory and reloa
     const path = join(directory, 'world.sqlite');
     const store = new SoloWorldStore(path);
     const playerId = store.initialWorld.playerId;
-    const ground = store.initialItemLocations.find(location => location.item.kind === 'ammo9mm');
+    const ground = store.initialItemLocations.find(
+        location => location.item.itemId === 'ammo9mm-v1:0:0' && location.item.kind === 'ammo9mm',
+    );
     if (ground?.type !== 'ground') throw new Error('Missing world ammo');
     store.savePosition(ground.item.position);
     store.saveItemLocations(
         store.initialItemLocations.map(location => {
-            if (location.item.kind === 'pistol')
+            if (location.item.itemId === 'pistol-v1:0:0')
                 return {
                     type: 'hands',
                     playerId,
@@ -323,7 +343,11 @@ test('world ammo pickup preserves a partial quantity through inventory and reloa
                         rounds: 0,
                     },
                 };
-            if (location.type === 'ground' && location.item.kind === 'ammo9mm')
+            if (
+                location.type === 'ground' &&
+                location.item.itemId === 'ammo9mm-v1:0:0' &&
+                location.item.kind === 'ammo9mm'
+            )
                 return { ...location, item: { ...location.item, quantity: 3 } };
             return location;
         }),

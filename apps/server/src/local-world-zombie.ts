@@ -1,13 +1,20 @@
 import { combatSettings, initialZombie, zombieSettings } from '@zombi-survive/content';
-import type { WorldChunk, WorldObstacle, ZombieState } from '@zombi-survive/domain';
+import type { WorldChunk, WorldObstacle, WorldPosition, ZombieState } from '@zombi-survive/domain';
 import {
     type MovementSnapshot,
     protocolVersion,
+    type ShotAction,
     type ZombieSnapshot,
     zombieSnapshotLimit,
     zombieVersion,
 } from '@zombi-survive/protocol';
-import { movementStepSeconds, stepZombie } from '@zombi-survive/simulation';
+import {
+    type HeardGunshot,
+    hearGunshot,
+    movementStepSeconds,
+    stepGunshotInvestigation,
+    stepZombie,
+} from '@zombi-survive/simulation';
 import { loadWorldChunks } from '@zombi-survive/worldgen';
 
 export class LocalWorldZombie {
@@ -15,6 +22,9 @@ export class LocalWorldZombie {
         [initialZombie.zombieId, initialZombie],
     ]);
     private readonly health = new Map<string, number>();
+    private readonly heard = new Map<string, HeardGunshot>();
+    private readonly latestShotRevision = new Map<string, number>();
+    private tick = 0;
     private readonly populatedChunks = new Set<string>();
 
     private chunks: readonly WorldChunk[] = [];
@@ -26,15 +36,50 @@ export class LocalWorldZombie {
         const health = previousHealth - amount;
         this.health.set(zombieId, health);
 
-        if (health <= 0) this.zombies.delete(zombieId);
+        if (health <= 0) {
+            this.zombies.delete(zombieId);
+            this.heard.delete(zombieId);
+        }
 
         return { damage: Math.min(previousHealth, amount), isKilled: health <= 0 };
     }
 
-    step(snapshots: ReadonlyMap<string, MovementSnapshot>): {
+    private isLoaded(position: WorldPosition): boolean {
+        return this.chunks.some(chunk => {
+            const half = chunk.sizeMeters / 2;
+            return (
+                position.xMeters >= chunk.chunkX * chunk.sizeMeters - half &&
+                position.xMeters < chunk.chunkX * chunk.sizeMeters + half &&
+                position.yMeters >= chunk.chunkY * chunk.sizeMeters - half &&
+                position.yMeters < chunk.chunkY * chunk.sizeMeters + half
+            );
+        });
+    }
+
+    hearShot(action: ShotAction): void {
+        const previous = this.latestShotRevision.get(action.itemId) ?? 0;
+        if (action.weaponRevision <= previous || action.tick > this.tick) return;
+        this.latestShotRevision.set(action.itemId, action.weaponRevision);
+        for (const zombie of this.zombies.values()) {
+            if (!this.isLoaded(zombie.position)) continue;
+            const heard = hearGunshot({
+                position: zombie.position,
+                origin: action.origin,
+                shotTick: action.tick,
+                tick: this.tick,
+            });
+            if (heard !== null) this.heard.set(zombie.zombieId, heard);
+        }
+    }
+
+    step(
+        snapshots: ReadonlyMap<string, MovementSnapshot>,
+        isLiving: (playerId: string) => boolean = () => true,
+    ): {
         zombies: readonly ZombieState[];
         obstacles: readonly WorldObstacle[];
     } {
+        this.tick++;
         // One player may have multiple tabs; disconnected characters are absent.
         const players = [
             ...new Map(
@@ -73,17 +118,28 @@ export class LocalWorldZombie {
                 }
             }
         }
+        const living = players.filter(player => isLiving(player.playerId));
         const obstacles = this.chunks.flatMap(chunk => chunk.obstacles);
         const activeZombies: ZombieState[] = [];
         for (const [id, zombie] of this.zombies) {
-            const activePlayers = players.filter(
+            if (!this.isLoaded(zombie.position)) {
+                this.heard.delete(id);
+                this.zombies.set(id, { ...zombie, targetPlayerId: null });
+                continue;
+            }
+            let heard = this.heard.get(id);
+            if (heard !== undefined && heard.expiresAtTick <= this.tick) {
+                this.heard.delete(id);
+                heard = undefined;
+            }
+            const activePlayers = living.filter(
                 player =>
                     Math.hypot(
                         player.position.xMeters - zombie.position.xMeters,
                         player.position.yMeters - zombie.position.yMeters,
                     ) <= zombieSettings.pursuitRangeMeters,
             );
-            const next =
+            let next =
                 activePlayers.length === 0
                     ? { ...zombie, targetPlayerId: null }
                     : stepZombie({
@@ -92,8 +148,16 @@ export class LocalWorldZombie {
                           obstacles,
                           stepSeconds: movementStepSeconds,
                       });
+            if (next.targetPlayerId === null && heard !== undefined)
+                next = stepGunshotInvestigation({
+                    zombie: next,
+                    heard,
+                    tick: this.tick,
+                    obstacles,
+                    stepSeconds: movementStepSeconds,
+                });
             this.zombies.set(id, next);
-            if (activePlayers.length > 0) activeZombies.push(next);
+            if (activePlayers.length > 0 || heard !== undefined) activeZombies.push(next);
         }
 
         return { zombies: activeZombies, obstacles };
@@ -117,8 +181,7 @@ export class LocalWorldZombie {
                 Math.hypot(
                     movement.player.position.xMeters - zombie.position.xMeters,
                     movement.player.position.yMeters - zombie.position.yMeters,
-                ) <=
-                zombieSettings.pursuitRangeMeters + zombieSettings.navigationMarginMeters,
+                ) <= zombieSettings.visibilityRangeMeters,
         );
 
         return {
