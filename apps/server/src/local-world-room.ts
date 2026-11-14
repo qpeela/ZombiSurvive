@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { type AuthContext, type Client, Room } from '@colyseus/core';
-import { combatSettings, movementSettings } from '@zombi-survive/content';
+import { combatSettings, corpseSettings, movementSettings } from '@zombi-survive/content';
 import type { Corpse } from '@zombi-survive/domain';
 import {
     initialStateRequest,
@@ -39,6 +39,7 @@ export class LocalWorldRoom extends Room {
         access: WorldAccess;
         soloStore?: SoloWorldStore;
         onSaveError: (error: unknown) => void;
+        now?: () => number;
     }): void {
         this.roomId = localWorldRoomId;
         this.autoDispose = false;
@@ -46,6 +47,7 @@ export class LocalWorldRoom extends Room {
         this.maxClients = 16;
         this.access = options.access;
 
+        const now = options.now ?? Date.now;
         const saved = options.soloStore?.initialWorld;
         const soloPlayerId = options.access.soloPlayerId;
         let savedCombat: SavedCombat = options.soloStore?.initialCombat ?? {
@@ -65,7 +67,7 @@ export class LocalWorldRoom extends Room {
             cooldownTicks: savedCombat.cooldownTicks,
         });
         let corpses: readonly Corpse[] = options.soloStore?.initialCorpses ?? [];
-        this.pickup = new LocalWorldPickup(options.soloStore?.initialItemLocations, corpses);
+        this.pickup = new LocalWorldPickup(options.soloStore?.initialItemLocations, corpses, now);
         const movement = new LocalWorldMovement(
             saved?.worldId ?? randomUUID(),
             options.access.soloPlayerId,
@@ -135,6 +137,7 @@ export class LocalWorldRoom extends Room {
                 return;
             }
 
+            const nowMs = now();
             const expectedLife = pendingRespawn;
             pendingRespawn = null;
             const storeForRespawn = options.soloStore;
@@ -180,6 +183,7 @@ export class LocalWorldRoom extends Room {
                 }
             }
 
+            const expiredCorpses = this.pickup.stageExpiry(nowMs);
             movement.step(playerId => this.combat.health(playerId));
 
             const snapshots = new Map(
@@ -227,16 +231,17 @@ export class LocalWorldRoom extends Room {
             const store = options.soloStore;
             const isDying = savedCombat.health > 0 && nextCombat.health === 0;
             const deathPosition = isDying ? movement.soloPosition() : undefined;
-            let nextCorpses = corpses;
+            let nextCorpses = expiredCorpses ?? corpses;
             if (deathPosition !== undefined) {
                 const corpse: Corpse = {
                     corpseId: randomUUID(),
                     playerId: soloPlayerId,
                     position: deathPosition,
-                    diedAtMs: Date.now(),
+                    diedAtMs: nowMs,
+                    expiresAtMs: nowMs + corpseSettings.lifetimeMs,
                 };
                 this.pickup.stageDeath(corpse);
-                nextCorpses = [...corpses, corpse];
+                nextCorpses = [...nextCorpses, corpse];
             }
             const itemSave = this.pickup.takePendingSave();
             if (store === undefined) {
@@ -283,7 +288,7 @@ export class LocalWorldRoom extends Room {
             const finishStep = (): void => {
                 this.pendingStep = null;
                 try {
-                    if (isDying)
+                    if (isDying || expiredCorpses !== null)
                         store.saveCombat(
                             nextCombat,
                             itemSave ?? undefined,

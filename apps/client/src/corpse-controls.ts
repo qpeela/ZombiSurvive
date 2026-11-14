@@ -55,7 +55,8 @@ export const createCorpseControls = (
                     const hasSpace = findInventorySpace({ items, item }) !== null;
                     button.disabled =
                         !isAlive || distance > pickupSettings.rangeMeters || !hasSpace;
-                    button.title = 'Подойдите к телу на 1,5 м без стены; нужно место в инвентаре.';
+                    button.title =
+                        'Подойдите к телу на 1,5 м без стены; нужно место в инвентаре. Тело хранится 24 реальных часа.';
                 }
             }
         },

@@ -15,10 +15,12 @@ test('living receiver sees a restored body in another chunk and can pick up its 
     const path = join(directory, 'world.sqlite');
     const store = new SoloWorldStore(path);
     const playerId = store.initialWorld.playerId;
+    const diedAtMs = Date.now();
     const body = {
         corpseId: 'previous-life',
         playerId,
-        diedAtMs: 1000,
+        diedAtMs,
+        expiresAtMs: diedAtMs + 24 * 60 * 60 * 1000,
         position: { xMeters: -32, yMeters: -32 },
     };
     const itemId = `${playerId}:knife`;

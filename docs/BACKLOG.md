@@ -1573,7 +1573,7 @@ Coop PAUSED; тело/потеря вещей/возрождение вне scop
 
 ### T034 — возрождение и возвращение к телу
 
-Статус: CI_PENDING. [PR #41](https://github.com/qpeela/ZombiSurvive/pull/41), ветка codex/t034-player-respawn; T033/PR #40 слита, база main 9c3cc01. Полный локальный check прошёл (637 тестов); DONE после успешного Quality финального коммита и merge. Зависимости: T022, T033.
+Статус: DONE. [PR #41](https://github.com/qpeela/ZombiSurvive/pull/41) слит в main 7294505; полный check (637 тестов) и Quality 13b462f прошли. Зависимости: T022, T033.
 
 **Цель:** начать новую жизнь и забрать вещи прежнего персонажа.
 
@@ -1593,7 +1593,7 @@ Coop PAUSED; тело/потеря вещей/возрождение вне scop
 
 ### T035 — удаление тела через 24 реальных часа
 
-Статус: DRAFT. Зависимости: T034.
+Статус: CI_PENDING. [PR #42](https://github.com/qpeela/ZombiSurvive/pull/42), ветка codex/t035-corpse-expiry, база main 7294505; T034/PR #41 слита. Полный локальный check прошёл (650 тестов); DONE после успешного Quality финального коммита и merge. Зависимости: T034.
 
 **Цель:** тело и оставшиеся в нём вещи исчезают по сроку из GAME_DESIGN.md.
 

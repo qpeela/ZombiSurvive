@@ -23,10 +23,12 @@ const pathForTest = () => {
     directories.push(directory);
     return join(directory, 'world.sqlite');
 };
+const diedAtMs = Date.now();
 const corpse: Corpse = {
     corpseId: 'body',
     playerId: 'dead',
-    diedAtMs: 1234,
+    diedAtMs,
+    expiresAtMs: diedAtMs + 24 * 60 * 60 * 1000,
     position: { xMeters: 0, yMeters: 0 },
 };
 const knife: ItemLocation = {

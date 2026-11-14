@@ -33,10 +33,12 @@ const seed = () => {
     const path = join(directory, 'world.sqlite');
     const store = new SoloWorldStore(path);
     const playerId = store.initialWorld.playerId;
+    const diedAtMs = Date.now();
     const corpse: Corpse = {
         corpseId: 'old-life',
         playerId,
-        diedAtMs: 1000,
+        diedAtMs,
+        expiresAtMs: diedAtMs + 24 * 60 * 60 * 1000,
         position: { xMeters: 0, yMeters: 0 },
     };
     const locations = store.initialItemLocations.map(location =>
