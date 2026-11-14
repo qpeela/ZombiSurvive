@@ -10,6 +10,7 @@ import type {
     GroundItem,
     InventoryItem,
     Item,
+    PlayerLifeState,
     PlayerMovementState,
     WorldPosition,
 } from '@zombi-survive/domain';
@@ -55,6 +56,7 @@ const inventoryGrid = document.querySelector<HTMLElement>('#inventory-grid');
 const inventorySelector = document.querySelector<HTMLButtonElement>('#inventory-select');
 const inventoryMessage = document.querySelector<HTMLElement>('#inventory-message');
 const bandageButton = document.querySelector<HTMLButtonElement>('#use-bandage');
+const deathScreen = document.querySelector<HTMLElement>('#death-screen');
 
 if (
     !profileForm ||
@@ -86,7 +88,8 @@ if (
     !inventoryGrid ||
     !inventorySelector ||
     !inventoryMessage ||
-    !bandageButton
+    !bandageButton ||
+    !deathScreen
 ) {
     throw new Error('Game UI is missing.');
 }
@@ -114,12 +117,13 @@ const inventoryUi = createInventoryGrid({
     selector: inventorySelector,
     message: inventoryMessage,
     onMove: (itemId, cell) => {
-        connection.moveItem(itemId, cell);
+        if (lifeState === 'alive') connection.moveItem(itemId, cell);
     },
 });
 let inventoryItems: readonly InventoryItem[] = [];
 let hands: Item | null = null;
 let isBleeding = false;
+let lifeState: PlayerLifeState | null = null;
 const updateBandage = (): void => {
     const hasBandage = inventoryItems.some(item => item.kind === 'bandage');
     const isAlive = health.value > 0;
@@ -134,6 +138,8 @@ const equipmentButtons = Object.values(meleeWeapons).map(weapon => {
     button.disabled = true;
     button.setAttribute('aria-pressed', 'false');
     const onEquip = (): void => {
+        if (lifeState !== 'alive') return;
+
         const selected = inventoryUi.selectedItem();
         const item =
             selected?.kind === weapon.id
@@ -169,7 +175,7 @@ const updatePickup = (): void => {
     const hasSpace =
         groundItem !== null &&
         findInventorySpace({ items: inventoryItems, item: groundItem }) !== null;
-    pickup.disabled = distance > pickupSettings.rangeMeters || !hasSpace;
+    pickup.disabled = lifeState !== 'alive' || distance > pickupSettings.rangeMeters || !hasSpace;
 
     if (groundItem === null) {
         pickup.title = 'Поблизости нет предметов.';
@@ -241,7 +247,7 @@ const connection = createWorldConnection(
     state => {
         status.dataset['status'] = state.status;
         reconnect.disabled = state.status === 'connecting' || state.status === 'connected';
-        input.setEnabled(state.status === 'connected');
+        input.setEnabled(state.status === 'connected' && lifeState === 'alive');
 
         if (state.status === 'connected') {
             const { snapshot } = state;
@@ -269,6 +275,8 @@ const connection = createWorldConnection(
         }
 
         profileUi.update(null);
+        lifeState = null;
+        deathScreen.hidden = true;
         prediction.reset();
         health.value = 0;
         healthLabel.textContent = 'Здоровье: —';
@@ -334,13 +342,29 @@ const connection = createWorldConnection(
         unequip.title = hasSpace
             ? 'Перенести предмет из рук в свободную ячейку'
             : 'Недостаточно места в сетке';
-        inventoryUi.update(snapshot.items);
+        inventoryUi.update(snapshot.items, lifeState === 'alive');
         updatePickup();
     },
     snapshot => {
         scene.setZombies(snapshot.zombies);
     },
     snapshot => {
+        lifeState = snapshot.lifeState;
+        const isAlive = lifeState === 'alive';
+        deathScreen.hidden = isAlive;
+        input.setEnabled(isAlive);
+
+        if (!isAlive) {
+            prediction.suspend();
+            scene.setDestination(null);
+            scene.setWeapon(null);
+            unequip.disabled = true;
+
+            for (const { button } of equipmentButtons) button.disabled = true;
+        }
+
+        inventoryUi.update(inventoryItems, isAlive);
+        updatePickup();
         attack.disabled = attack.disabled || snapshot.health <= 0;
         isBleeding = snapshot.bleedingTicks > 0;
         bleedingLabel.textContent = isBleeding ? 'Кровотечение: есть' : 'Кровотечение: нет';
@@ -351,7 +375,7 @@ const connection = createWorldConnection(
         healthLabel.textContent = `Здоровье: ${String(snapshot.health)} / ${String(snapshot.maxHealth)}`;
     },
     snapshot => {
-        scene.setWeapon(snapshot.weapon);
+        scene.setWeapon(lifeState === 'alive' ? snapshot.weapon : null);
         const isEquipped = snapshot.weapon !== null;
         for (const { weapon, button } of equipmentButtons) {
             const isSelected = snapshot.weapon === weapon;
@@ -373,7 +397,7 @@ const connection = createWorldConnection(
         profileUi.update(snapshot);
     },
     action => {
-        scene.playAttack(action);
+        if (lifeState === 'alive') scene.playAttack(action);
     },
 );
 const session = createWorldSession();
@@ -414,12 +438,13 @@ const onPageShow = (event: PageTransitionEvent): void => {
     }
 };
 const onPickup = (): void => {
-    if (groundItem !== null) {
+    if (lifeState === 'alive' && groundItem !== null) {
         connection.pickUp(groundItem.itemId);
     }
 };
 const onUnequip = (): void => {
-    if (hands !== null) connection.sendMelee({ type: 'unequip-weapon', itemId: hands.itemId });
+    if (lifeState === 'alive' && hands !== null)
+        connection.sendMelee({ type: 'unequip-weapon', itemId: hands.itemId });
 };
 const onUseBandage = (): void => {
     const bandage = inventoryItems.find(item => item.kind === 'bandage');

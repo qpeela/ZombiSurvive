@@ -364,11 +364,12 @@ test.each([
 const healthState = (tick: number, health = 90, bleedingTicks = 0) => ({
     type: 'health-state',
     protocolVersion: 5,
-    healthVersion: 2,
+    healthVersion: 3,
     worldId: 'world',
     playerId: 'player',
     tick,
     health,
+    lifeState: health > 0 ? 'alive' : 'dead',
     maxHealth: 100,
     bleedingTicks,
 });

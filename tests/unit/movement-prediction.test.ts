@@ -251,3 +251,22 @@ test('a tab without local intent preserves the authoritative stealth mode of its
     expect(prediction.sample(50)).toEqual(authority.player);
     expect(prediction.sample(500)).toEqual(authority.player);
 });
+
+test('death suspension discards unacknowledged targets and accepts only authoritative positions until reset', () => {
+    const prediction = new MovementPrediction();
+    prediction.accept(snapshot(1), 0);
+    prediction.setIntent(right, 0);
+    prediction.recordSent(createMovementInput(1, right.direction), 0);
+    expect(prediction.sample(100)?.position.xMeters).toBeGreaterThan(0);
+    prediction.accept(snapshot(2, 0.2), 100);
+    prediction.suspend();
+    prediction.setIntent(right, 150);
+    prediction.recordSent(createMovementTarget(2, { xMeters: 20, yMeters: 0 }), 150);
+    expect(prediction.sample(500)?.position.xMeters).toBe(0.2);
+    prediction.accept(snapshot(3, 0.3), 600);
+    expect(prediction.sample(1000)?.position.xMeters).toBe(0.3);
+    prediction.reset();
+    prediction.accept(snapshot(1), 1100);
+    prediction.setIntent(right, 1100);
+    expect(prediction.sample(1200)?.position.xMeters).toBeGreaterThan(0);
+});

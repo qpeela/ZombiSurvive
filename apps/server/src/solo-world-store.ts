@@ -269,23 +269,33 @@ export class SoloWorldStore {
         }
     }
 
-    saveCombat(state: SavedCombat, locations?: readonly ItemLocation[]): void {
+    saveCombat(
+        state: SavedCombat,
+        locations?: readonly ItemLocation[],
+        position?: WorldPosition,
+    ): void {
         const saved = JSON.stringify(readSavedCombat(JSON.stringify(state)));
         const items =
             locations === undefined
                 ? undefined
                 : writeSavedItems(locations, this.initialWorld.playerId, initialWorldWeaponLoot);
-        // A simultaneous inventory/equipment transition shares the same atomic commit.
-        const result =
-            items === undefined
-                ? this.database
-                      .prepare('UPDATE solo_world SET combat_state = ? WHERE id = 1')
-                      .run(saved)
-                : this.database
-                      .prepare(
-                          'UPDATE solo_world SET combat_state = ?, item_location = ? WHERE id = 1',
-                      )
-                      .run(saved, items);
+        // Death, its final position and simultaneous items share one FULL commit.
+        const assignments = ['combat_state = ?'];
+        const values: (string | number)[] = [saved];
+
+        if (items !== undefined) {
+            assignments.push('item_location = ?');
+            values.push(items);
+        }
+
+        if (position !== undefined) {
+            assignments.push('x_meters = ?', 'y_meters = ?');
+            values.push(position.xMeters, position.yMeters);
+        }
+
+        const result = this.database
+            .prepare(`UPDATE solo_world SET ${assignments.join(', ')} WHERE id = 1`)
+            .run(...values);
 
         if (Number(result.changes) !== 1) {
             throw new Error('Solo combat save lost its world row.');

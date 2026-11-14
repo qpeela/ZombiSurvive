@@ -4,17 +4,20 @@ import { expect, test } from 'vitest';
 const snapshot: HealthSnapshot = {
     type: 'health-state',
     protocolVersion: 5,
-    healthVersion: 2,
+    healthVersion: 3,
     worldId: 'world',
     playerId: 'player',
     tick: 1,
     health: 90,
+    lifeState: 'alive',
     maxHealth: 100,
     bleedingTicks: 0,
 };
 test('health snapshots survive JSON roundtrip including zero', () => {
     expect(isHealthSnapshot(JSON.parse(JSON.stringify(snapshot)))).toBe(true);
-    expect(isHealthSnapshot({ ...snapshot, health: 0, bleedingTicks: 100 })).toBe(true);
+    expect(
+        isHealthSnapshot({ ...snapshot, health: 0, lifeState: 'dead', bleedingTicks: 100 }),
+    ).toBe(true);
 });
 test.each([
     null,
@@ -23,7 +26,11 @@ test.each([
     ...[
         { type: 'attack' },
         { protocolVersion: 4 },
-        { healthVersion: 1 },
+        { healthVersion: 2 },
+        { lifeState: undefined },
+        { lifeState: 'dead' },
+        { lifeState: 'respawning' },
+        { health: 0, lifeState: 'alive' },
         { worldId: '' },
         { playerId: ' player ' },
         { tick: -1 },
