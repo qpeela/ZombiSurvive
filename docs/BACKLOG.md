@@ -1651,7 +1651,7 @@ Coop PAUSED; тело/потеря вещей/возрождение вне scop
 
 ### T038 — патроны и перезарядка
 
-Статус: CI_PENDING. Ветка codex/t038-ammo-reload, база main 4b8a9b0; полный check (715 тестов) успешен. Зависимости: T037.
+Статус: CI_PENDING. [PR #45](https://github.com/qpeela/ZombiSurvive/pull/45), ветка codex/t038-ammo-reload, база main 4b8a9b0; полный check (715 тестов) успешен. Зависимости: T037.
 
 **Цель:** пополнять магазин подходящими патронами из инвентаря.
 
