@@ -24,6 +24,7 @@ import {
 export class LocalWorldCombat {
     private readonly players = new Map<string, PlayerHealth & BleedingState>();
     private readonly attacks = new Map<string, ZombieAttackState>();
+    private readonly combatTicks = new Map<string, number>();
     private readonly roll: () => number;
 
     constructor(initialHealth?: PlayerHealth & BleedingState, roll: () => number = Math.random) {
@@ -34,6 +35,7 @@ export class LocalWorldCombat {
     }
 
     respawnPlayer(playerId: string): void {
+        this.combatTicks.delete(playerId);
         this.players.set(playerId, {
             playerId,
             health: combatSettings.maxHealth,
@@ -50,6 +52,16 @@ export class LocalWorldCombat {
 
     bleedingTicks(playerId: string): number {
         return this.players.get(playerId)?.bleedingTicks ?? 0;
+    }
+
+    remainingCombatTicks(playerId: string): number {
+        return this.combatTicks.get(playerId) ?? 0;
+    }
+
+    markAttack(playerId: string): void {
+        const player = this.players.get(playerId);
+        if (player !== undefined && player.health > 0)
+            this.combatTicks.set(playerId, combatSettings.combatDurationTicks);
     }
 
     useBandage({
@@ -80,6 +92,11 @@ export class LocalWorldCombat {
         snapshots: ReadonlyMap<string, MovementSnapshot>;
         obstacles: readonly WorldObstacle[];
     }): void {
+        for (const [playerId, ticks] of this.combatTicks) {
+            if (ticks <= 1) this.combatTicks.delete(playerId);
+            else this.combatTicks.set(playerId, ticks - 1);
+        }
+
         for (const { player } of snapshots.values()) {
             if (!this.players.has(player.playerId)) {
                 this.players.set(player.playerId, {
@@ -91,7 +108,9 @@ export class LocalWorldCombat {
         }
 
         for (const [playerId, state] of this.players) {
-            this.players.set(playerId, stepBleeding(state));
+            const next = stepBleeding(state);
+            this.players.set(playerId, next);
+            if (next.health < state.health) this.markAttack(playerId);
         }
 
         const ids = new Set(zombies.map(zombie => zombie.zombieId));
@@ -121,6 +140,7 @@ export class LocalWorldCombat {
                     next.playerId,
                     isHit ? woundFromZombieHit(next, this.roll()) : next,
                 );
+                if (isHit) this.markAttack(next.playerId);
             }
         }
     }
@@ -137,6 +157,7 @@ export class LocalWorldCombat {
             lifeState: playerLifeState(this.health(movement.player.playerId)),
             maxHealth: combatSettings.maxHealth,
             bleedingTicks: this.bleedingTicks(movement.player.playerId),
+            combatTicks: this.remainingCombatTicks(movement.player.playerId),
         };
     }
 }

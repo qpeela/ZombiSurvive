@@ -4,7 +4,7 @@ import { expect, test } from 'vitest';
 const snapshot: HealthSnapshot = {
     type: 'health-state',
     protocolVersion: 5,
-    healthVersion: 3,
+    healthVersion: 4,
     worldId: 'world',
     playerId: 'player',
     tick: 1,
@@ -12,6 +12,7 @@ const snapshot: HealthSnapshot = {
     lifeState: 'alive',
     maxHealth: 100,
     bleedingTicks: 0,
+    combatTicks: 0,
 };
 test('health snapshots survive JSON roundtrip including zero', () => {
     expect(isHealthSnapshot(JSON.parse(JSON.stringify(snapshot)))).toBe(true);
@@ -47,6 +48,11 @@ test.each([
         { bleedingTicks: 0.5 },
         { bleedingTicks: Infinity },
         { bleedingTicks: '100' },
+        { combatTicks: undefined },
+        { combatTicks: -1 },
+        { combatTicks: 0.5 },
+        { combatTicks: Infinity },
+        { combatTicks: '200' },
         { maxHealth: 0 },
         { maxHealth: Infinity },
         { maxHealth: 100.5 },

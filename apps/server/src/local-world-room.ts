@@ -272,6 +272,11 @@ export class LocalWorldRoom extends Room {
             });
             const living = zombie.zombies.filter(state => this.zombie.isAlive(state.zombieId));
             this.combat.step({ ...zombie, zombies: living, snapshots });
+            for (const snapshot of snapshots.values()) {
+                const acceptedAttack =
+                    this.melee.action(snapshot) !== null || this.firearm.action(snapshot) !== null;
+                if (acceptedAttack) this.combat.markAttack(snapshot.player.playerId);
+            }
             this.reload.finish({
                 ...reloadInput,
                 stage: locations => {

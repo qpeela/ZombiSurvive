@@ -7,7 +7,7 @@ import {
 
 import { protocolVersion } from './movement.ts';
 
-export const healthVersion = 3;
+export const healthVersion = 4;
 export type HealthSnapshot = PlayerHealth &
     BleedingState & {
         readonly type: 'health-state';
@@ -17,6 +17,7 @@ export type HealthSnapshot = PlayerHealth &
         readonly tick: number;
         readonly maxHealth: number;
         readonly lifeState: PlayerLifeState;
+        readonly combatTicks: number;
         readonly lifeRevision?: number;
     };
 const isId = (value: unknown): value is string => {
@@ -41,6 +42,12 @@ export const isHealthSnapshot = (value: unknown): value is HealthSnapshot => {
     const tick = record['tick'];
     const health = record['health'];
     const bleedingTicks = record['bleedingTicks'];
+    const combatTicks = record['combatTicks'];
+    const isCombatTicks =
+        typeof combatTicks === 'number' &&
+        Number.isSafeInteger(combatTicks) &&
+        combatTicks >= 0 &&
+        combatTicks <= 1_000_000;
     const isBleeding =
         typeof bleedingTicks === 'number' &&
         Number.isSafeInteger(bleedingTicks) &&
@@ -66,6 +73,7 @@ export const isHealthSnapshot = (value: unknown): value is HealthSnapshot => {
         isVersion &&
         isTick &&
         isBleeding &&
+        isCombatTicks &&
         record['lifeState'] === playerLifeState(health) &&
         isId(record['worldId']) &&
         isId(record['playerId']) &&

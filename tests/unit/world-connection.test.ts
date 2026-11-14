@@ -370,7 +370,7 @@ test.each([
 const healthState = (tick: number, health = 90, bleedingTicks = 0) => ({
     type: 'health-state',
     protocolVersion: 5,
-    healthVersion: 3,
+    healthVersion: 4,
     worldId: 'world',
     playerId: 'player',
     tick,
@@ -378,6 +378,7 @@ const healthState = (tick: number, health = 90, bleedingTicks = 0) => ({
     lifeState: health > 0 ? 'alive' : 'dead',
     maxHealth: 100,
     bleedingTicks,
+    combatTicks: 0,
 });
 test('health requires readiness and cannot be overwritten by stale ticks, rooms or disconnect', async () => {
     const first = createRoom();

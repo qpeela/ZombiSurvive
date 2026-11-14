@@ -7,4 +7,5 @@ export const combatSettings = Object.freeze({
     zombieDamage: 10,
     attackRangeMeters: 1.1,
     attackIntervalTicks: 20,
+    combatDurationTicks: 200,
 });
