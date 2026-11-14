@@ -1553,7 +1553,7 @@ Coop PAUSED; тело/потеря вещей/возрождение вне scop
 
 ### T033 — тело и перенос вещей после смерти
 
-Статус: CI_PENDING. Ветка codex/t033-player-corpse; база main 8c42912, T032/PR #39 слита. Полный локальный npm run check прошёл (623 теста). DONE после успешного Quality финального коммита и merge. Зависимости: T032.
+Статус: CI_PENDING. [PR #40](https://github.com/qpeela/ZombiSurvive/pull/40), ветка codex/t033-player-corpse; база main 8c42912, T032/PR #39 слита. Полный локальный npm run check прошёл (623 теста). DONE после успешного Quality финального коммита и merge. Зависимости: T032.
 
 **Цель:** вещи умершего доступны в теле на месте смерти.
 
