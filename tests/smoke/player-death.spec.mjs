@@ -85,6 +85,7 @@ const observer = async () => {
 const assertDead = async page => {
     await expect(page.locator('#death-screen')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('#health-label')).toHaveText('Здоровье: 0 / 100');
+    await expect(page.locator('canvas')).toHaveAttribute('data-player-character', 'null');
     await expect(page.locator('.pickup-panel button:enabled')).toHaveCount(0);
     await expect
         .poll(async () => {

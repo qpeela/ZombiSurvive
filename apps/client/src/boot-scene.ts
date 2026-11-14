@@ -11,7 +11,8 @@ import {
 import type { MeleeAction, ShotAction, ShotAim } from '@zombi-survive/protocol';
 import { GameObjects, type Input, Scene } from 'phaser';
 
-import { drawHeldWeapon } from './held-weapon';
+import { CharacterVisual } from './character-visual';
+import { drawHeldWeapon, heldWeaponGrip } from './held-weapon';
 import { MeleeAnimation } from './melee-animation';
 import { meleeEffectDurationMs, MeleeFeedback } from './melee-feedback';
 import { shotEffectDurationMs, ShotFeedback } from './shot-feedback';
@@ -21,7 +22,10 @@ const pixelsPerMeter = 24;
 
 export class BootScene extends Scene {
     private player: PlayerMovementState | null = null;
+    private isAlive = false;
     private marker: GameObjects.Container | null = null;
+    private character: CharacterVisual | null = null;
+    private weaponReach = 0;
     private weapon: WeaponId | null = null;
     private weaponImage: GameObjects.Graphics | null = null;
     private facingAngle = 0;
@@ -34,9 +38,9 @@ export class BootScene extends Scene {
     private readonly feedback = new MeleeFeedback();
     private readonly effects = new Map<number, { text: GameObjects.Text; ring: GameObjects.Arc }>();
     private otherPlayers: readonly PlayerMovementState[] = [];
-    private readonly otherMarkers = new Map<string, GameObjects.Container>();
+    private readonly otherMarkers = new Map<string, CharacterVisual>();
     private zombies: readonly ZombieState[] = [];
-    private readonly zombieMarkers = new Map<string, GameObjects.Container>();
+    private readonly zombieMarkers = new Map<string, CharacterVisual>();
     private terrain: WorldTerrain | null = null;
 
     private corpses: readonly Corpse[] = [];
@@ -132,7 +136,8 @@ export class BootScene extends Scene {
         this.setGroundItem(this.groundItem);
         this.setCorpses(this.corpses);
         this.setZombies(this.zombies);
-        this.marker = this.createMarker(true);
+        this.character = new CharacterVisual({ scene: this, id: 'local-player', kind: 'player' });
+        this.marker = this.character.root;
         this.weaponImage = this.add.graphics().setDepth(2);
         drawHeldWeapon(this.weaponImage, this.weapon);
         this.updateWeapon();
@@ -149,6 +154,10 @@ export class BootScene extends Scene {
             this.crosshair = null;
             this.destinationMarker = null;
             this.marker = null;
+            this.character = null;
+            this.game.canvas.dataset['playerCharacter'] = 'null';
+            this.game.canvas.dataset['zombieCharacters'] = '[]';
+            this.game.canvas.dataset['otherCharacters'] = '[]';
             this.feedback.clear();
             this.clearShots();
             this.clearEffects();
@@ -185,24 +194,15 @@ export class BootScene extends Scene {
         for (const zombie of zombies) {
             const marker =
                 this.zombieMarkers.get(zombie.zombieId) ??
-                this.add
-                    .container(0, 0, [
-                        this.add.ellipse(0, 8, 24, 10, 0x0b100e),
-                        this.add.rectangle(0, 1, 16, 18, 0x905a4c),
-                        this.add.rectangle(0, -11, 10, 10, 0x9caa78),
-                        this.add
-                            .text(0, -36, 'Зомби', {
-                                fontFamily: 'monospace',
-                                fontSize: '12px',
-                                color: '#e1a48b',
-                            })
-                            .setOrigin(0.5),
-                    ])
-                    .setDepth(1);
-            marker.setPosition(
-                480 + zombie.position.xMeters * pixelsPerMeter,
-                270 + zombie.position.yMeters * pixelsPerMeter,
-            );
+                new CharacterVisual({
+                    scene: this,
+                    id: zombie.zombieId,
+                    kind: 'zombie',
+                });
+            marker.setTarget({
+                position: zombie.position,
+                isPursuing: zombie.targetPlayerId !== null,
+            });
             this.zombieMarkers.set(zombie.zombieId, marker);
         }
 
@@ -377,7 +377,7 @@ export class BootScene extends Scene {
         }
 
         for (const marker of this.zombieMarkers.values()) {
-            marker.setAlpha(1);
+            marker.root.setAlpha(1);
         }
 
         for (const effect of this.feedback.effects) {
@@ -415,7 +415,7 @@ export class BootScene extends Scene {
             visuals.ring.setScale(1 + progress).setAlpha(1 - progress);
 
             if (impact.outcome === 'hit' && effect.ageMs < 150) {
-                this.zombieMarkers.get(impact.zombieId)?.setAlpha(0.4);
+                this.zombieMarkers.get(impact.zombieId)?.root.setAlpha(0.4);
             }
         }
 
@@ -429,10 +429,11 @@ export class BootScene extends Scene {
             return;
         }
 
-        const isPlayerVisible = this.player !== null && this.marker !== null;
+        const isPlayerVisible = this.player !== null && this.marker !== null && this.isAlive;
         image.setVisible(isPlayerVisible && this.weapon !== null);
 
         const pose = this.animation.advance(deltaMs);
+        this.weaponReach = pose.reach;
 
         if (this.marker !== null) {
             image
@@ -462,7 +463,7 @@ export class BootScene extends Scene {
         const camera = this.cameras.main;
         const canvas = this.game.canvas;
         const pointer = this.input.activePointer;
-        const isAiming = this.player !== null && this.input.manager.isOver;
+        const isAiming = this.player !== null && this.isAlive && this.input.manager.isOver;
         const isEmptyHands = this.weapon === null;
         this.aim?.setVisible(isAiming && isEmptyHands);
         this.crosshair?.setVisible(isAiming);
@@ -498,6 +499,7 @@ export class BootScene extends Scene {
         }
 
         this.updateWeapon(deltaMs);
+        this.updateCharacters(deltaMs);
         this.updateFeedback(deltaMs);
         this.updateShots(deltaMs);
 
@@ -525,19 +527,43 @@ export class BootScene extends Scene {
             .lineBetween(camera.scrollX, 270, camera.scrollX + camera.width, 270);
     }
 
-    private createMarker(isLocal: boolean): GameObjects.Container {
-        return this.add.container(480, 270, [
-            this.add.ellipse(0, 8, 24, 10, 0x0b100e),
-            this.add.rectangle(0, 1, 16, 18, isLocal ? 0x88a76d : 0x71a5cf),
-            this.add.rectangle(0, -11, 10, 10, 0xddc7a0),
-            this.add
-                .text(0, -36, isLocal ? 'Вы' : 'Друг', {
-                    fontFamily: 'monospace',
-                    fontSize: '12px',
-                    color: '#d8e3c9',
-                })
-                .setOrigin(0.5),
-        ]);
+    private updateCharacters(deltaMs: number): void {
+        const image = this.weaponImage;
+        let weaponHand: { x: number; y: number } | undefined;
+
+        if (image !== null && image.visible && this.marker !== null) {
+            const cosine = Math.cos(image.rotation);
+            const sine = Math.sin(image.rotation);
+            weaponHand = {
+                x: image.x - this.marker.x + cosine * heldWeaponGrip.x - sine * heldWeaponGrip.y,
+                y: image.y - this.marker.y + sine * heldWeaponGrip.x + cosine * heldWeaponGrip.y,
+            };
+        }
+
+        this.character?.advance({
+            deltaMs,
+            facingAngle: this.facingAngle,
+            ...(weaponHand === undefined ? {} : { weaponHand }),
+            reach: this.weaponReach,
+        });
+        for (const marker of this.otherMarkers.values()) marker.advance({ deltaMs });
+        for (const marker of this.zombieMarkers.values()) marker.advance({ deltaMs });
+
+        const canvas = this.game.canvas;
+        canvas.dataset['playerCharacter'] = JSON.stringify(
+            this.player === null || !this.isAlive ? null : this.character?.snapshot(),
+        );
+        canvas.dataset['otherCharacters'] = JSON.stringify(
+            [...this.otherMarkers.values()].map(marker => marker.snapshot()),
+        );
+        canvas.dataset['zombieCharacters'] = JSON.stringify(
+            [...this.zombieMarkers.values()].map(marker => marker.snapshot()),
+        );
+    }
+
+    setAlive(isAlive: boolean): void {
+        this.isAlive = isAlive;
+        if (!isAlive) this.character?.reset();
     }
 
     setPlayer(player: PlayerMovementState | null): void {
@@ -548,10 +574,11 @@ export class BootScene extends Scene {
         }
 
         this.terrain?.update(player?.position ?? null);
-        this.marker.setVisible(player !== null);
-        this.game.canvas.dataset['playerVisible'] = String(player !== null);
+        this.marker.setVisible(player !== null && this.isAlive);
+        this.game.canvas.dataset['playerVisible'] = String(player !== null && this.isAlive);
 
         if (player === null) {
+            this.character?.reset();
             this.feedback.clear();
             this.clearShots();
             this.clearEffects();
@@ -562,7 +589,14 @@ export class BootScene extends Scene {
         if (player !== null) {
             const x = 480 + player.position.xMeters * pixelsPerMeter;
             const y = 270 + player.position.yMeters * pixelsPerMeter;
-            this.marker.setPosition(x, y).setScale(1, player.isSneaking ? 0.75 : 1);
+            if (this.isAlive) {
+                this.character?.setTarget({
+                    position: player.position,
+                    isSneaking: player.isSneaking,
+                });
+            } else {
+                this.character?.reset();
+            }
             this.cameras.main.centerOn(x, y);
             this.game.canvas.dataset['playerX'] = String(x);
             this.game.canvas.dataset['playerY'] = String(y);
@@ -590,12 +624,14 @@ export class BootScene extends Scene {
         }
 
         for (const other of otherPlayers) {
-            const marker = this.otherMarkers.get(other.playerId) ?? this.createMarker(false);
-            marker.setPosition(
-                480 + other.position.xMeters * pixelsPerMeter,
-                270 + other.position.yMeters * pixelsPerMeter,
-            );
-            marker.setScale(1, other.isSneaking ? 0.75 : 1);
+            const marker =
+                this.otherMarkers.get(other.playerId) ??
+                new CharacterVisual({
+                    scene: this,
+                    id: other.playerId,
+                    kind: 'other',
+                });
+            marker.setTarget({ position: other.position, isSneaking: other.isSneaking });
             this.otherMarkers.set(other.playerId, marker);
         }
 
