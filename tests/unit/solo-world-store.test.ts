@@ -60,7 +60,7 @@ test('one host exclusively owns a save until close, then the next can load it', 
 });
 
 test.each([
-    'PRAGMA user_version = 9',
+    'PRAGMA user_version = 10',
     "UPDATE solo_world SET seed = 'another-world'",
     'UPDATE solo_world SET generator_version = 2',
     "UPDATE solo_world SET player_id = 'bad'",
@@ -134,14 +134,14 @@ test('schema v1 migrates atomically and keeps character, world and position', ()
         ALTER TABLE solo_world DROP COLUMN display_name;
         ALTER TABLE solo_world DROP COLUMN name_revision;
         ALTER TABLE solo_world DROP COLUMN item_location;
-        PRAGMA user_version = 1`);
+        ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 1`);
     database.close();
     const migrated = open(path);
     expect(migrated.initialWorld).toEqual({ ...initial, position: { xMeters: 0, yMeters: -8 } });
     expect(migrated.currentProfile()).toEqual({ displayName: 'Выживший', nameRevision: 0 });
     migrated.close();
     const restored = new DatabaseSync(path);
-    expect(restored.prepare('PRAGMA user_version').get()?.['user_version']).toBe(8);
+    expect(restored.prepare('PRAGMA user_version').get()?.['user_version']).toBe(9);
     restored.close();
 });
 
@@ -171,7 +171,7 @@ test('a rejected old save rolls back the schema migration as well as its data', 
         ALTER TABLE solo_world DROP COLUMN name_revision;
         ALTER TABLE solo_world DROP COLUMN item_location;
         UPDATE solo_world SET player_id = 'invalid';
-        PRAGMA user_version = 1`);
+        ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 1`);
     database.close();
     const bytes = readFileSync(path);
     expect(() => open(path)).toThrow(/invalid world data/);
@@ -185,7 +185,7 @@ test('schema v2 migration retains profile and seeds the existing item only once'
     original.close();
     const database = new DatabaseSync(path);
     database.exec(
-        'ALTER TABLE solo_world DROP COLUMN combat_state; ALTER TABLE solo_world DROP COLUMN item_location; PRAGMA user_version = 2',
+        'ALTER TABLE solo_world DROP COLUMN combat_state; ALTER TABLE solo_world DROP COLUMN item_location; ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 2',
     );
     database.close();
     const migrated = open(path);
@@ -292,7 +292,7 @@ test('v2 migration failure rolls back both schema and initialization', () => {
     open(path).close();
     const database = new DatabaseSync(path);
     database.exec(
-        "ALTER TABLE solo_world DROP COLUMN combat_state; ALTER TABLE solo_world DROP COLUMN item_location; PRAGMA user_version = 2; CREATE TRIGGER reject_migration BEFORE UPDATE ON solo_world BEGIN SELECT RAISE(ABORT, 'migration failure'); END",
+        "ALTER TABLE solo_world DROP COLUMN combat_state; ALTER TABLE solo_world DROP COLUMN item_location; ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 2; CREATE TRIGGER reject_migration BEFORE UPDATE ON solo_world BEGIN SELECT RAISE(ABORT, 'migration failure'); END",
     );
     database.close();
     const bytes = readFileSync(path);
@@ -316,7 +316,9 @@ test.each([
     };
     const database = new DatabaseSync(path);
     database.prepare('UPDATE solo_world SET item_location = ?').run(JSON.stringify(bandage));
-    database.exec('ALTER TABLE solo_world DROP COLUMN combat_state; PRAGMA user_version = 3');
+    database.exec(
+        'ALTER TABLE solo_world DROP COLUMN combat_state; ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 3',
+    );
     database.close();
     const migrated = open(path);
     expect(migrated.initialItemLocations).toHaveLength(9);
@@ -343,7 +345,7 @@ test('failed v3 migration rolls back version and data, preserving the complete o
         .prepare('UPDATE solo_world SET item_location = ?')
         .run(JSON.stringify({ type: 'ground', item: initialGroundItem }));
     database.exec(
-        "ALTER TABLE solo_world DROP COLUMN combat_state; PRAGMA user_version = 3; CREATE TRIGGER reject_weapons BEFORE UPDATE OF item_location ON solo_world BEGIN SELECT RAISE(ABORT, 'weapon migration failure'); END",
+        "ALTER TABLE solo_world DROP COLUMN combat_state; ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 3; CREATE TRIGGER reject_weapons BEFORE UPDATE OF item_location ON solo_world BEGIN SELECT RAISE(ABORT, 'weapon migration failure'); END",
     );
     database.close();
     const before = readFileSync(path);
@@ -404,7 +406,9 @@ test('v4 migration adds the finite overlay once, preserving hands, profile, cell
     original.close();
     const database = new DatabaseSync(path);
     database.prepare('UPDATE solo_world SET item_location = ?').run(JSON.stringify(oldItems));
-    database.exec('ALTER TABLE solo_world DROP COLUMN combat_state; PRAGMA user_version = 4');
+    database.exec(
+        'ALTER TABLE solo_world DROP COLUMN combat_state; ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 4',
+    );
     const before = database
         .prepare(
             'SELECT world_id, player_id, seed, generator_version, x_meters, y_meters, display_name, name_revision FROM solo_world',
@@ -441,7 +445,7 @@ test('v4 migration adds the finite overlay once, preserving hands, profile, cell
             )
             .get(),
     ).toEqual(before);
-    expect(saved.prepare('PRAGMA user_version').get()?.['user_version']).toBe(8);
+    expect(saved.prepare('PRAGMA user_version').get()?.['user_version']).toBe(9);
     saved.close();
 });
 
@@ -493,7 +497,7 @@ test('failed v4 overlay migration rolls back the old schema and all item locatio
     const database = new DatabaseSync(path);
     database.prepare('UPDATE solo_world SET item_location = ?').run(JSON.stringify(oldItems));
     database.exec(
-        "ALTER TABLE solo_world DROP COLUMN combat_state; PRAGMA user_version = 4; CREATE TRIGGER reject_loot BEFORE UPDATE OF item_location ON solo_world BEGIN SELECT RAISE(ABORT, 'loot migration failure'); END",
+        "ALTER TABLE solo_world DROP COLUMN combat_state; ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 4; CREATE TRIGGER reject_loot BEFORE UPDATE OF item_location ON solo_world BEGIN SELECT RAISE(ABORT, 'loot migration failure'); END",
     );
     database.close();
     const before = readFileSync(path);
@@ -549,7 +553,9 @@ test('v5 migration seeds combat once while preserving the entire world and inven
     const items = first.initialItemLocations;
     first.close();
     const database = new DatabaseSync(path);
-    database.exec('ALTER TABLE solo_world DROP COLUMN combat_state; PRAGMA user_version = 5');
+    database.exec(
+        'ALTER TABLE solo_world DROP COLUMN combat_state; ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 5',
+    );
     database.close();
     const migrated = open(path);
     expect(migrated.initialWorld).toEqual(initial);
@@ -564,7 +570,9 @@ test('invalid v5 item data aborts combat migration without changing the file', (
     const path = createPath();
     open(path).close();
     const database = new DatabaseSync(path);
-    database.exec('ALTER TABLE solo_world DROP COLUMN combat_state; PRAGMA user_version = 5');
+    database.exec(
+        'ALTER TABLE solo_world DROP COLUMN combat_state; ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 5',
+    );
     database.prepare('UPDATE solo_world SET item_location = ?').run('[]');
     database.close();
     const before = readFileSync(path);
@@ -610,7 +618,7 @@ test('v6 migration preserves combat, world, profile and items and only adds an u
     const ids = first.initialWorld;
     first.close();
     const database = new DatabaseSync(path);
-    database.exec('PRAGMA user_version = 6');
+    database.exec('ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 6');
     database
         .prepare('UPDATE solo_world SET combat_state = ?')
         .run(JSON.stringify({ health: 63, cooldownTicks: 7 }));
@@ -649,7 +657,7 @@ test.each(['invalid combat', 'failed update'])('v6 wound migration rolls back on
     const path = createPath();
     open(path).close();
     const database = new DatabaseSync(path);
-    database.exec('PRAGMA user_version = 6');
+    database.exec('ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 6');
     database
         .prepare('UPDATE solo_world SET combat_state = ?')
         .run(JSON.stringify({ health: failure === 'invalid combat' ? -1 : 60, cooldownTicks: 7 }));
@@ -669,7 +677,7 @@ test('v7 migrates to v8 without changing items or wound; consumed bandage remain
     first.saveCombat({ health: 63, cooldownTicks: 7, bleedingTicks: 21 });
     first.close();
     const legacy = new DatabaseSync(path);
-    legacy.exec('PRAGMA user_version = 7');
+    legacy.exec('ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 7');
     legacy.close();
     const migrated = open(path);
     expect(migrated.initialItemLocations).toEqual(locations);
@@ -694,7 +702,7 @@ test('v7 missing bandage is corruption, and failed validation cannot partially m
     first.close();
     const legacy = new DatabaseSync(path);
     legacy.prepare('UPDATE solo_world SET item_location = ?').run(JSON.stringify(remaining));
-    legacy.exec('PRAGMA user_version = 7');
+    legacy.exec('ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 7');
     legacy.close();
     const before = readFileSync(path);
     expect(() => open(path)).toThrow(/invalid item/);

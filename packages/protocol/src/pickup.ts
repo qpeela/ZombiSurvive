@@ -1,4 +1,5 @@
 import {
+    type Corpse,
     type GroundItem,
     type InventoryCell,
     type InventoryItem,
@@ -39,6 +40,7 @@ export type PickupSnapshot = {
     readonly groundItem: GroundItem | null;
     readonly items: readonly InventoryItem[];
     readonly hands: Item | null;
+    readonly corpses?: readonly (Corpse & { readonly items: readonly Item[] })[];
 };
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -139,6 +141,31 @@ export const isPickupSnapshot = (value: unknown): value is PickupSnapshot => {
     if (hands !== null) ids.push(hands.itemId);
 
     if (ground !== null && isItem(ground)) ids.push(ground.itemId);
+
+    const corpses: unknown = value['corpses'];
+    if (corpses !== undefined) {
+        if (!Array.isArray(corpses) || corpses.length > 128) return false;
+        const corpseIds = new Set<string>();
+        for (const corpse of corpses as unknown[]) {
+            if (!isRecord(corpse) || !isId(corpse['corpseId']) || !isId(corpse['playerId']))
+                return false;
+            const position = corpse['position'];
+            const diedAtMs = corpse['diedAtMs'];
+            const loot = corpse['items'];
+            if (
+                !isRecord(position) ||
+                !Number.isFinite(position['xMeters']) ||
+                !Number.isFinite(position['yMeters'])
+            )
+                return false;
+            if (typeof diedAtMs !== 'number' || !Number.isSafeInteger(diedAtMs) || diedAtMs < 0)
+                return false;
+            if (!Array.isArray(loot) || loot.length > 128 || !loot.every(isItem)) return false;
+            if (corpseIds.has(corpse['corpseId'])) return false;
+            corpseIds.add(corpse['corpseId']);
+            ids.push(...loot.map((item: Item) => item.itemId));
+        }
+    }
 
     if (new Set(ids).size !== ids.length) {
         return false;

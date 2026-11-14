@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 
 import { type AuthContext, type Client, Room } from '@colyseus/core';
 import { combatSettings, movementSettings } from '@zombi-survive/content';
+import type { Corpse } from '@zombi-survive/domain';
 import { initialStateRequest, localWorldRoomId, pickupStateRequest } from '@zombi-survive/protocol';
 
 import { LocalWorldCombat } from './local-world-combat.ts';
@@ -53,7 +54,8 @@ export class LocalWorldRoom extends Room {
             playerId: soloPlayerId,
             cooldownTicks: savedCombat.cooldownTicks,
         });
-        this.pickup = new LocalWorldPickup(options.soloStore?.initialItemLocations);
+        let corpses: readonly Corpse[] = options.soloStore?.initialCorpses ?? [];
+        this.pickup = new LocalWorldPickup(options.soloStore?.initialItemLocations, corpses);
         const movement = new LocalWorldMovement(
             saved?.worldId ?? randomUUID(),
             options.access.soloPlayerId,
@@ -121,7 +123,6 @@ export class LocalWorldRoom extends Room {
                 snapshot => this.combat.snapshot(snapshot).health,
                 input => this.combat.useBandage(input),
             );
-            const itemSave = this.pickup.takePendingSave();
             const zombie = this.zombie.step(snapshots);
             this.melee.step({
                 ...zombie,
@@ -158,6 +159,23 @@ export class LocalWorldRoom extends Room {
             const store = options.soloStore;
             const isDying = savedCombat.health > 0 && nextCombat.health === 0;
             const deathPosition = isDying ? movement.soloPosition() : undefined;
+            let nextCorpses = corpses;
+            if (deathPosition !== undefined) {
+                const corpse: Corpse = {
+                    corpseId: randomUUID(),
+                    playerId: soloPlayerId,
+                    position: deathPosition,
+                    diedAtMs: Date.now(),
+                };
+                this.pickup.stageDeath(corpse);
+                nextCorpses = [...corpses, corpse];
+            }
+            const itemSave = this.pickup.takePendingSave();
+            if (store === undefined) {
+                corpses = nextCorpses;
+                savedCombat = nextCombat;
+                this.pickup.setCorpses(corpses);
+            }
             const publish = (): void => {
                 for (const client of this.clients) {
                     const snapshot = snapshots.get(client.sessionId);
@@ -194,7 +212,13 @@ export class LocalWorldRoom extends Room {
             const finishStep = (): void => {
                 this.pendingStep = null;
                 try {
-                    if (isDying) store.saveCombat(nextCombat, itemSave ?? undefined, deathPosition);
+                    if (isDying)
+                        store.saveCombat(
+                            nextCombat,
+                            itemSave ?? undefined,
+                            deathPosition,
+                            nextCorpses,
+                        );
                     else if (isCombatChanged) store.saveCombat(nextCombat, itemSave ?? undefined);
                     else if (itemSave !== null) store.saveItemLocations(itemSave);
 
@@ -202,6 +226,8 @@ export class LocalWorldRoom extends Room {
                         this.pickup.confirmSave();
                     }
 
+                    corpses = nextCorpses;
+                    this.pickup.setCorpses(corpses);
                     savedCombat = nextCombat;
                 } catch (error) {
                     this.isStopping = true;

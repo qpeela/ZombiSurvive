@@ -95,6 +95,10 @@ export const copyItemLocation = (location: ItemLocation): ItemLocation => {
         };
     }
 
+    if (location.type === 'corpse') {
+        return { ...location, item: { ...location.item } };
+    }
+
     if (location.type === 'hands') {
         return { type: 'hands', playerId: location.playerId, item: { ...location.item } };
     }
@@ -133,7 +137,25 @@ export const readSavedItems = (
         const kind = item['kind'];
         const itemId = item['itemId'];
 
-        if (kind === 'bandage') {
+        if (entry['type'] === 'corpse') {
+            const spawn = worldLoot.find(candidate => candidate.itemId === itemId);
+            const isStarter = isMeleeWeaponId(kind) && itemId === `${playerId}:${kind}`;
+            const isBandage = kind === 'bandage' && itemId === initialGroundItem.itemId;
+            const isWorld = spawn !== undefined && spawn.kind === kind;
+            const corpseId = entry['corpseId'];
+            if (typeof corpseId !== 'string' || corpseId.length === 0 || corpseId.length > 128)
+                return invalidItem();
+            if (typeof itemId !== 'string' || (!isStarter && !isBandage && !isWorld))
+                return invalidItem();
+            if (kind !== 'bandage' && !isMeleeWeaponId(kind)) return invalidItem();
+            if (
+                entry['playerId'] !== undefined ||
+                entry['cell'] !== undefined ||
+                item['position'] !== undefined
+            )
+                return invalidItem();
+            locations.push({ type: 'corpse', corpseId, item: { itemId, kind } });
+        } else if (kind === 'bandage') {
             locations.push(readSavedItem(JSON.stringify(entry), playerId));
         } else {
             const spawn = worldLoot.find(candidate => candidate.itemId === itemId);

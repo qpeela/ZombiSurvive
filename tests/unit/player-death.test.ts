@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { type Client, Room } from '@colyseus/core';
-import { isMovementSnapshot } from '@zombi-survive/protocol';
+import { isMovementSnapshot, isPickupSnapshot } from '@zombi-survive/protocol';
 import { afterEach, expect, test, vi } from 'vitest';
 
 import { LocalWorldRoom } from '../../apps/server/src/local-world-room.ts';
@@ -81,6 +81,7 @@ const setup = ({ health = 1, bleedingTicks = 1, hasBandage = true } = {}) => {
             combat: loaded.initialCombat,
             locations: loaded.initialItemLocations,
             position: loaded.initialWorld.position,
+            corpses: loaded.initialCorpses,
         };
         loaded.close();
         return saved;
@@ -172,6 +173,7 @@ test.each(['bleeding', 'zombie', 'both'] as const)(
         expect(save.mock.calls.filter(([state]) => state.health === 0)).toHaveLength(1);
         expect(restored()).toMatchObject({
             combat: { health: 0 },
+            corpses: [expect.objectContaining({ playerId })],
             position: { xMeters: 0, yMeters: -0.1 },
         });
     },
@@ -247,7 +249,7 @@ test('failed death commit publishes no transient death or movement and retains t
     });
 });
 
-test('equipment selected while alive and death share one durable step without losing retained items', () => {
+test('equipment selected while alive and death transfer every item into one durable corpse', () => {
     const { dispatch, step, send, store, restored, playerId } = setup();
     const save = vi.spyOn(store, 'saveCombat');
     dispatch('equip-weapon', {
@@ -264,12 +266,25 @@ test('equipment selected while alive and death share one durable step without lo
         'health-state',
         expect.objectContaining({ lifeState: 'dead' }),
     );
-    expect(send).toHaveBeenCalledWith(
-        'pickup-state',
-        expect.objectContaining({ hands: { itemId: `${playerId}:knife`, kind: 'knife' } }),
-    );
+    const pickup = send.mock.calls.find(([type]) => type === 'pickup-state')?.[1];
+    if (!isPickupSnapshot(pickup)) throw new Error('Missing pickup state');
+    expect(pickup.hands).toBeNull();
+    expect(pickup.items).toEqual([]);
+    expect(pickup.corpses?.[0]?.items).toContainEqual({
+        itemId: `${playerId}:knife`,
+        kind: 'knife',
+    });
     const saved = restored();
     expect(saved.combat.health).toBe(0);
-    expect(saved.locations.find(location => location.type === 'hands')?.item.kind).toBe('knife');
+    expect(
+        saved.locations.find(location => location.item.itemId === `${playerId}:knife`),
+    ).toMatchObject({
+        type: 'corpse',
+    });
+    expect(
+        saved.locations.some(
+            location => location.type === 'hands' || location.type === 'container',
+        ),
+    ).toBe(false);
     expect(saved.locations).toHaveLength(store.initialItemLocations.length);
 });

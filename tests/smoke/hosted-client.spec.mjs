@@ -1,6 +1,10 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
 
-const hostOrigin = 'http://127.0.0.1:3101';
+import { isolatedHostOrigin, test } from '../fixtures/isolated-host.mjs';
+
+test.use({ baseURL: isolatedHostOrigin });
+
+const hostOrigin = isolatedHostOrigin;
 const readPlayer = page =>
     page.getByRole('status').evaluate(element => ({
         x: Number(element.dataset.xMeters),
@@ -21,14 +25,16 @@ test('npm start serves the game and moves a character through the same origin wi
     await expect(page).toHaveTitle('ZombiSurvive');
     await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
     await expect(page.locator('canvas')).toHaveAttribute('data-player-visible', 'true');
+    await expect(page.locator('#health')).toHaveAttribute('value', '100');
+    await expect(page.locator('#death-screen')).toBeHidden();
     expect(sockets).toHaveLength(1);
-    expect(new URL(sockets[0]).origin).toBe('ws://127.0.0.1:3101');
+    expect(new URL(sockets[0]).origin).toBe(isolatedHostOrigin.replace('http:', 'ws:'));
     expect(resources.every(url => new URL(url).origin === hostOrigin)).toBe(true);
     expect(resources.some(url => new URL(url).pathname.endsWith('.js'))).toBe(true);
     expect(resources.some(url => new URL(url).pathname.endsWith('.css'))).toBe(true);
 
     const start = await readPlayer(page);
-    await page.getByRole('heading').click();
+    await page.getByRole('heading', { name: 'ZombiSurvive', exact: true }).click();
     await page.keyboard.down('d');
     await expect.poll(async () => (await readPlayer(page)).x).toBeGreaterThan(start.x + 0.2);
     await page.keyboard.up('d');

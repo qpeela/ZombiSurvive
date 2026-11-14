@@ -1,5 +1,6 @@
 import { pickupSettings } from '@zombi-survive/content';
 import type {
+    Corpse,
     InventoryItem,
     ItemLocation,
     PlayerMovementState,
@@ -16,18 +17,25 @@ export const pickUpItem = ({
     itemId,
     obstacles,
     items = [],
+    corpse,
 }: {
+    readonly corpse?: Corpse;
     readonly location: ItemLocation;
     readonly player: PlayerMovementState;
     readonly itemId: string;
     readonly items?: readonly InventoryItem[];
     readonly obstacles: readonly WorldObstacle[];
 }): ItemLocation => {
-    if (location.type !== 'ground' || location.item.itemId !== itemId) {
+    const isGround = location.type === 'ground';
+    const isCorpse = location.type === 'corpse' && location.corpseId === corpse?.corpseId;
+
+    if ((!isGround && !isCorpse) || location.item.itemId !== itemId) {
         return location;
     }
 
-    const { position } = location.item;
+    const position = location.type === 'ground' ? location.item.position : corpse?.position;
+
+    if (position === undefined) return location;
     const distanceMeters = Math.hypot(
         position.xMeters - player.position.xMeters,
         position.yMeters - player.position.yMeters,

@@ -1,5 +1,6 @@
 import { itemDefinitions } from '@zombi-survive/content';
 import type {
+    Corpse,
     GroundItem,
     MeleeWeaponId,
     PlayerMovementState,
@@ -31,6 +32,8 @@ export class BootScene extends Scene {
     private readonly zombieMarkers = new Map<string, GameObjects.Container>();
     private terrain: WorldTerrain | null = null;
 
+    private corpses: readonly Corpse[] = [];
+    private readonly corpseMarkers = new Map<string, GameObjects.Container>();
     private groundItem: GroundItem | null = null;
     private itemMarker: GameObjects.Container | null = null;
     private grid: GameObjects.Graphics | null = null;
@@ -112,6 +115,7 @@ export class BootScene extends Scene {
             ])
             .setDepth(1);
         this.setGroundItem(this.groundItem);
+        this.setCorpses(this.corpses);
         this.setZombies(this.zombies);
         this.marker = this.createMarker(true);
         this.weaponImage = this.add.graphics().setDepth(2);
@@ -140,6 +144,7 @@ export class BootScene extends Scene {
             this.itemMarker = null;
             this.otherMarkers.clear();
             this.zombieMarkers.clear();
+            this.corpseMarkers.clear();
         });
         this.game.canvas.dataset['sceneReady'] = 'true';
         this.game.canvas.setAttribute('aria-label', 'Игровое поле ZombiSurvive');
@@ -186,6 +191,41 @@ export class BootScene extends Scene {
         }
 
         this.game.canvas.dataset['zombies'] = JSON.stringify(zombies);
+    }
+
+    setCorpses(corpses: readonly Corpse[]): void {
+        this.corpses = corpses;
+        if (this.terrain === null) return;
+        const ids = new Set(corpses.map(corpse => corpse.corpseId));
+        for (const [id, marker] of this.corpseMarkers) {
+            if (!ids.has(id)) {
+                marker.destroy();
+                this.corpseMarkers.delete(id);
+            }
+        }
+        for (const corpse of corpses) {
+            const marker =
+                this.corpseMarkers.get(corpse.corpseId) ??
+                this.add
+                    .container(0, 0, [
+                        this.add.rectangle(0, 0, 30, 14, 0x684a42),
+                        this.add.rectangle(-18, 0, 10, 10, 0xab9479),
+                        this.add
+                            .text(0, -25, 'Тело', {
+                                fontFamily: 'monospace',
+                                fontSize: '12px',
+                                color: '#c5a691',
+                            })
+                            .setOrigin(0.5),
+                    ])
+                    .setDepth(1);
+            marker.setPosition(
+                480 + corpse.position.xMeters * pixelsPerMeter,
+                270 + corpse.position.yMeters * pixelsPerMeter,
+            );
+            this.corpseMarkers.set(corpse.corpseId, marker);
+        }
+        this.game.canvas.dataset['corpses'] = JSON.stringify(corpses);
     }
 
     setGroundItem(item: GroundItem | null): void {

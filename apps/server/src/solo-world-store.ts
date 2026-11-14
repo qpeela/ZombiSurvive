@@ -8,11 +8,17 @@ import {
     initialGroundItem,
     worldGenerationSettings,
 } from '@zombi-survive/content';
-import { isDisplayName, type ItemLocation, type WorldPosition } from '@zombi-survive/domain';
+import {
+    type Corpse,
+    isDisplayName,
+    type ItemLocation,
+    type WorldPosition,
+} from '@zombi-survive/domain';
 import { addStarterWeapons } from '@zombi-survive/simulation';
 import { initialWorldWeaponLoot, loadWorldChunks } from '@zombi-survive/worldgen';
 
 import { readSavedCombat, type SavedCombat } from './saved-combat.ts';
+import { readSavedCorpses } from './saved-corpse.ts';
 import { readSavedItem, readSavedItems, writeSavedItems } from './saved-item.ts';
 
 export type SavedSoloWorld = {
@@ -53,6 +59,7 @@ export class SoloWorldStore {
     readonly initialWorld: SavedSoloWorld;
     readonly initialItemLocations: readonly ItemLocation[];
     readonly initialCombat: SavedCombat;
+    readonly initialCorpses: readonly Corpse[];
     private readonly database: DatabaseSync;
     private isClosed = false;
     private profile: { readonly displayName: string; readonly nameRevision: number };
@@ -113,7 +120,8 @@ export class SoloWorldStore {
                 version !== 5 &&
                 version !== 6 &&
                 version !== 7 &&
-                version !== 8
+                version !== 8 &&
+                version !== 9
             ) {
                 throw new Error('Unsupported solo save schema version.');
             }
@@ -179,7 +187,7 @@ export class SoloWorldStore {
                 ],
                 this.initialWorld.playerId,
                 initialWorldWeaponLoot,
-                version === 8,
+                typeof version === 'number' && version >= 8,
             );
             if (typeof version === 'number' && version < 6) {
                 this.database.exec(`
@@ -208,7 +216,47 @@ export class SoloWorldStore {
                 ],
             );
             // v8 permits only the bandage to be absent. Legacy manifests were validated above.
-            if (version !== 8) this.database.exec('PRAGMA user_version = 8');
+            if (typeof version === 'number' && version < 9) {
+                this.database.exec(
+                    "ALTER TABLE solo_world ADD COLUMN corpses TEXT NOT NULL DEFAULT '[]'",
+                );
+                if (this.initialCombat.health === 0) {
+                    const corpse: Corpse = {
+                        corpseId: randomUUID(),
+                        playerId: this.initialWorld.playerId,
+                        position: this.initialWorld.position,
+                        diedAtMs: Date.now(),
+                    };
+                    this.initialItemLocations = this.initialItemLocations.map(location =>
+                        location.type === 'container' || location.type === 'hands'
+                            ? {
+                                  type: 'corpse',
+                                  corpseId: corpse.corpseId,
+                                  item: { ...location.item },
+                              }
+                            : location,
+                    );
+                    this.database
+                        .prepare(
+                            'UPDATE solo_world SET corpses = ?, item_location = ? WHERE id = 1',
+                        )
+                        .run(
+                            JSON.stringify([corpse]),
+                            writeSavedItems(
+                                this.initialItemLocations,
+                                this.initialWorld.playerId,
+                                initialWorldWeaponLoot,
+                            ),
+                        );
+                }
+                this.database.exec('PRAGMA user_version = 9');
+            }
+            this.initialCorpses = readSavedCorpses(
+                this.database.prepare('SELECT corpses FROM solo_world WHERE id = 1').get()?.[
+                    'corpses'
+                ],
+                this.initialItemLocations,
+            );
             this.profile = {
                 displayName: this.initialWorld.displayName,
                 nameRevision: this.initialWorld.nameRevision,
@@ -273,6 +321,7 @@ export class SoloWorldStore {
         state: SavedCombat,
         locations?: readonly ItemLocation[],
         position?: WorldPosition,
+        corpses?: readonly Corpse[],
     ): void {
         const saved = JSON.stringify(readSavedCombat(JSON.stringify(state)));
         const items =
@@ -286,6 +335,15 @@ export class SoloWorldStore {
         if (items !== undefined) {
             assignments.push('item_location = ?');
             values.push(items);
+        }
+
+        if (corpses !== undefined) {
+            const checked = readSavedCorpses(
+                JSON.stringify(corpses),
+                locations ?? this.initialItemLocations,
+            );
+            assignments.push('corpses = ?');
+            values.push(JSON.stringify(checked));
         }
 
         if (position !== undefined) {
