@@ -3,7 +3,7 @@ import {
     type GroundItem,
     type InventoryCell,
     type InventoryItem,
-    isMeleeWeaponId,
+    isWeaponId,
     type Item,
 } from '@zombi-survive/domain';
 
@@ -56,7 +56,19 @@ const isItem = (value: unknown): value is Item => {
         return false;
     }
 
-    return isId(value['itemId']) && (value['kind'] === 'bandage' || isMeleeWeaponId(value['kind']));
+    if (!isId(value['itemId'])) return false;
+    if (value['kind'] === 'pistol') {
+        const rounds = value['rounds'];
+        const capacity = value['magazineCapacity'];
+        const isCapacity =
+            typeof capacity === 'number' &&
+            Number.isSafeInteger(capacity) &&
+            capacity > 0 &&
+            capacity <= 128;
+        const isRounds = typeof rounds === 'number' && Number.isSafeInteger(rounds) && rounds >= 0;
+        return isCapacity && isRounds && rounds <= capacity;
+    }
+    return value['kind'] === 'bandage' || isWeaponId(value['kind']);
 };
 
 export const isUseBandageCommand = (value: unknown): value is UseBandageCommand => {
@@ -132,7 +144,7 @@ export const isPickupSnapshot = (value: unknown): value is PickupSnapshot => {
 
     const hands: unknown = value['hands'];
 
-    if (hands !== null && (!isItem(hands) || !isMeleeWeaponId(hands.kind))) {
+    if (hands !== null && (!isItem(hands) || !isWeaponId(hands.kind))) {
         return false;
     }
 

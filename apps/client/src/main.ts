@@ -5,15 +5,17 @@ import {
     meleeWeapons,
     movementSettings,
     pickupSettings,
+    pistolSettings,
 } from '@zombi-survive/content';
-import type {
-    Corpse,
-    GroundItem,
-    InventoryItem,
-    Item,
-    PlayerLifeState,
-    PlayerMovementState,
-    WorldPosition,
+import {
+    type Corpse,
+    type GroundItem,
+    type InventoryItem,
+    isMeleeWeaponId,
+    type Item,
+    type PlayerLifeState,
+    type PlayerMovementState,
+    type WorldPosition,
 } from '@zombi-survive/domain';
 import type { MovementSnapshot } from '@zombi-survive/protocol';
 import { findInventorySpace } from '@zombi-survive/simulation';
@@ -44,6 +46,7 @@ const unequip = document.querySelector<HTMLButtonElement>('#unequip-weapon');
 const itemSelectors = document.querySelector<HTMLElement>('#inventory-items');
 const weaponStats = document.querySelector<HTMLElement>('#weapon-stats');
 const attack = document.querySelector<HTMLButtonElement>('#melee-attack');
+const ammoLabel = document.querySelector<HTMLElement>('#ammo-label');
 const weaponLabel = document.querySelector<HTMLElement>('#weapon-label');
 const reconnect = document.querySelector<HTMLButtonElement>('#reconnect');
 const stamina = document.querySelector<HTMLProgressElement>('#stamina');
@@ -78,6 +81,7 @@ if (
     !weaponStats ||
     !attack ||
     !weaponLabel ||
+    !ammoLabel ||
     !container ||
     !status ||
     !reconnect ||
@@ -138,7 +142,8 @@ const updateBandage = (): void => {
     bandageButton.title =
         'Останавливает кровотечение. Без раны бинт не расходуется. HP не восстанавливает.';
 };
-const equipmentButtons = Object.values(meleeWeapons).map(weapon => {
+const weaponDefinitions = { ...meleeWeapons, pistol: pistolSettings };
+const equipmentButtons = Object.values(weaponDefinitions).map(weapon => {
     const button = document.createElement('button');
     button.type = 'button';
     button.textContent = weapon.equipLabel;
@@ -305,6 +310,7 @@ const connection = createWorldConnection(
         healthLabel.textContent = 'Здоровье: —';
         bleedingLabel.textContent = 'Кровотечение: —';
         bleedingLabel.removeAttribute('data-bleeding');
+        ammoLabel.textContent = 'Патроны: —';
         groundItem = null;
         corpses = [];
         corpseUi.update({ corpses, position: null, items: [], isAlive: false });
@@ -364,6 +370,10 @@ const connection = createWorldConnection(
         inventoryItems = snapshot.items;
         updateBandage();
         hands = snapshot.hands;
+        ammoLabel.textContent =
+            hands?.kind === 'pistol'
+                ? `Патроны: ${String(hands.rounds)}/${String(hands.magazineCapacity)}`
+                : 'Патроны: —';
         const hasSpace =
             hands === null || findInventorySpace({ items: inventoryItems, item: hands }) !== null;
         unequip.disabled = hands === null || !hasSpace || health.value <= 0;
@@ -414,7 +424,7 @@ const connection = createWorldConnection(
     },
     snapshot => {
         scene.setWeapon(lifeState === 'alive' ? snapshot.weapon : null);
-        const isEquipped = snapshot.weapon !== null;
+        const isEquipped = isMeleeWeaponId(snapshot.weapon);
         for (const { weapon, button } of equipmentButtons) {
             const isSelected = snapshot.weapon === weapon;
             const isAvailable = inventoryItems.some(item => item.kind === weapon);
@@ -422,7 +432,7 @@ const connection = createWorldConnection(
             button.setAttribute('aria-pressed', String(isSelected));
         }
         attack.disabled = !isEquipped || health.value <= 0;
-        const definition = snapshot.weapon === null ? null : meleeWeapons[snapshot.weapon];
+        const definition = snapshot.weapon === null ? null : weaponDefinitions[snapshot.weapon];
         weaponLabel.textContent =
             definition === null ? 'Оружие: в руках пусто' : `Оружие: ${definition.name}`;
         const formatNumber = (value: number): string => value.toLocaleString('ru-RU');

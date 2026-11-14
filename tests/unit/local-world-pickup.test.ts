@@ -1,4 +1,5 @@
 import { initialGroundItem } from '@zombi-survive/content';
+import { copyItem } from '@zombi-survive/domain';
 import { isPickupSnapshot } from '@zombi-survive/protocol';
 import { expect, test } from 'vitest';
 
@@ -222,7 +223,7 @@ test('equipment commits before publication; racing tabs and queued stale command
     const initial = seeded.snapshot(movement.snapshot('first')).items.map(item => ({
         type: 'container' as const,
         playerId: 'solo',
-        item: { itemId: item.itemId, kind: item.kind },
+        item: copyItem(item),
         cell: item.cell,
     }));
     const pickup = new LocalWorldPickup(initial);

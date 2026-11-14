@@ -1,11 +1,12 @@
 import { itemDefinitions } from '@zombi-survive/content';
-import type {
-    Corpse,
-    GroundItem,
-    MeleeWeaponId,
-    PlayerMovementState,
-    WorldPosition,
-    ZombieState,
+import {
+    type Corpse,
+    type GroundItem,
+    isMeleeWeaponId,
+    type PlayerMovementState,
+    type WeaponId,
+    type WorldPosition,
+    type ZombieState,
 } from '@zombi-survive/domain';
 import type { MeleeAction } from '@zombi-survive/protocol';
 import { GameObjects, type Input, Scene } from 'phaser';
@@ -20,7 +21,7 @@ const pixelsPerMeter = 24;
 export class BootScene extends Scene {
     private player: PlayerMovementState | null = null;
     private marker: GameObjects.Container | null = null;
-    private weapon: MeleeWeaponId | null = null;
+    private weapon: WeaponId | null = null;
     private weaponImage: GameObjects.Graphics | null = null;
     private facingAngle = 0;
     private readonly animation = new MeleeAnimation();
@@ -242,10 +243,10 @@ export class BootScene extends Scene {
         }
     }
 
-    setWeapon(weapon: MeleeWeaponId | null): void {
+    setWeapon(weapon: WeaponId | null): void {
         const isChanged = this.weapon !== weapon;
         this.weapon = weapon;
-        this.animation.setWeapon(weapon);
+        this.animation.setWeapon(isMeleeWeaponId(weapon) ? weapon : null);
 
         if (this.weaponImage !== null && isChanged) {
             drawHeldWeapon(this.weaponImage, weapon);

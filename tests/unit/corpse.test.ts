@@ -12,6 +12,7 @@ import { LocalWorldMovement } from '../../apps/server/src/local-world-movement.t
 import { LocalWorldPickup } from '../../apps/server/src/local-world-pickup.ts';
 import { readSavedCorpses } from '../../apps/server/src/saved-corpse.ts';
 import { SoloWorldStore } from '../../apps/server/src/solo-world-store.ts';
+import { removePistolForLegacySave } from './legacy-save-fixture.ts';
 
 const directories: string[] = [];
 afterEach(() => {
@@ -131,6 +132,7 @@ test('a v8 dead save migrates once, retains every ID and restores its corpse acr
     });
     store.close();
     const database = new DatabaseSync(path);
+    removePistolForLegacySave(database);
     database.exec('ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 8');
     database.close();
     store = new SoloWorldStore(path);

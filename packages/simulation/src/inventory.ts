@@ -1,5 +1,11 @@
 import { inventorySettings, itemDefinitions } from '@zombi-survive/content';
-import type { InventoryCell, InventoryItem, InventorySettings, Item } from '@zombi-survive/domain';
+import {
+    copyItem,
+    type InventoryCell,
+    type InventoryItem,
+    type InventorySettings,
+    type Item,
+} from '@zombi-survive/domain';
 
 export const inventoryWeightGrams = (items: readonly Item[]): number =>
     items.reduce((weight, item) => weight + itemDefinitions[item.kind].weightGrams, 0);
@@ -46,7 +52,7 @@ export const placeInventoryItem = ({
         return null;
     }
 
-    return [...others, { itemId: item.itemId, kind: item.kind, cell: { ...cell } }];
+    return [...others, { ...copyItem(item), cell: { ...cell } }];
 };
 
 export const findInventorySpace = ({

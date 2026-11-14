@@ -1,8 +1,11 @@
-import { initialGroundItem } from '@zombi-survive/content';
+import { initialGroundItem, pistolSettings } from '@zombi-survive/content';
 import {
+    copyItem,
     type GroundItem,
     type InventoryItem,
     isMeleeWeaponId,
+    isWeaponId,
+    type Item,
     type ItemLocation,
 } from '@zombi-survive/domain';
 import { placeInventoryItem } from '@zombi-survive/simulation';
@@ -82,7 +85,7 @@ export const readSavedItem = (value: unknown, playerId: string): ItemLocation =>
     return {
         type: 'container',
         playerId,
-        item: { itemId: initialGroundItem.itemId, kind: initialGroundItem.kind },
+        item: copyItem(initialGroundItem),
         cell: { column, row },
     };
 };
@@ -108,7 +111,36 @@ export const copyItemLocation = (location: ItemLocation): ItemLocation => {
     return { ...location, item: { ...location.item }, cell: { ...location.cell } };
 };
 
-/** Validates the complete manifest and inventory together; absent items are never respawned. */
+const readKnownItem = (
+    item: Record<string, unknown>,
+    playerId: string,
+    worldLoot: readonly GroundItem[],
+): Item => {
+    const kind = item['kind'];
+    const itemId = item['itemId'];
+    if (typeof itemId !== 'string') return invalidItem();
+    if (kind === 'bandage' && itemId === initialGroundItem.itemId) return { itemId, kind };
+    if (!isWeaponId(kind)) return invalidItem();
+    const spawn = worldLoot.find(candidate => candidate.itemId === itemId);
+    const isStarter = isMeleeWeaponId(kind) && itemId === `${playerId}:${kind}`;
+    const isWorld = spawn !== undefined && spawn.kind === kind;
+    if (!isStarter && !isWorld) return invalidItem();
+    if (kind === 'pistol') {
+        const rounds = item['rounds'];
+        const magazineCapacity = item['magazineCapacity'];
+        const isCapacity = magazineCapacity === pistolSettings.magazineCapacity;
+        const isRounds =
+            typeof rounds === 'number' &&
+            Number.isSafeInteger(rounds) &&
+            rounds >= 0 &&
+            rounds <= pistolSettings.magazineCapacity;
+        if (!isCapacity || !isRounds) return invalidItem();
+        return { itemId, kind, rounds, magazineCapacity: pistolSettings.magazineCapacity };
+    }
+    return { itemId, kind };
+};
+
+/** Validates the complete finite manifest, instance state and inventory together. */
 export const readSavedItems = (
     value: unknown,
     playerId: string,
@@ -116,138 +148,75 @@ export const readSavedItems = (
     isConsumableBandage = false,
 ): readonly ItemLocation[] => {
     if (typeof value !== 'string' || value.length > 16_384) return invalidItem();
-
     const saved: unknown = JSON.parse(value);
-
     if (!Array.isArray(saved)) return invalidItem();
-
     const weaponCount = 4 + worldLoot.length;
     const hasCompleteManifest = saved.length === weaponCount + 1;
     const hasConsumedBandage = isConsumableBandage && saved.length === weaponCount;
-
     if (!hasCompleteManifest && !hasConsumedBandage) return invalidItem();
-
     const locations: ItemLocation[] = [];
     const ids = new Set<string>();
     let items: readonly InventoryItem[] = [];
     let hasHands = false;
-
     for (const entry of saved as unknown[]) {
         if (!isRecord(entry) || !isRecord(entry['item'])) return invalidItem();
-
-        const item = entry['item'];
-        const kind = item['kind'];
-        const itemId = item['itemId'];
-
+        const rawItem = entry['item'];
+        const item = readKnownItem(rawItem, playerId, worldLoot);
+        if (ids.has(item.itemId)) return invalidItem();
+        ids.add(item.itemId);
+        let location: ItemLocation;
         if (entry['type'] === 'corpse' || entry['type'] === 'expired') {
-            const spawn = worldLoot.find(candidate => candidate.itemId === itemId);
-            const isStarter = isMeleeWeaponId(kind) && itemId === `${playerId}:${kind}`;
-            const isBandage = kind === 'bandage' && itemId === initialGroundItem.itemId;
-            const isWorld = spawn !== undefined && spawn.kind === kind;
             const corpseId = entry['corpseId'];
-            const isCorpse = entry['type'] === 'corpse';
-            if (
-                isCorpse &&
-                (typeof corpseId !== 'string' || corpseId.length === 0 || corpseId.length > 128)
-            )
-                return invalidItem();
-            if (!isCorpse && corpseId !== undefined) return invalidItem();
-            if (typeof itemId !== 'string' || (!isStarter && !isBandage && !isWorld))
-                return invalidItem();
-            if (kind !== 'bandage' && !isMeleeWeaponId(kind)) return invalidItem();
-            if (
-                entry['playerId'] !== undefined ||
-                entry['cell'] !== undefined ||
-                item['position'] !== undefined
-            )
-                return invalidItem();
-            if (entry['type'] === 'corpse' && typeof corpseId === 'string')
-                locations.push({ type: 'corpse', corpseId, item: { itemId, kind } });
-            else locations.push({ type: 'expired', item: { itemId, kind } });
-        } else if (kind === 'bandage') {
-            locations.push(readSavedItem(JSON.stringify(entry), playerId));
-        } else {
-            const spawn = worldLoot.find(candidate => candidate.itemId === itemId);
-            const isStarter = isMeleeWeaponId(kind) && itemId === `${playerId}:${kind}`;
-            const isWorldWeapon = spawn !== undefined && spawn.kind === kind;
-
-            if (
-                !isMeleeWeaponId(kind) ||
-                typeof itemId !== 'string' ||
-                (!isStarter && !isWorldWeapon)
-            )
-                return invalidItem();
-
-            if (entry['type'] === 'ground') {
-                const position = item['position'];
-                const hasNoOwner = entry['playerId'] === undefined && entry['cell'] === undefined;
-
-                if (spawn === undefined || !hasNoOwner || !isRecord(position)) return invalidItem();
-
-                const isSpawn =
-                    position['xMeters'] === spawn.position.xMeters &&
-                    position['yMeters'] === spawn.position.yMeters;
-
-                if (!isSpawn || ids.has(itemId)) return invalidItem();
-
-                ids.add(itemId);
-                locations.push({
-                    type: 'ground',
-                    item: { ...spawn, position: { ...spawn.position } },
-                });
-                continue;
+            const isUnowned =
+                entry['playerId'] === undefined &&
+                entry['cell'] === undefined &&
+                rawItem['position'] === undefined;
+            if (!isUnowned) return invalidItem();
+            if (entry['type'] === 'corpse') {
+                if (typeof corpseId !== 'string' || corpseId.length === 0 || corpseId.length > 128)
+                    return invalidItem();
+                location = { type: 'corpse', corpseId, item };
+            } else {
+                if (corpseId !== undefined) return invalidItem();
+                location = { type: 'expired', item };
             }
-
+        } else if (item.kind === 'bandage') {
+            location = readSavedItem(JSON.stringify(entry), playerId);
+        } else if (entry['type'] === 'ground') {
+            const spawn = worldLoot.find(candidate => candidate.itemId === item.itemId);
+            const position = rawItem['position'];
+            const isUnowned = entry['playerId'] === undefined && entry['cell'] === undefined;
+            if (spawn === undefined || !isUnowned || !isRecord(position)) return invalidItem();
+            const isSpawn =
+                position['xMeters'] === spawn.position.xMeters &&
+                position['yMeters'] === spawn.position.yMeters;
+            if (!isSpawn) return invalidItem();
+            location = { type: 'ground', item: { ...item, position: { ...spawn.position } } };
+        } else {
             const isOwner = entry['playerId'] === playerId;
-            const isUnplaced = item['position'] === undefined;
-
-            if (!isOwner || !isUnplaced) return invalidItem();
-
-            const weapon = { itemId, kind };
-
+            if (!isOwner || rawItem['position'] !== undefined) return invalidItem();
             if (entry['type'] === 'hands') {
                 if (hasHands || entry['cell'] !== undefined) return invalidItem();
-
                 hasHands = true;
-                locations.push({ type: 'hands', playerId, item: weapon });
+                location = { type: 'hands', playerId, item };
             } else {
                 const cell = entry['cell'];
-
                 if (entry['type'] !== 'container' || !isRecord(cell)) return invalidItem();
-
                 const column = cell['column'];
                 const row = cell['row'];
-
                 if (typeof column !== 'number' || typeof row !== 'number') return invalidItem();
-
-                locations.push({
-                    type: 'container',
-                    playerId,
-                    item: weapon,
-                    cell: { column, row },
-                });
+                location = { type: 'container', playerId, item, cell: { column, row } };
             }
         }
-
-        const location = locations.at(-1);
-
-        if (location === undefined || ids.has(location.item.itemId)) return invalidItem();
-
-        ids.add(location.item.itemId);
-
+        locations.push(location);
         if (location.type === 'container') {
             const placed = placeInventoryItem({ items, item: location.item, cell: location.cell });
-
             if (placed === null) return invalidItem();
-
             items = placed;
         }
     }
-
-    const weapons = locations.filter(location => location.item.kind !== 'bandage');
-
-    if (weapons.length !== weaponCount) return invalidItem();
-
+    if (locations.filter(location => location.item.kind !== 'bandage').length !== weaponCount)
+        return invalidItem();
     return locations;
 };
 

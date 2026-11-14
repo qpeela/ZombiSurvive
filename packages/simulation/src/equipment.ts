@@ -1,7 +1,8 @@
 import { inventorySettings } from '@zombi-survive/content';
 import {
+    copyItem,
     type InventoryItem,
-    isMeleeWeaponId,
+    isWeaponId,
     type Item,
     type ItemLocation,
 } from '@zombi-survive/domain';
@@ -14,7 +15,7 @@ export const playerInventory = (
 ): readonly InventoryItem[] =>
     locations.flatMap(location =>
         location.type === 'container' && location.playerId === playerId
-            ? [{ ...location.item, cell: { ...location.cell } }]
+            ? [{ ...copyItem(location.item), cell: { ...location.cell } }]
             : [],
     );
 
@@ -23,7 +24,7 @@ export const playerHands = (locations: readonly ItemLocation[], playerId: string
         location => location.type === 'hands' && location.playerId === playerId,
     );
 
-    return hands === undefined ? null : { ...hands.item };
+    return hands === undefined ? null : copyItem(hands.item);
 };
 
 /** Replays must name the same instance. Every rejected transfer keeps the input intact. */
@@ -49,7 +50,7 @@ export const transferWeapon = ({
         target === undefined ||
         target.type !== sourceType ||
         !isOwned ||
-        !isMeleeWeaponId(target.item.kind)
+        !isWeaponId(target.item.kind)
     ) {
         return locations;
     }
@@ -67,11 +68,11 @@ export const transferWeapon = ({
         }
 
         next = next.filter(location => location.item.itemId !== returning.itemId);
-        next.push({ type: 'container', playerId, item: { ...returning }, cell });
+        next.push({ type: 'container', playerId, item: copyItem(returning), cell });
     }
 
     if (type === 'equip-weapon') {
-        next.push({ type: 'hands', playerId, item: { ...target.item } });
+        next.push({ type: 'hands', playerId, item: copyItem(target.item) });
     }
 
     return next;

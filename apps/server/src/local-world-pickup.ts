@@ -1,10 +1,5 @@
 import { initialGroundItem, worldLootSettings } from '@zombi-survive/content';
-import {
-    type Corpse,
-    isMeleeWeaponId,
-    type ItemLocation,
-    type MeleeWeaponId,
-} from '@zombi-survive/domain';
+import { type Corpse, isWeaponId, type ItemLocation, type WeaponId } from '@zombi-survive/domain';
 import {
     type InventoryMoveCommand,
     inventoryVersion,
@@ -265,10 +260,10 @@ export class LocalWorldPickup {
         }
     }
 
-    weapon(movement: MovementSnapshot): MeleeWeaponId | null {
+    weapon(movement: MovementSnapshot): WeaponId | null {
         const hands = playerHands(this.locations, movement.player.playerId);
 
-        return hands !== null && isMeleeWeaponId(hands.kind) ? hands.kind : null;
+        return hands !== null && isWeaponId(hands.kind) ? hands.kind : null;
     }
 
     snapshot(movement: MovementSnapshot): PickupSnapshot {

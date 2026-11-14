@@ -1,10 +1,11 @@
 import { pickupSettings } from '@zombi-survive/content';
-import type {
-    Corpse,
-    InventoryItem,
-    ItemLocation,
-    PlayerMovementState,
-    WorldObstacle,
+import {
+    copyItem,
+    type Corpse,
+    type InventoryItem,
+    type ItemLocation,
+    type PlayerMovementState,
+    type WorldObstacle,
 } from '@zombi-survive/domain';
 
 import { resolveMovement } from './collisions.ts';
@@ -62,7 +63,7 @@ export const pickUpItem = ({
     return {
         type: 'container',
         cell,
-        item: { itemId: location.item.itemId, kind: location.item.kind },
+        item: copyItem(location.item),
         playerId: player.playerId,
     };
 };
