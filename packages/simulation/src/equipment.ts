@@ -41,7 +41,9 @@ export const transferWeapon = ({
     const target = locations.find(location => location.item.itemId === itemId);
     const sourceType = type === 'equip-weapon' ? 'container' : 'hands';
     const isOwned =
-        target !== undefined && target.type !== 'ground' && target.playerId === playerId;
+        target !== undefined &&
+        (target.type === 'container' || target.type === 'hands') &&
+        target.playerId === playerId;
 
     if (
         target === undefined ||

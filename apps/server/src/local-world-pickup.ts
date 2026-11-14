@@ -1,5 +1,10 @@
 import { initialGroundItem, worldLootSettings } from '@zombi-survive/content';
-import { isMeleeWeaponId, type ItemLocation, type MeleeWeaponId } from '@zombi-survive/domain';
+import {
+    type Corpse,
+    isMeleeWeaponId,
+    type ItemLocation,
+    type MeleeWeaponId,
+} from '@zombi-survive/domain';
 import {
     type InventoryMoveCommand,
     inventoryVersion,
@@ -40,11 +45,32 @@ export class LocalWorldPickup {
     private readonly initializedPlayers = new Set<string>();
     private readonly pending = new Map<string, ItemCommand>();
 
-    constructor(initialLocations?: readonly ItemLocation[]) {
+    private corpses: readonly Corpse[] = [];
+
+    constructor(initialLocations?: readonly ItemLocation[], corpses: readonly Corpse[] = []) {
+        this.setCorpses(corpses);
         this.requiresCommit = initialLocations !== undefined;
         this.locations = (initialLocations ?? [{ type: 'ground', item: initialGroundItem }]).map(
             copyItemLocation,
         );
+    }
+
+    setCorpses(corpses: readonly Corpse[]): void {
+        this.corpses = corpses.map(corpse => ({ ...corpse, position: { ...corpse.position } }));
+    }
+
+    stageDeath(corpse: Corpse): void {
+        const source = this.pendingSave ?? this.locations;
+        const next = source.map(location => {
+            const isOwned =
+                (location.type === 'container' || location.type === 'hands') &&
+                location.playerId === corpse.playerId;
+            return isOwned
+                ? { type: 'corpse' as const, corpseId: corpse.corpseId, item: { ...location.item } }
+                : location;
+        });
+        if (this.requiresCommit) this.pendingSave = next;
+        else this.locations = next;
     }
 
     initializePlayer(playerId: string): void {
@@ -183,17 +209,21 @@ export class LocalWorldPickup {
                 continue;
             }
 
+            const corpse =
+                location.type === 'corpse'
+                    ? this.corpses.find(candidate => candidate.corpseId === location.corpseId)
+                    : undefined;
+            const sourcePosition =
+                location.type === 'ground'
+                    ? location.item.position
+                    : (corpse?.position ?? snapshot.player.position);
             const picked = pickUpItem({
+                ...(corpse === undefined ? {} : { corpse }),
                 location,
                 player: snapshot.player,
                 itemId: command.itemId,
                 obstacles: loadWorldChunks({
-                    positions: [
-                        snapshot.player.position,
-                        location.type === 'ground'
-                            ? location.item.position
-                            : snapshot.player.position,
-                    ],
+                    positions: [snapshot.player.position, sourcePosition],
                     previousChunks: [],
                 }).flatMap(chunk => chunk.obstacles),
                 items,
@@ -246,6 +276,17 @@ export class LocalWorldPickup {
                     : null,
             items: playerInventory(this.locations, playerId),
             hands: playerHands(this.locations, playerId),
+            corpses: this.corpses
+                .filter(corpse => distance(corpse) <= worldLootSettings.visibilityMeters)
+                .map(corpse => ({
+                    ...corpse,
+                    position: { ...corpse.position },
+                    items: this.locations.flatMap(location =>
+                        location.type === 'corpse' && location.corpseId === corpse.corpseId
+                            ? [{ ...location.item }]
+                            : [],
+                    ),
+                })),
         };
     }
 }

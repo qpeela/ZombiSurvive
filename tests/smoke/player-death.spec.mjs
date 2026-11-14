@@ -198,7 +198,18 @@ test('bleeding death cancels held movement in both tabs and survives late comman
         room = undefined;
         const saved = new SoloWorldStore(path);
         expect(saved.initialCombat.health).toBe(0);
-        expect(saved.initialItemLocations).toEqual(items);
+        expect(saved.initialCorpses).toHaveLength(1);
+        expect(saved.initialItemLocations.map(location => location.item.itemId).sort()).toEqual(
+            items.map(location => location.item.itemId).sort(),
+        );
+        expect(
+            saved.initialItemLocations.filter(
+                location => location.type === 'container' || location.type === 'hands',
+            ),
+        ).toEqual([]);
+        expect(
+            saved.initialItemLocations.filter(location => location.type === 'corpse'),
+        ).toHaveLength(items.filter(location => location.type !== 'ground').length);
         expect(saved.initialWorld.position.xMeters).toBeCloseTo(deadPosition.xMeters, 10);
         expect(saved.initialWorld.position.yMeters).toBeCloseTo(deadPosition.yMeters, 10);
         saved.close();

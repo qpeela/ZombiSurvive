@@ -1,3 +1,4 @@
+export type { Corpse } from './corpse.ts';
 export {
     type BleedingState,
     type PlayerHealth,

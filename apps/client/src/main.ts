@@ -7,6 +7,7 @@ import {
     pickupSettings,
 } from '@zombi-survive/content';
 import type {
+    Corpse,
     GroundItem,
     InventoryItem,
     Item,
@@ -18,6 +19,7 @@ import { findInventorySpace } from '@zombi-survive/simulation';
 import { AUTO, Game, Scale } from 'phaser';
 
 import { BootScene } from './boot-scene';
+import { createCorpseControls } from './corpse-controls';
 import { createFullscreenControls } from './fullscreen';
 import { createInventoryGrid } from './inventory-grid';
 import { createMovementInputController } from './movement-input';
@@ -56,6 +58,7 @@ const inventoryGrid = document.querySelector<HTMLElement>('#inventory-grid');
 const inventorySelector = document.querySelector<HTMLButtonElement>('#inventory-select');
 const inventoryMessage = document.querySelector<HTMLElement>('#inventory-message');
 const bandageButton = document.querySelector<HTMLButtonElement>('#use-bandage');
+const corpseItems = document.querySelector<HTMLElement>('#corpse-items');
 const deathScreen = document.querySelector<HTMLElement>('#death-screen');
 
 if (
@@ -89,7 +92,8 @@ if (
     !inventorySelector ||
     !inventoryMessage ||
     !bandageButton ||
-    !deathScreen
+    !deathScreen ||
+    !corpseItems
 ) {
     throw new Error('Game UI is missing.');
 }
@@ -164,7 +168,17 @@ const profileUi = createPlayerProfileControls({
 const prediction = new MovementPrediction();
 let groundItem: GroundItem | null = null;
 let confirmedPosition: WorldPosition | null = null;
+let corpses: readonly (Corpse & { readonly items: readonly Item[] })[] = [];
+const corpseUi = createCorpseControls(corpseItems, itemId => {
+    connection.pickUp(itemId);
+});
 const updatePickup = (): void => {
+    corpseUi.update({
+        corpses,
+        position: confirmedPosition,
+        items: inventoryItems,
+        isAlive: lifeState === 'alive',
+    });
     const distance =
         groundItem === null || confirmedPosition === null
             ? Infinity
@@ -283,6 +297,9 @@ const connection = createWorldConnection(
         bleedingLabel.textContent = 'Кровотечение: —';
         bleedingLabel.removeAttribute('data-bleeding');
         groundItem = null;
+        corpses = [];
+        corpseUi.update({ corpses, position: null, items: [], isAlive: false });
+        scene.setCorpses([]);
         confirmedPosition = null;
         pickup.disabled = true;
         groundLabel.textContent = 'На земле: —';
@@ -322,6 +339,8 @@ const connection = createWorldConnection(
         prediction.recordSent(command, performance.now());
     },
     snapshot => {
+        corpses = snapshot.corpses ?? [];
+        scene.setCorpses(corpses);
         groundItem = snapshot.groundItem;
         scene.setGroundItem(groundItem);
         groundLabel.textContent =
@@ -486,6 +505,7 @@ if (import.meta.hot) {
         input.dispose();
         profileUi.dispose();
         inventoryUi.dispose();
+        corpseUi.dispose();
         connection.dispose();
         for (const { button, onEquip } of equipmentButtons) {
             button.removeEventListener('click', onEquip);
