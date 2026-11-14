@@ -99,6 +99,10 @@ export class LocalWorldZombie {
         return { zombies: activeZombies, obstacles };
     }
 
+    shotTargets(): readonly ZombieState[] {
+        return [...this.zombies.values()];
+    }
+
     spawnBlockers(): readonly { readonly xMeters: number; readonly yMeters: number }[] {
         return [...this.zombies.values()].map(zombie => ({ ...zombie.position }));
     }

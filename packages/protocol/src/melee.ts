@@ -68,7 +68,7 @@ export type MeleeImpact =
           readonly damage: number;
       };
 
-const isMeleeImpact = (value: unknown): value is MeleeImpact => {
+export const isMeleeImpact = (value: unknown): value is MeleeImpact => {
     if (!isRecord(value) || !isRecord(value['position'])) {
         return false;
     }

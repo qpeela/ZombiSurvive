@@ -307,3 +307,29 @@ test('expired pistol markers preserve the finite manifest and never produce repl
     ).toHaveLength(1);
     store.close();
 });
+
+test('saved pistol revisions are optional but must be safe nonnegative integers', () => {
+    const store = new SoloWorldStore(pathForTest());
+    try {
+        for (const revision of [-1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+            expect(() => {
+                store.saveItemLocations(
+                    store.initialItemLocations.map(location =>
+                        location.type === 'ground' && location.item.kind === 'pistol'
+                            ? { ...location, item: { ...location.item, revision } }
+                            : location,
+                    ),
+                );
+            }).toThrow();
+        }
+        store.saveItemLocations(
+            store.initialItemLocations.map(location =>
+                location.type === 'ground' && location.item.kind === 'pistol'
+                    ? { ...location, item: { ...location.item, revision: 3, rounds: 5 } }
+                    : location,
+            ),
+        );
+    } finally {
+        store.close();
+    }
+});

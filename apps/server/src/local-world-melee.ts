@@ -39,6 +39,12 @@ export class LocalWorldMelee {
         this.actions.delete(playerId);
     }
 
+    reserveAttack(input: { playerId: string; tick: number; cooldownTicks: number }): boolean {
+        if (input.tick < (this.nextAttackTick.get(input.playerId) ?? 0)) return false;
+        this.nextAttackTick.set(input.playerId, input.tick + input.cooldownTicks);
+        return true;
+    }
+
     remainingCooldown(playerId: string): number {
         return Math.max(0, (this.nextAttackTick.get(playerId) ?? 0) - this.tick);
     }
@@ -77,7 +83,11 @@ export class LocalWorldMelee {
 
             // A miss also consumes a swing; tabs share this cooldown.
             const definition = meleeWeapons[weapon];
-            this.nextAttackTick.set(player.playerId, tick + definition.cooldownTicks);
+            this.reserveAttack({
+                playerId: player.playerId,
+                tick,
+                cooldownTicks: definition.cooldownTicks,
+            });
             const target = findMeleeTarget({
                 position: player.position,
                 zombies,

@@ -6,6 +6,8 @@ export type PistolItem = {
     readonly kind: 'pistol';
     readonly rounds: number;
     readonly magazineCapacity: number;
+    /** Persisted compare-and-set token; old instances begin at zero. */
+    readonly revision?: number;
 };
 export type Item =
     { readonly itemId: string; readonly kind: 'bandage' | MeleeWeaponId } | PistolItem;
@@ -18,6 +20,7 @@ export const copyItem = (item: Item): Item => {
         return {
             itemId: item.itemId,
             kind: 'pistol',
+            ...(item.revision === undefined ? {} : { revision: item.revision }),
             rounds: item.rounds,
             magazineCapacity: item.magazineCapacity,
         };

@@ -14,6 +14,7 @@ import { findRespawnPosition } from '@zombi-survive/simulation';
 import { loadWorldChunks } from '@zombi-survive/worldgen';
 
 import { LocalWorldCombat } from './local-world-combat.ts';
+import { LocalWorldFirearm } from './local-world-firearm.ts';
 import { LocalWorldMelee } from './local-world-melee.ts';
 import { LocalWorldMovement } from './local-world-movement.ts';
 import { LocalWorldPickup } from './local-world-pickup.ts';
@@ -24,6 +25,7 @@ import type { SoloWorldStore } from './solo-world-store.ts';
 import type { WorldAccess } from './world-access.ts';
 
 export class LocalWorldRoom extends Room {
+    private readonly firearm = new LocalWorldFirearm();
     private pickup = new LocalWorldPickup();
     private readonly zombie = new LocalWorldZombie();
     private combat = new LocalWorldCombat();
@@ -103,6 +105,10 @@ export class LocalWorldRoom extends Room {
                     this.pickup.receiveEquipment(client.sessionId, value);
             });
         }
+        this.onMessage<unknown>('shoot-pistol', (client, value) => {
+            if (isCurrentLifeCommand(value, lifeRevision))
+                this.firearm.receive(client.sessionId, value);
+        });
         this.onMessage<unknown>('melee-attack', (client, value) => {
             if (isCurrentLifeCommand(value, lifeRevision))
                 this.melee.receive(client.sessionId, value);
@@ -168,9 +174,11 @@ export class LocalWorldRoom extends Room {
                             movement.respawnPlayer(soloPlayerId, position);
                             this.combat.respawnPlayer(soloPlayerId);
                             this.melee.respawnPlayer(soloPlayerId);
+                            this.firearm.clearPlayer(soloPlayerId);
                             for (const client of this.clients) {
                                 this.pickup.leave(client.sessionId);
                                 this.melee.leave(client.sessionId);
+                                this.firearm.leave(client.sessionId);
                             }
                         } catch (error) {
                             this.isStopping = true;
@@ -199,6 +207,18 @@ export class LocalWorldRoom extends Room {
                 ...zombie,
                 snapshots,
                 health: snapshot => this.combat.snapshot(snapshot).health,
+                damage: (id, amount) => this.zombie.damage(id, amount),
+            });
+            this.firearm.step({
+                snapshots,
+                zombies: this.zombie.shotTargets(),
+                obstacles: zombie.obstacles,
+                health: snapshot => this.combat.snapshot(snapshot).health,
+                hands: playerId => this.pickup.hands(playerId),
+                stageItem: item => {
+                    this.pickup.stageItem(item);
+                },
+                reserveAttack: input => this.melee.reserveAttack(input),
                 damage: (id, amount) => this.zombie.damage(id, amount),
             });
             const living = zombie.zombies.filter(state => this.zombie.isAlive(state.zombieId));
@@ -268,6 +288,9 @@ export class LocalWorldRoom extends Room {
                         if (action !== null) {
                             client.send('melee-action', action);
                         }
+
+                        const shot = this.firearm.action(snapshot);
+                        if (shot !== null) client.send('shot-action', shot);
 
                         const playerProfile = profile.snapshot(snapshot);
 
@@ -345,6 +368,7 @@ export class LocalWorldRoom extends Room {
         this.movement?.leave(client.sessionId);
         this.pickup.leave(client.sessionId);
         this.melee.leave(client.sessionId);
+        this.firearm.leave(client.sessionId);
     }
 
     override onBeforeShutdown(): void {

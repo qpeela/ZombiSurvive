@@ -1612,7 +1612,7 @@ Coop PAUSED; тело/потеря вещей/возрождение вне scop
 
 ### T036 — пистолет и состояние магазина
 
-Статус: CI_PENDING. [PR #43](https://github.com/qpeela/ZombiSurvive/pull/43), ветка codex/t036-pistol-magazine, база main b159533; полный check (665 тестов) успешен. Зависимости: T028, T035.
+Статус: DONE. [PR #43](https://github.com/qpeela/ZombiSurvive/pull/43) слит в main b20d91b; полный check (665 тестов) и Quality 58e0b65 прошли. Зависимости: T028, T035.
 
 **Цель:** найти и экипировать первый огнестрельный предмет.
 
@@ -1631,7 +1631,7 @@ Coop PAUSED; тело/потеря вещей/возрождение вне scop
 
 ### T037 — одиночный выстрел из пистолета
 
-Статус: DRAFT. Зависимости: T036.
+Статус: CI_PENDING. [PR #44](https://github.com/qpeela/ZombiSurvive/pull/44), ветка codex/t037-pistol-shot, база main b20d91b; полный check (688 тестов) успешен. Зависимости: T036.
 
 **Цель:** поражать зомби прицельным выстрелом с расходом патрона.
 

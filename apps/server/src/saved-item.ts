@@ -128,6 +128,11 @@ const readKnownItem = (
     if (kind === 'pistol') {
         const rounds = item['rounds'];
         const magazineCapacity = item['magazineCapacity'];
+        const revision = item['revision'];
+        const isRevision =
+            revision === undefined ||
+            (typeof revision === 'number' && Number.isSafeInteger(revision) && revision >= 0);
+        if (!isRevision) return invalidItem();
         const isCapacity = magazineCapacity === pistolSettings.magazineCapacity;
         const isRounds =
             typeof rounds === 'number' &&
@@ -135,7 +140,13 @@ const readKnownItem = (
             rounds >= 0 &&
             rounds <= pistolSettings.magazineCapacity;
         if (!isCapacity || !isRounds) return invalidItem();
-        return { itemId, kind, rounds, magazineCapacity: pistolSettings.magazineCapacity };
+        return {
+            itemId,
+            kind,
+            rounds,
+            magazineCapacity: pistolSettings.magazineCapacity,
+            ...(revision === undefined ? {} : { revision }),
+        };
     }
     return { itemId, kind };
 };

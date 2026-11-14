@@ -8,12 +8,13 @@ import {
     type WorldPosition,
     type ZombieState,
 } from '@zombi-survive/domain';
-import type { MeleeAction } from '@zombi-survive/protocol';
+import type { MeleeAction, ShotAction, ShotAim } from '@zombi-survive/protocol';
 import { GameObjects, type Input, Scene } from 'phaser';
 
 import { drawHeldWeapon } from './held-weapon';
 import { MeleeAnimation } from './melee-animation';
 import { meleeEffectDurationMs, MeleeFeedback } from './melee-feedback';
+import { shotEffectDurationMs, ShotFeedback } from './shot-feedback';
 import { WorldTerrain } from './world-terrain';
 
 const pixelsPerMeter = 24;
@@ -25,6 +26,11 @@ export class BootScene extends Scene {
     private weaponImage: GameObjects.Graphics | null = null;
     private facingAngle = 0;
     private readonly animation = new MeleeAnimation();
+    private readonly shots = new ShotFeedback();
+    private readonly shotVisuals = new Map<
+        string,
+        { tracer: GameObjects.Graphics; text: GameObjects.Text }
+    >();
     private readonly feedback = new MeleeFeedback();
     private readonly effects = new Map<number, { text: GameObjects.Text; ring: GameObjects.Arc }>();
     private otherPlayers: readonly PlayerMovementState[] = [];
@@ -43,6 +49,7 @@ export class BootScene extends Scene {
     private destinationMarker: GameObjects.Graphics | null = null;
     private destination: WorldPosition | null = null;
     onFrame: () => void = () => {};
+    onShoot: (aim: ShotAim) => void = () => {};
     onMove: (position: WorldPosition) => void = () => {};
 
     constructor() {
@@ -80,6 +87,13 @@ export class BootScene extends Scene {
             const event = pointer.event;
             const isModified = event.altKey || event.metaKey;
 
+            if (this.player !== null && pointer.button === 2 && !isModified) {
+                const camera = this.cameras.main;
+                const x = pointer.x + camera.scrollX - (this.marker?.x ?? 480);
+                const y = pointer.y + camera.scrollY - (this.marker?.y ?? 270);
+                this.onShoot({ x, y });
+                return;
+            }
             if (this.player === null || pointer.button !== 0 || isModified) {
                 return;
             }
@@ -91,7 +105,7 @@ export class BootScene extends Scene {
             });
         };
         const onContextMenu = (event: MouseEvent): void => {
-            if (event.ctrlKey && this.player !== null) {
+            if (this.player !== null && (event.ctrlKey || this.weapon === 'pistol')) {
                 event.preventDefault();
             }
         };
@@ -136,6 +150,7 @@ export class BootScene extends Scene {
             this.destinationMarker = null;
             this.marker = null;
             this.feedback.clear();
+            this.clearShots();
             this.clearEffects();
             this.animation.setWeapon(null);
             this.weaponImage = null;
@@ -261,6 +276,79 @@ export class BootScene extends Scene {
         if (this.animation.accept(action)) {
             this.updateWeapon();
         }
+    }
+
+    aimDirection(): ShotAim {
+        return { x: Math.cos(this.facingAngle), y: Math.sin(this.facingAngle) };
+    }
+
+    playShot(action: ShotAction): void {
+        if (this.player !== null) this.shots.accept(action);
+    }
+
+    private clearShots(): void {
+        this.shots.clear();
+        for (const visual of this.shotVisuals.values()) {
+            visual.tracer.destroy();
+            visual.text.destroy();
+        }
+        this.shotVisuals.clear();
+        this.game.canvas.dataset['shotEffects'] = '[]';
+    }
+
+    private updateShots(deltaMs: number): void {
+        this.shots.advance(deltaMs);
+        const retained = new Set(this.shots.effects.map(effect => effect.key));
+        for (const [key, visual] of this.shotVisuals) {
+            if (!retained.has(key)) {
+                visual.tracer.destroy();
+                visual.text.destroy();
+                this.shotVisuals.delete(key);
+            }
+        }
+        for (const effect of this.shots.effects) {
+            const { origin, impact } = effect.action;
+            const x = 480 + impact.position.xMeters * pixelsPerMeter;
+            const y = 270 + impact.position.yMeters * pixelsPerMeter;
+            let visual = this.shotVisuals.get(effect.key);
+            if (visual === undefined) {
+                const label =
+                    impact.outcome === 'miss'
+                        ? 'Промах'
+                        : `−${String(impact.damage)}${impact.outcome === 'kill' ? ' · Убит' : ''}`;
+                visual = {
+                    tracer: this.add
+                        .graphics()
+                        .setDepth(5)
+                        .lineStyle(2, 0xffe2a0)
+                        .lineBetween(
+                            480 + origin.xMeters * pixelsPerMeter,
+                            270 + origin.yMeters * pixelsPerMeter,
+                            x,
+                            y,
+                        )
+                        .fillStyle(0xffd16b)
+                        .fillCircle(
+                            480 + origin.xMeters * pixelsPerMeter,
+                            270 + origin.yMeters * pixelsPerMeter,
+                            9,
+                        ),
+                    text: this.add
+                        .text(x, y - 25, label, {
+                            fontFamily: 'monospace',
+                            fontSize: '14px',
+                            color: '#ffe2a0',
+                            backgroundColor: '#111a14',
+                        })
+                        .setOrigin(0.5)
+                        .setDepth(5),
+                };
+                this.shotVisuals.set(effect.key, visual);
+            }
+            visual.tracer.setAlpha(Math.max(0, 1 - effect.ageMs / 180));
+            visual.text.setAlpha(1 - effect.ageMs / shotEffectDurationMs);
+        }
+        this.game.canvas.dataset['shotEffects'] = JSON.stringify(this.shots.effects);
     }
 
     private clearEffects(): void {
@@ -411,6 +499,7 @@ export class BootScene extends Scene {
 
         this.updateWeapon(deltaMs);
         this.updateFeedback(deltaMs);
+        this.updateShots(deltaMs);
 
         // Only the visible grid is drawn; moving away from the origin never exhausts it.
         const grid = this.grid;
@@ -464,6 +553,7 @@ export class BootScene extends Scene {
 
         if (player === null) {
             this.feedback.clear();
+            this.clearShots();
             this.clearEffects();
             this.facingAngle = 0;
             this.updateWeapon();
