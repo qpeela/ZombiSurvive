@@ -1672,7 +1672,7 @@ Coop PAUSED; тело/потеря вещей/возрождение вне scop
 
 ### T039 — оружие на карте и реакция зомби
 
-Статус: CI_PENDING. Ветка codex/t039-loot-zombie-noise, база main fd7b28f; полный check (732 теста) успешен. Зависимости: T037, T038.
+Статус: CI_PENDING. [PR #46](https://github.com/qpeela/ZombiSurvive/pull/46), ветка codex/t039-loot-zombie-noise, база main fd7b28f; полный check (732 теста) успешен. Зависимости: T037, T038.
 
 **Цель:** больше доступных точек оружия на карте и предсказуемая реакция зомби.
 
