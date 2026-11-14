@@ -1,9 +1,15 @@
-import { expect, test } from '@playwright/test';
+import { expect } from '@playwright/test';
+
+import { isolatedHostOrigin, test } from '../fixtures/isolated-host.mjs';
+
+test.use({ baseURL: isolatedHostOrigin });
 
 const open = async page => {
     await page.goto('/');
     await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
     await expect(page.locator('canvas')).toHaveAttribute('data-player-visible', 'true');
+    await expect(page.locator('#health')).toHaveAttribute('value', '100');
+    await expect(page.locator('#death-screen')).toBeHidden();
 };
 const assertPointer = async page => {
     const canvas = page.locator('canvas');
