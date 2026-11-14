@@ -1,4 +1,13 @@
 export { initialStateRequest, localWorldRoomId } from './connection.ts';
+export {
+    firearmVersion,
+    isShootCommand,
+    isShotAction,
+    isShotAim,
+    type ShootCommand,
+    type ShotAction,
+    type ShotAim,
+} from './firearm.ts';
 export { type HealthSnapshot, healthVersion, isHealthSnapshot } from './health.ts';
 export { isCurrentLifeCommand, isRespawnCommand, type RespawnCommand } from './lifecycle.ts';
 export {

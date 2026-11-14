@@ -46,6 +46,7 @@ const unequip = document.querySelector<HTMLButtonElement>('#unequip-weapon');
 const itemSelectors = document.querySelector<HTMLElement>('#inventory-items');
 const weaponStats = document.querySelector<HTMLElement>('#weapon-stats');
 const attack = document.querySelector<HTMLButtonElement>('#melee-attack');
+const shotButton = document.querySelector<HTMLButtonElement>('#pistol-shot');
 const ammoLabel = document.querySelector<HTMLElement>('#ammo-label');
 const weaponLabel = document.querySelector<HTMLElement>('#weapon-label');
 const reconnect = document.querySelector<HTMLButtonElement>('#reconnect');
@@ -80,6 +81,7 @@ if (
     !itemSelectors ||
     !weaponStats ||
     !attack ||
+    !shotButton ||
     !weaponLabel ||
     !ammoLabel ||
     !container ||
@@ -332,6 +334,7 @@ const connection = createWorldConnection(
             button.setAttribute('aria-pressed', 'false');
         }
         attack.disabled = true;
+        shotButton.disabled = true;
         scene.setWeapon(null);
         weaponLabel.textContent = 'Оружие: —';
         weaponStats.textContent = 'Характеристики: —';
@@ -370,6 +373,7 @@ const connection = createWorldConnection(
         inventoryItems = snapshot.items;
         updateBandage();
         hands = snapshot.hands;
+        shotButton.disabled = hands?.kind !== 'pistol' || hands.rounds <= 0 || health.value <= 0;
         ammoLabel.textContent =
             hands?.kind === 'pistol'
                 ? `Патроны: ${String(hands.rounds)}/${String(hands.magazineCapacity)}`
@@ -414,6 +418,7 @@ const connection = createWorldConnection(
         inventoryUi.update(inventoryItems, isAlive);
         updatePickup();
         attack.disabled = attack.disabled || snapshot.health <= 0;
+        shotButton.disabled = hands?.kind !== 'pistol' || hands.rounds <= 0 || snapshot.health <= 0;
         isBleeding = snapshot.bleedingTicks > 0;
         bleedingLabel.textContent = isBleeding ? 'Кровотечение: есть' : 'Кровотечение: нет';
         bleedingLabel.dataset['bleeding'] = String(isBleeding);
@@ -446,6 +451,9 @@ const connection = createWorldConnection(
     },
     action => {
         if (lifeState === 'alive') scene.playAttack(action);
+    },
+    action => {
+        if (lifeState === 'alive') scene.playShot(action);
     },
 );
 const session = createWorldSession();
@@ -504,11 +512,29 @@ unequip.addEventListener('click', onUnequip);
 const onAttack = (): void => {
     if (!attack.disabled) connection.sendMelee({ type: 'melee-attack' });
 };
+const onShot = (): void => {
+    if (!shotButton.disabled) connection.shoot(scene.aimDirection());
+};
+
+scene.onShoot = aim => {
+    if (!shotButton.disabled) connection.shoot(aim);
+};
+
+shotButton.addEventListener('click', onShot);
 const onAttackKey = (event: KeyboardEvent): void => {
     const target = event.target;
     const isEditing =
         target instanceof HTMLElement &&
         (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
+    const isModified = event.ctrlKey || event.metaKey || event.altKey;
+
+    if (event.code === 'Space' && !isEditing && !isModified) {
+        event.preventDefault();
+        if (!event.repeat) onShot();
+
+        return;
+    }
+
     const isAttackKey =
         event.code === 'KeyF' && !event.repeat && !event.ctrlKey && !event.metaKey && !event.altKey;
     if (isAttackKey && !isEditing) {
@@ -547,6 +573,7 @@ if (import.meta.hot) {
         unequip.removeEventListener('click', onUnequip);
         bandageButton.removeEventListener('click', onUseBandage);
         attack.removeEventListener('click', onAttack);
+        shotButton.removeEventListener('click', onShot);
         window.removeEventListener('keydown', onAttackKey);
         respawnButton.removeEventListener('click', onRespawn);
         pickup.removeEventListener('click', onPickup);

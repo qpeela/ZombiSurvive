@@ -60,13 +60,17 @@ const isItem = (value: unknown): value is Item => {
     if (value['kind'] === 'pistol') {
         const rounds = value['rounds'];
         const capacity = value['magazineCapacity'];
+        const revision = value['revision'];
+        const isRevision =
+            revision === undefined ||
+            (typeof revision === 'number' && Number.isSafeInteger(revision) && revision >= 0);
         const isCapacity =
             typeof capacity === 'number' &&
             Number.isSafeInteger(capacity) &&
             capacity > 0 &&
             capacity <= 128;
         const isRounds = typeof rounds === 'number' && Number.isSafeInteger(rounds) && rounds >= 0;
-        return isCapacity && isRounds && rounds <= capacity;
+        return isRevision && isCapacity && isRounds && rounds <= capacity;
     }
     return value['kind'] === 'bandage' || isWeaponId(value['kind']);
 };

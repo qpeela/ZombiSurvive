@@ -74,6 +74,9 @@ const createRoom = () => {
         publishAction: (value: unknown) => {
             messages.get('melee-action')?.(value);
         },
+        publishShot: (value: unknown) => {
+            messages.get('shot-action')?.(value);
+        },
         publishHealth: (value: unknown) => {
             messages.get('health-state')?.(value);
         },
@@ -731,5 +734,78 @@ test('every gameplay intent and respawn retry carries the newest confirmed life 
         protocolVersion: 5,
         lifeRevision: 2,
     });
+    connection.dispose();
+});
+
+test('shots use the latest confirmed instance/revision/life and discard stale actions and rooms', async () => {
+    const fake = createRoom();
+    join.mockResolvedValue(fake.room);
+    const onShot = vi.fn();
+    const connection = createWorldConnection(
+        'http://host',
+        () => {},
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        onShot,
+    );
+    connection.shoot({ x: 1, y: 0 });
+    expect(fake.room.send).not.toHaveBeenCalled();
+    const ready = connection.connect();
+    await vi.waitFor(() => {
+        expect(fake.room.request).toHaveBeenCalled();
+    });
+    fake.resolveInitial(snapshot(1));
+    await ready;
+    const pistol = { itemId: 'gun', kind: 'pistol', rounds: 7, magazineCapacity: 8, revision: 5 };
+    fake.publishPickup({
+        type: 'pickup-state',
+        protocolVersion: 5,
+        inventoryVersion: 2,
+        worldId: 'world',
+        playerId: 'player',
+        tick: 2,
+        groundItem: null,
+        items: [],
+        hands: pistol,
+    });
+    fake.publishHealth({ ...healthState(2), lifeRevision: 3 });
+    connection.shoot({ x: 1, y: 0 });
+    expect(fake.room.send).toHaveBeenCalledExactlyOnceWith('shoot-pistol', {
+        type: 'shoot-pistol',
+        protocolVersion: 5,
+        firearmVersion: 1,
+        itemId: 'gun',
+        weaponRevision: 5,
+        aim: { x: 1, y: 0 },
+        lifeRevision: 3,
+    });
+    const action = {
+        type: 'shot-action',
+        protocolVersion: 5,
+        firearmVersion: 1,
+        worldId: 'world',
+        playerId: 'player',
+        tick: 3,
+        itemId: 'gun',
+        weaponRevision: 6,
+        origin: { xMeters: 0, yMeters: 0 },
+        impact: { outcome: 'miss', position: { xMeters: 20, yMeters: 0 } },
+    };
+    fake.publishShot(action);
+    fake.publishShot(action);
+    fake.publishShot({ ...action, tick: 2 });
+    expect(onShot).toHaveBeenCalledExactlyOnceWith(action);
+    fake.publishShot({ ...action, playerId: 'foreign', tick: 4 });
+    expect(fake.room.connection.close).toHaveBeenCalledOnce();
+    fake.room.send.mockClear();
+    connection.shoot({ x: 1, y: 0 });
+    expect(fake.room.send).not.toHaveBeenCalled();
+    fake.publishShot({ ...action, tick: 5 });
+    expect(onShot).toHaveBeenCalledTimes(1);
     connection.dispose();
 });

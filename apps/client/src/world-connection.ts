@@ -3,9 +3,11 @@ import type {
     InventoryCell,
     MovementDirection,
     MovementModifiers,
+    PistolItem,
     WorldPosition,
 } from '@zombi-survive/domain';
 import {
+    firearmVersion,
     type HealthSnapshot,
     initialStateRequest,
     inventoryVersion,
@@ -15,6 +17,8 @@ import {
     isPickupSnapshot,
     isProfileResult,
     isProfileSnapshot,
+    isShotAction,
+    isShotAim,
     isZombieSnapshot,
     localWorldRoomId,
     type MeleeAction,
@@ -29,6 +33,8 @@ import {
     type ProfileSnapshot,
     profileVersion,
     protocolVersion,
+    type ShotAction,
+    type ShotAim,
     type ZombieSnapshot,
 } from '@zombi-survive/protocol';
 import { placeInventoryItem } from '@zombi-survive/simulation';
@@ -76,8 +82,10 @@ export const createWorldConnection = (
     onMeleeChange?: (snapshot: MeleeSnapshot) => void,
     onProfileChange?: (snapshot: ProfileSnapshot) => void,
     onMeleeAction?: (action: MeleeAction) => void,
+    onShotAction?: (action: ShotAction) => void,
 ): {
     connect: () => Promise<void>;
+    shoot: (aim: ShotAim) => void;
     sendMelee: (intent: MeleeIntent) => void;
     renamePlayer: (displayName: string) => Promise<ProfileResult>;
     sendMovement: (direction: MovementDirection, modifiers?: MovementModifiers) => void;
@@ -95,6 +103,7 @@ export const createWorldConnection = (
     let abortController: AbortController | null = null;
     let sequence = 0;
     let lifeRevision = 0;
+    let heldPistol: PistolItem | null = null;
     const lifeFields = (): { readonly lifeRevision?: number } =>
         lifeRevision === 0 ? {} : { lifeRevision };
     let isReady = false;
@@ -105,6 +114,7 @@ export const createWorldConnection = (
         activeRoom = null;
         isReady = false;
         lifeRevision = 0;
+        heldPistol = null;
         acceptProfile = null;
         room?.connection.close();
     };
@@ -243,6 +253,7 @@ export const createWorldConnection = (
                 }
 
                 pickupTick = value.tick;
+                heldPistol = value.hands?.kind === 'pistol' ? { ...value.hands } : null;
                 onPickupChange?.(value);
             });
             let zombieTick = -1;
@@ -354,6 +365,25 @@ export const createWorldConnection = (
 
                 actionTick = value.tick;
                 onMeleeAction?.(value);
+            });
+            let shotTick = -1;
+            room.onMessage<unknown>('shot-action', value => {
+                if (!isActiveRoom() || !isReady || received.snapshot === null) return;
+                if (!isShotAction(value)) {
+                    closeRoom();
+                    onStateChange({ status: 'error' });
+                    return;
+                }
+                const isSameWorld = value.worldId === received.snapshot.worldId;
+                const isSamePlayer = value.playerId === received.snapshot.player.playerId;
+                if (!isSameWorld || !isSamePlayer) {
+                    closeRoom();
+                    onStateChange({ status: 'error' });
+                    return;
+                }
+                if (value.tick <= shotTick) return;
+                shotTick = value.tick;
+                onShotAction?.(value);
             });
             let healthTick = -1;
             room.onMessage<unknown>('health-state', value => {
@@ -557,6 +587,24 @@ export const createWorldConnection = (
         return value;
     };
 
+    const shoot = (aim: ShotAim): void => {
+        if (!isReady || activeRoom === null || heldPistol === null || !isShotAim(aim)) return;
+        try {
+            activeRoom.send('shoot-pistol', {
+                type: 'shoot-pistol',
+                protocolVersion,
+                firearmVersion,
+                itemId: heldPistol.itemId,
+                weaponRevision: heldPistol.revision ?? 0,
+                aim: { ...aim },
+                ...lifeFields(),
+            });
+        } catch {
+            closeRoom();
+            onStateChange({ status: 'error' });
+        }
+    };
+
     const respawn = (): void => {
         if (!isReady || activeRoom === null) return;
         try {
@@ -578,6 +626,7 @@ export const createWorldConnection = (
 
     return {
         connect,
+        shoot,
         renamePlayer,
         sendMelee,
         sendMovement,

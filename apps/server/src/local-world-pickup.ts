@@ -1,5 +1,11 @@
 import { initialGroundItem, worldLootSettings } from '@zombi-survive/content';
-import { type Corpse, isWeaponId, type ItemLocation, type WeaponId } from '@zombi-survive/domain';
+import {
+    type Corpse,
+    isWeaponId,
+    type Item,
+    type ItemLocation,
+    type WeaponId,
+} from '@zombi-survive/domain';
 import {
     type InventoryMoveCommand,
     inventoryVersion,
@@ -258,6 +264,22 @@ export class LocalWorldPickup {
         } else {
             this.locations = next;
         }
+    }
+
+    hands(playerId: string): Item | null {
+        return playerHands(this.locations, playerId);
+    }
+
+    stageItem(item: Item): void {
+        const source = this.pendingSave ?? this.locations;
+        const next = source.map(location => {
+            if (location.item.itemId !== item.itemId) return location;
+            if (location.type === 'ground')
+                return { ...location, item: { ...item, position: { ...location.item.position } } };
+            return { ...location, item: { ...item } };
+        });
+        if (this.requiresCommit) this.pendingSave = next;
+        else this.locations = next;
     }
 
     weapon(movement: MovementSnapshot): WeaponId | null {
