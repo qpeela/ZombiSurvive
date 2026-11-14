@@ -1,7 +1,7 @@
 # Приёмка одиночного цикла — T040
 
 Дата: 14 ноября 2026 года. База: main d6de789 (T039 / PR #46).
-Ветка: codex/t040-solo-acceptance. Локальные проверки успешны; нужен Quality финального коммита до merge.
+[PR #47](https://github.com/qpeela/ZombiSurvive/pull/47), ветка codex/t040-solo-acceptance. Локальные проверки успешны; нужен Quality финального коммита до merge.
 
 ## Воспроизведение
 

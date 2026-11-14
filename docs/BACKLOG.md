@@ -1705,7 +1705,8 @@ Coop PAUSED; тело/потеря вещей/возрождение вне scop
 
 ### T040 — приёмка полного одиночного цикла
 
-Статус: CI_PENDING. Зависимости T021–T039 слиты. Ветка: codex/t040-solo-acceptance.
+Статус: CI_PENDING. [PR #47](https://github.com/qpeela/ZombiSurvive/pull/47).
+Зависимости T021–T039 слиты. Ветка: codex/t040-solo-acceptance.
 Полный check: 733 теста; автоматическая и ручная приёмка пройдены.
 Приёмка и ограничения: [SOLO_ACCEPTANCE.md](SOLO_ACCEPTANCE.md).
 
