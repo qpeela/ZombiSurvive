@@ -330,6 +330,7 @@ const connection = createWorldConnection(
 
         profileUi.update(null);
         lifeState = null;
+        scene.setAlive(false);
         lifeRevision = null;
         lastMovement = null;
         respawnButton.disabled = true;
@@ -430,6 +431,7 @@ const connection = createWorldConnection(
         health.dataset['lifeRevision'] = String(nextLife);
         lifeState = snapshot.lifeState;
         const isAlive = lifeState === 'alive';
+        scene.setAlive(isAlive);
         deathScreen.hidden = isAlive;
         respawnButton.disabled = isAlive;
         input.setEnabled(isAlive);

@@ -1,6 +1,8 @@
 import type { WeaponId } from '@zombi-survive/domain';
 import type { GameObjects } from 'phaser';
 
+export const heldWeaponGrip = { x: 10, y: 6 } as const;
+
 /** Original procedural pixel silhouettes, pointing right with the grip at (10, 6). */
 export const drawHeldWeapon = (image: GameObjects.Graphics, weapon: WeaponId | null): void => {
     image.clear();
