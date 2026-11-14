@@ -48,10 +48,11 @@ export class LocalWorldMovement {
     private tick = 0;
     private inputOrder = 0;
     private readonly players = new Map<string, PlayerInput>();
+    private hiddenSoloPlayer: PlayerInput | null = null;
     private readonly soloPlayerId: string;
     private readonly worldId: WorldId;
     private chunks: readonly WorldChunk[] = [];
-    private readonly initialPosition: WorldPosition;
+    private soloReturnPosition: WorldPosition;
 
     constructor(
         worldId: WorldId,
@@ -60,12 +61,12 @@ export class LocalWorldMovement {
     ) {
         this.worldId = worldId;
         this.soloPlayerId = playerId;
-        this.initialPosition = { ...position };
+        this.soloReturnPosition = { ...position };
     }
 
     soloPosition(): WorldPosition {
         return {
-            ...(this.players.get(this.soloPlayerId)?.player.position ?? this.initialPosition),
+            ...(this.players.get(this.soloPlayerId)?.player.position ?? this.soloReturnPosition),
         };
     }
 
@@ -75,25 +76,30 @@ export class LocalWorldMovement {
                 throw new Error('World player limit reached.');
             }
 
-            this.players.set(playerId, {
-                player: {
-                    playerId,
-                    stamina: 1,
-                    isExhausted: false,
+            const hidden = playerId === this.soloPlayerId ? this.hiddenSoloPlayer : null;
+            this.players.set(
+                playerId,
+                hidden ?? {
+                    player: {
+                        playerId,
+                        stamina: 1,
+                        isExhausted: false,
+                        isSneaking: false,
+                        noiseRadiusMeters: 0,
+                        position:
+                            playerId === this.soloPlayerId
+                                ? { ...this.soloReturnPosition }
+                                : { xMeters: this.players.size * 2, yMeters: 0 },
+                    },
+                    controllerId: null,
+                    isSprinting: false,
                     isSneaking: false,
-                    noiseRadiusMeters: 0,
-                    position:
-                        playerId === this.soloPlayerId
-                            ? { ...this.initialPosition }
-                            : { xMeters: this.players.size * 2, yMeters: 0 },
+                    direction: { x: 0, y: 0 },
+                    target: null,
+                    lastInputTick: this.tick,
                 },
-                controllerId: null,
-                isSprinting: false,
-                isSneaking: false,
-                direction: { x: 0, y: 0 },
-                target: null,
-                lastInputTick: this.tick,
-            });
+            );
+            if (hidden !== null) this.hiddenSoloPlayer = null;
         }
 
         this.sessions.set(sessionId, {
@@ -106,6 +112,24 @@ export class LocalWorldMovement {
 
     leave(sessionId: string): void {
         this.sessions.delete(sessionId);
+    }
+
+    isPlayerConnected(playerId: string): boolean {
+        return [...this.sessions.values()].some(session => session.playerId === playerId);
+    }
+
+    hideDisconnectedSoloPlayer(): boolean {
+        if (this.isPlayerConnected(this.soloPlayerId)) return false;
+
+        const input = this.players.get(this.soloPlayerId);
+        if (input === undefined) return false;
+
+        this.stopPlayer(this.soloPlayerId);
+        this.soloReturnPosition = { ...input.player.position };
+        this.hiddenSoloPlayer = input;
+        this.players.delete(this.soloPlayerId);
+
+        return true;
     }
 
     receive(sessionId: string, value: unknown): void {
