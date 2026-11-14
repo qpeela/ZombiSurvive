@@ -21,6 +21,7 @@ import {
 } from '@zombi-survive/protocol';
 import {
     addStarterWeapons,
+    expireCorpses,
     pickUpItem,
     placeInventoryItem,
     playerHands,
@@ -46,8 +47,14 @@ export class LocalWorldPickup {
     private readonly pending = new Map<string, ItemCommand>();
 
     private corpses: readonly Corpse[] = [];
+    private readonly now: () => number;
 
-    constructor(initialLocations?: readonly ItemLocation[], corpses: readonly Corpse[] = []) {
+    constructor(
+        initialLocations?: readonly ItemLocation[],
+        corpses: readonly Corpse[] = [],
+        now: () => number = Date.now,
+    ) {
+        this.now = now;
         this.setCorpses(corpses);
         this.requiresCommit = initialLocations !== undefined;
         this.locations = (initialLocations ?? [{ type: 'ground', item: initialGroundItem }]).map(
@@ -57,6 +64,18 @@ export class LocalWorldPickup {
 
     setCorpses(corpses: readonly Corpse[]): void {
         this.corpses = corpses.map(corpse => ({ ...corpse, position: { ...corpse.position } }));
+    }
+
+    stageExpiry(nowMs: number): readonly Corpse[] | null {
+        if (this.pendingSave !== null) return null;
+        const result = expireCorpses({ corpses: this.corpses, locations: this.locations, nowMs });
+        if (result === null) return null;
+        if (this.requiresCommit) this.pendingSave = result.locations;
+        else {
+            this.locations = result.locations;
+            this.setCorpses(result.corpses);
+        }
+        return result.corpses;
     }
 
     stageDeath(corpse: Corpse): void {
@@ -211,7 +230,11 @@ export class LocalWorldPickup {
 
             const corpse =
                 location.type === 'corpse'
-                    ? this.corpses.find(candidate => candidate.corpseId === location.corpseId)
+                    ? this.corpses.find(candidate => {
+                          const isTarget = candidate.corpseId === location.corpseId;
+                          const isAvailable = candidate.expiresAtMs > this.now();
+                          return isTarget && isAvailable;
+                      })
                     : undefined;
             const sourcePosition =
                 location.type === 'ground'
@@ -250,6 +273,7 @@ export class LocalWorldPickup {
 
     snapshot(movement: MovementSnapshot): PickupSnapshot {
         const position = movement.player.position;
+        const nowMs = this.now();
         const distance = (item: {
             readonly position: { readonly xMeters: number; readonly yMeters: number };
         }): number =>
@@ -277,7 +301,11 @@ export class LocalWorldPickup {
             items: playerInventory(this.locations, playerId),
             hands: playerHands(this.locations, playerId),
             corpses: this.corpses
-                .filter(corpse => distance(corpse) <= worldLootSettings.visibilityMeters)
+                .filter(
+                    corpse =>
+                        corpse.expiresAtMs > nowMs &&
+                        distance(corpse) <= worldLootSettings.visibilityMeters,
+                )
                 .sort((first, second) => distance(first) - distance(second))
                 .slice(0, 128)
                 .map(corpse => ({

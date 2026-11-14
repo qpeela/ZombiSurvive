@@ -1,3 +1,4 @@
+import { corpseSettings } from '@zombi-survive/content';
 import type { Corpse, ItemLocation } from '@zombi-survive/domain';
 
 export const readSavedCorpses = (
@@ -26,6 +27,13 @@ export const readSavedCorpses = (
             return invalid();
         if (typeof diedAtMs !== 'number' || !Number.isSafeInteger(diedAtMs) || diedAtMs < 0)
             return invalid();
+        const expiresAtMs = diedAtMs + corpseSettings.lifetimeMs;
+        const storedExpiry = 'expiresAtMs' in entry ? entry.expiresAtMs : undefined;
+        if (
+            !Number.isSafeInteger(expiresAtMs) ||
+            (storedExpiry !== undefined && storedExpiry !== expiresAtMs)
+        )
+            return invalid();
         if (typeof position !== 'object' || position === null) return invalid();
         const { xMeters, yMeters } = position as Record<string, unknown>;
         if (
@@ -36,7 +44,7 @@ export const readSavedCorpses = (
         )
             return invalid();
         ids.add(corpseId);
-        corpses.push({ corpseId, playerId, diedAtMs, position: { xMeters, yMeters } });
+        corpses.push({ corpseId, playerId, diedAtMs, expiresAtMs, position: { xMeters, yMeters } });
     }
     if (locations.some(location => location.type === 'corpse' && !ids.has(location.corpseId)))
         return invalid();

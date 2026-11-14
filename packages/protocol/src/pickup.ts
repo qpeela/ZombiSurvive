@@ -152,6 +152,8 @@ export const isPickupSnapshot = (value: unknown): value is PickupSnapshot => {
             const position = corpse['position'];
             const diedAtMs = corpse['diedAtMs'];
             const loot = corpse['items'];
+            const expiresAtMs = corpse['expiresAtMs'];
+            if (typeof expiresAtMs !== 'number' || !Number.isSafeInteger(expiresAtMs)) return false;
             if (
                 !isRecord(position) ||
                 !Number.isFinite(position['xMeters']) ||
@@ -160,6 +162,7 @@ export const isPickupSnapshot = (value: unknown): value is PickupSnapshot => {
                 return false;
             if (typeof diedAtMs !== 'number' || !Number.isSafeInteger(diedAtMs) || diedAtMs < 0)
                 return false;
+            if (expiresAtMs < diedAtMs) return false;
             if (!Array.isArray(loot) || loot.length > 128 || !loot.every(isItem)) return false;
             if (corpseIds.has(corpse['corpseId'])) return false;
             corpseIds.add(corpse['corpseId']);

@@ -6,6 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 import {
     collisionSettings,
     combatSettings,
+    corpseSettings,
     initialGroundItem,
     worldGenerationSettings,
 } from '@zombi-survive/content';
@@ -15,7 +16,7 @@ import {
     type ItemLocation,
     type WorldPosition,
 } from '@zombi-survive/domain';
-import { addStarterWeapons } from '@zombi-survive/simulation';
+import { addStarterWeapons, expireCorpses } from '@zombi-survive/simulation';
 import { initialWorldWeaponLoot, loadWorldChunks } from '@zombi-survive/worldgen';
 
 import { readSavedCombat, type SavedCombat } from './saved-combat.ts';
@@ -65,7 +66,7 @@ export class SoloWorldStore {
     private isClosed = false;
     private profile: { readonly displayName: string; readonly nameRevision: number };
 
-    constructor(path: string) {
+    constructor(path: string, now: () => number = Date.now) {
         if (!isAbsolute(path)) {
             throw new Error('WORLD_SAVE_PATH must be an absolute file path.');
         }
@@ -222,11 +223,13 @@ export class SoloWorldStore {
                     "ALTER TABLE solo_world ADD COLUMN corpses TEXT NOT NULL DEFAULT '[]'",
                 );
                 if (this.initialCombat.health === 0) {
+                    const diedAtMs = now();
                     const corpse: Corpse = {
                         corpseId: randomUUID(),
                         playerId: this.initialWorld.playerId,
                         position: this.initialWorld.position,
-                        diedAtMs: Date.now(),
+                        diedAtMs,
+                        expiresAtMs: diedAtMs + corpseSettings.lifetimeMs,
                     };
                     this.initialItemLocations = this.initialItemLocations.map(location =>
                         location.type === 'container' || location.type === 'hands'
@@ -252,12 +255,32 @@ export class SoloWorldStore {
                 }
                 this.database.exec('PRAGMA user_version = 9');
             }
-            this.initialCorpses = readSavedCorpses(
-                this.database.prepare('SELECT corpses FROM solo_world WHERE id = 1').get()?.[
-                    'corpses'
-                ],
-                this.initialItemLocations,
-            );
+            const savedCorpses = this.database
+                .prepare('SELECT corpses FROM solo_world WHERE id = 1')
+                .get()?.['corpses'];
+            this.initialCorpses = readSavedCorpses(savedCorpses, this.initialItemLocations);
+            const expiry = expireCorpses({
+                corpses: this.initialCorpses,
+                locations: this.initialItemLocations,
+                nowMs: now(),
+            });
+            if (expiry !== null) {
+                this.initialCorpses = expiry.corpses;
+                this.initialItemLocations = expiry.locations;
+            }
+            const normalizedCorpses = JSON.stringify(this.initialCorpses);
+            if (expiry !== null || normalizedCorpses !== savedCorpses) {
+                this.database
+                    .prepare('UPDATE solo_world SET corpses = ?, item_location = ? WHERE id = 1')
+                    .run(
+                        normalizedCorpses,
+                        writeSavedItems(
+                            this.initialItemLocations,
+                            this.initialWorld.playerId,
+                            initialWorldWeaponLoot,
+                        ),
+                    );
+            }
             this.profile = {
                 displayName: this.initialWorld.displayName,
                 nameRevision: this.initialWorld.nameRevision,

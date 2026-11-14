@@ -5,4 +5,5 @@ export type Corpse = {
     readonly playerId: string;
     readonly position: WorldPosition;
     readonly diedAtMs: number;
+    readonly expiresAtMs: number;
 };
