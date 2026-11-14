@@ -1612,7 +1612,7 @@ Coop PAUSED; тело/потеря вещей/возрождение вне scop
 
 ### T036 — пистолет и состояние магазина
 
-Статус: CI_PENDING. Ветка codex/t036-pistol-magazine, база main b159533; полный check (665 тестов) успешен. Зависимости: T028, T035.
+Статус: CI_PENDING. [PR #43](https://github.com/qpeela/ZombiSurvive/pull/43), ветка codex/t036-pistol-magazine, база main b159533; полный check (665 тестов) успешен. Зависимости: T028, T035.
 
 **Цель:** найти и экипировать первый огнестрельный предмет.
 
