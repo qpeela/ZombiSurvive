@@ -176,7 +176,7 @@ test('v9 adds one pistol once, preserving existing health/profile and later save
     store.close();
     const legacy = new DatabaseSync(path);
     removePistolForLegacySave(legacy);
-    legacy.exec('PRAGMA user_version = 9');
+    legacy.exec('ALTER TABLE solo_world DROP COLUMN loot_chunks; PRAGMA user_version = 9');
     legacy.close();
     store = new SoloWorldStore(path);
     expect(
@@ -285,7 +285,7 @@ test('rejected pistol overlay migration rolls back old manifest and version toge
     const database = new DatabaseSync(path);
     removePistolForLegacySave(database);
     database.exec(
-        "PRAGMA user_version = 9; CREATE TRIGGER reject_pistol BEFORE UPDATE OF item_location ON solo_world BEGIN SELECT RAISE(ABORT, 'pistol migration failure'); END",
+        "ALTER TABLE solo_world DROP COLUMN loot_chunks; PRAGMA user_version = 9; CREATE TRIGGER reject_pistol BEFORE UPDATE OF item_location ON solo_world BEGIN SELECT RAISE(ABORT, 'pistol migration failure'); END",
     );
     database.close();
     const bytes = readFileSync(path);

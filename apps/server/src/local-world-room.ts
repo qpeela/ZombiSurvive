@@ -1,7 +1,12 @@
 import { randomUUID } from 'node:crypto';
 
 import { type AuthContext, type Client, Room } from '@colyseus/core';
-import { combatSettings, corpseSettings, movementSettings } from '@zombi-survive/content';
+import {
+    combatSettings,
+    corpseSettings,
+    movementSettings,
+    worldGenerationSettings,
+} from '@zombi-survive/content';
 import type { Corpse } from '@zombi-survive/domain';
 import {
     initialStateRequest,
@@ -12,7 +17,7 @@ import {
     pickupStateRequest,
 } from '@zombi-survive/protocol';
 import { findRespawnPosition } from '@zombi-survive/simulation';
-import { loadWorldChunks } from '@zombi-survive/worldgen';
+import { generateChunkLoot, loadWorldChunks } from '@zombi-survive/worldgen';
 
 import { LocalWorldCombat } from './local-world-combat.ts';
 import { LocalWorldFirearm } from './local-world-firearm.ts';
@@ -28,6 +33,7 @@ import type { WorldAccess } from './world-access.ts';
 
 export class LocalWorldRoom extends Room {
     private readonly reload = new LocalWorldReload();
+    private readonly visitedLootChunks = new Set<string>();
     private readonly firearm = new LocalWorldFirearm();
     private pickup = new LocalWorldPickup();
     private readonly zombie = new LocalWorldZombie();
@@ -211,6 +217,30 @@ export class LocalWorldRoom extends Room {
                 snapshot => this.combat.snapshot(snapshot).health,
                 input => this.combat.useBandage(input),
             );
+            if (options.soloStore !== undefined) {
+                for (const { player } of snapshots.values()) {
+                    if (this.combat.health(player.playerId) <= 0) continue;
+                    const size = worldGenerationSettings.chunkSizeMeters;
+                    const chunkX = Math.floor((player.position.xMeters + size / 2) / size);
+                    const chunkY = Math.floor((player.position.yMeters + size / 2) / size);
+                    const id = `${String(chunkX)},${String(chunkY)}`;
+                    if (this.visitedLootChunks.has(id)) continue;
+                    const locations = this.pickup.stagedLocations();
+                    const known = new Set(locations.map(location => location.item.itemId));
+                    const loot = generateChunkLoot({
+                        seed: worldGenerationSettings.initialSeed,
+                        generatorVersion: worldGenerationSettings.generatorVersion,
+                        chunkX,
+                        chunkY,
+                    }).filter(item => !known.has(item.itemId));
+                    if (loot.length > 0)
+                        this.pickup.stageLocations([
+                            ...locations,
+                            ...loot.map(item => ({ type: 'ground' as const, item })),
+                        ]);
+                    this.visitedLootChunks.add(id);
+                }
+            }
             const zombie = this.zombie.step(
                 snapshots,
                 playerId => this.combat.health(playerId) > 0,

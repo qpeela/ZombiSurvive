@@ -115,27 +115,25 @@ export const copyItemLocation = (location: ItemLocation): ItemLocation => {
 const readKnownItem = (
     item: Record<string, unknown>,
     playerId: string,
-    worldLoot: readonly GroundItem[],
+    worldLoot: ReadonlyMap<string, GroundItem>,
 ): Item => {
     const kind = item['kind'];
     const itemId = item['itemId'];
     if (typeof itemId !== 'string') return invalidItem();
     if (kind === 'bandage' && itemId === initialGroundItem.itemId) return { itemId, kind };
     if (kind === 'ammo9mm') {
-        const spawn = worldLoot.find(
-            candidate => candidate.itemId === itemId && candidate.kind === kind,
-        );
+        const spawn = worldLoot.get(itemId);
         const quantity = item['quantity'];
         const isQuantity =
             typeof quantity === 'number' &&
             Number.isSafeInteger(quantity) &&
             quantity >= 0 &&
             quantity <= ammoSettings.stackQuantity;
-        if (spawn === undefined || !isQuantity) return invalidItem();
+        if (spawn?.kind !== kind || !isQuantity) return invalidItem();
         return { itemId, kind, quantity };
     }
     if (!isWeaponId(kind)) return invalidItem();
-    const spawn = worldLoot.find(candidate => candidate.itemId === itemId);
+    const spawn = worldLoot.get(itemId);
     const isStarter = isMeleeWeaponId(kind) && itemId === `${playerId}:${kind}`;
     const isWorld = spawn !== undefined && spawn.kind === kind;
     if (!isStarter && !isWorld) return invalidItem();
@@ -172,13 +170,16 @@ export const readSavedItems = (
     worldLoot: readonly GroundItem[] = [],
     isConsumableBandage = false,
 ): readonly ItemLocation[] => {
-    if (typeof value !== 'string' || value.length > 16_384) return invalidItem();
+    const maximumBytes = Math.max(16_384, (worldLoot.length + 5) * 512);
+    if (typeof value !== 'string' || value.length > maximumBytes) return invalidItem();
     const saved: unknown = JSON.parse(value);
     if (!Array.isArray(saved)) return invalidItem();
     const finiteItemCount = 4 + worldLoot.length;
     const hasCompleteManifest = saved.length === finiteItemCount + 1;
     const hasConsumedBandage = isConsumableBandage && saved.length === finiteItemCount;
     if (!hasCompleteManifest && !hasConsumedBandage) return invalidItem();
+    const worldItems = new Map(worldLoot.map(item => [item.itemId, item]));
+    if (worldItems.size !== worldLoot.length) return invalidItem();
     const locations: ItemLocation[] = [];
     const ids = new Set<string>();
     let items: readonly InventoryItem[] = [];
@@ -186,7 +187,7 @@ export const readSavedItems = (
     for (const entry of saved as unknown[]) {
         if (!isRecord(entry) || !isRecord(entry['item'])) return invalidItem();
         const rawItem = entry['item'];
-        const item = readKnownItem(rawItem, playerId, worldLoot);
+        const item = readKnownItem(rawItem, playerId, worldItems);
         if (item.kind === 'ammo9mm') {
             const isConsumed = entry['type'] === 'consumed';
             if (isConsumed !== (item.quantity === 0)) return invalidItem();
@@ -223,7 +224,7 @@ export const readSavedItems = (
         } else if (item.kind === 'bandage') {
             location = readSavedItem(JSON.stringify(entry), playerId);
         } else if (entry['type'] === 'ground') {
-            const spawn = worldLoot.find(candidate => candidate.itemId === item.itemId);
+            const spawn = worldItems.get(item.itemId);
             const position = rawItem['position'];
             const isUnowned = entry['playerId'] === undefined && entry['cell'] === undefined;
             if (spawn === undefined || !isUnowned || !isRecord(position)) return invalidItem();

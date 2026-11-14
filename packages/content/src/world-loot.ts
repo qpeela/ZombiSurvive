@@ -1,5 +1,15 @@
 /** A finite v1 overlay, independent of the terrain generator. No respawn. */
 export const worldLootSettings = Object.freeze({ version: 1, visibilityMeters: 8 });
+export const chunkLootSettings = Object.freeze({
+    ammoOffsetMeters: 2,
+    weaponKinds: Object.freeze(['club', 'knife', 'crowbar', 'axe', 'pistol'] as const),
+    anchors: Object.freeze([
+        Object.freeze({ xMeters: -10, yMeters: -8 }),
+        Object.freeze({ xMeters: 10, yMeters: -8 }),
+        Object.freeze({ xMeters: -10, yMeters: 8 }),
+        Object.freeze({ xMeters: 10, yMeters: 8 }),
+    ]),
+});
 export const weaponLootSites = Object.freeze([
     Object.freeze({ chunkX: 0, chunkY: 0, kind: 'knife' as const }),
     Object.freeze({ chunkX: 1, chunkY: 0, kind: 'club' as const }),
