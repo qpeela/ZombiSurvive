@@ -1,11 +1,17 @@
-import type { MeleeWeaponId } from '@zombi-survive/domain';
+import type { WeaponId } from '@zombi-survive/domain';
 import type { GameObjects } from 'phaser';
 
 /** Original procedural pixel silhouettes, pointing right with the grip at (10, 6). */
-export const drawHeldWeapon = (image: GameObjects.Graphics, weapon: MeleeWeaponId | null): void => {
+export const drawHeldWeapon = (image: GameObjects.Graphics, weapon: WeaponId | null): void => {
     image.clear();
 
     switch (weapon) {
+        case 'pistol':
+            image.fillStyle(0x242d32).fillRect(9, 1, 24, 8);
+            image.fillStyle(0xb3bec1).fillRect(11, 2, 22, 4);
+            image.fillStyle(0x604f40).fillRect(11, 7, 8, 9);
+            image.fillStyle(0x11181a).fillRect(30, 3, 4, 4);
+            break;
         case 'club':
             image.fillStyle(0x30271d).fillRect(9, 3, 27, 7);
             image.fillStyle(0xa57b4d).fillRect(10, 4, 24, 5);

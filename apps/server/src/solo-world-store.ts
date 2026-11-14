@@ -17,11 +17,17 @@ import {
     type WorldPosition,
 } from '@zombi-survive/domain';
 import { addStarterWeapons, expireCorpses } from '@zombi-survive/simulation';
-import { initialWorldWeaponLoot, loadWorldChunks } from '@zombi-survive/worldgen';
+import {
+    initialWorldPistolLoot,
+    initialWorldWeaponLoot,
+    loadWorldChunks,
+} from '@zombi-survive/worldgen';
 
 import { readSavedCombat, type SavedCombat } from './saved-combat.ts';
 import { readSavedCorpses } from './saved-corpse.ts';
 import { readSavedItem, readSavedItems, writeSavedItems } from './saved-item.ts';
+
+const worldItemManifest = [...initialWorldWeaponLoot, ...initialWorldPistolLoot];
 
 export type SavedSoloWorld = {
     readonly worldId: string;
@@ -123,7 +129,8 @@ export class SoloWorldStore {
                 version !== 6 &&
                 version !== 7 &&
                 version !== 8 &&
-                version !== 9
+                version !== 9 &&
+                version !== 10
             ) {
                 throw new Error('Unsupported solo save schema version.');
             }
@@ -188,9 +195,24 @@ export class SoloWorldStore {
                     'item_location'
                 ],
                 this.initialWorld.playerId,
-                initialWorldWeaponLoot,
+                version === 10 ? worldItemManifest : initialWorldWeaponLoot,
                 typeof version === 'number' && version >= 8,
             );
+            if (typeof version === 'number' && version < 10) {
+                this.initialItemLocations = [
+                    ...this.initialItemLocations,
+                    ...initialWorldPistolLoot.map(item => ({ type: 'ground' as const, item })),
+                ];
+                this.database
+                    .prepare('UPDATE solo_world SET item_location = ? WHERE id = 1')
+                    .run(
+                        writeSavedItems(
+                            this.initialItemLocations,
+                            this.initialWorld.playerId,
+                            worldItemManifest,
+                        ),
+                    );
+            }
             if (typeof version === 'number' && version < 6) {
                 this.database.exec(`
                     ALTER TABLE solo_world ADD COLUMN combat_state TEXT NOT NULL
@@ -249,7 +271,7 @@ export class SoloWorldStore {
                             writeSavedItems(
                                 this.initialItemLocations,
                                 this.initialWorld.playerId,
-                                initialWorldWeaponLoot,
+                                worldItemManifest,
                             ),
                         );
                 }
@@ -277,10 +299,11 @@ export class SoloWorldStore {
                         writeSavedItems(
                             this.initialItemLocations,
                             this.initialWorld.playerId,
-                            initialWorldWeaponLoot,
+                            worldItemManifest,
                         ),
                     );
             }
+            if (version !== 10) this.database.exec('PRAGMA user_version = 10');
             this.profile = {
                 displayName: this.initialWorld.displayName,
                 nameRevision: this.initialWorld.nameRevision,
@@ -326,11 +349,7 @@ export class SoloWorldStore {
     }
 
     saveItemLocations(locations: readonly ItemLocation[]): void {
-        const saved = writeSavedItems(
-            locations,
-            this.initialWorld.playerId,
-            initialWorldWeaponLoot,
-        );
+        const saved = writeSavedItems(locations, this.initialWorld.playerId, worldItemManifest);
         // One UPDATE is an atomic, synchronous FULL commit of ground/owner/cell together.
         const result = this.database
             .prepare('UPDATE solo_world SET item_location = ? WHERE id = 1')
@@ -351,7 +370,7 @@ export class SoloWorldStore {
         const items =
             locations === undefined
                 ? undefined
-                : writeSavedItems(locations, this.initialWorld.playerId, initialWorldWeaponLoot);
+                : writeSavedItems(locations, this.initialWorld.playerId, worldItemManifest);
         // Death, its final position and simultaneous items share one FULL commit.
         const assignments = ['combat_state = ?'];
         const values: (string | number)[] = [saved];
@@ -400,7 +419,7 @@ export class SoloWorldStore {
                 'item_location'
             ],
             this.initialWorld.playerId,
-            initialWorldWeaponLoot,
+            worldItemManifest,
             true,
         );
         if (locations.some(location => location.type === 'container' || location.type === 'hands'))

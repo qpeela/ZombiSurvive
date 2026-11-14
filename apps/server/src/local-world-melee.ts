@@ -1,5 +1,10 @@
 import { meleeWeapons } from '@zombi-survive/content';
-import type { MeleeWeaponId, WorldObstacle, ZombieState } from '@zombi-survive/domain';
+import {
+    isMeleeWeaponId,
+    type WeaponId,
+    type WorldObstacle,
+    type ZombieState,
+} from '@zombi-survive/domain';
 import {
     isMeleeCommand,
     type MeleeAction,
@@ -18,10 +23,10 @@ export class LocalWorldMelee {
     private readonly pending = new Map<string, MeleeCommand>();
     private tick = 0;
 
-    private readonly equippedWeapon: (snapshot: MovementSnapshot) => MeleeWeaponId | null;
+    private readonly equippedWeapon: (snapshot: MovementSnapshot) => WeaponId | null;
 
     constructor(
-        equippedWeapon: (snapshot: MovementSnapshot) => MeleeWeaponId | null,
+        equippedWeapon: (snapshot: MovementSnapshot) => WeaponId | null,
         initialCooldown?: { readonly playerId: string; readonly cooldownTicks: number },
     ) {
         this.equippedWeapon = equippedWeapon;
@@ -68,7 +73,7 @@ export class LocalWorldMelee {
             const { player, tick } = snapshot;
             const weapon = this.equippedWeapon(snapshot);
             const isReady = tick >= (this.nextAttackTick.get(player.playerId) ?? 0);
-            if (weapon === null || !isReady) continue;
+            if (weapon === null || !isMeleeWeaponId(weapon) || !isReady) continue;
 
             // A miss also consumes a swing; tabs share this cooldown.
             const definition = meleeWeapons[weapon];

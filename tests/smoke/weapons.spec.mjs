@@ -64,7 +64,10 @@ for (const weapon of cases) {
             const label = page.locator('#weapon-label');
             const attack = page.getByRole('button', { name: 'Ударить (F)' });
             await expect(status).toHaveAttribute('data-status', 'connected');
-            await expect(page.locator('#weapon-options button')).toHaveCount(4);
+            await expect(page.locator('#weapon-options button')).toHaveCount(5);
+            await expect(
+                page.getByRole('button', { name: 'Экипировать пистолет', exact: true }),
+            ).toBeDisabled();
             // Every choice updates the authoritative label and enables the other choices.
             for (const choice of cases) {
                 const button = page.getByRole('button', { name: choice.equip });

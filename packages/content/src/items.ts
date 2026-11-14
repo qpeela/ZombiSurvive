@@ -9,6 +9,7 @@ export const initialGroundItem: GroundItem = Object.freeze({
 
 export const inventorySettings = Object.freeze({ columns: 4, rows: 3, maxWeightGrams: 2000 });
 export const itemDefinitions = Object.freeze({
+    pistol: Object.freeze({ name: 'Пистолет 9 мм', columns: 2, rows: 1, weightGrams: 800 }),
     bandage: Object.freeze({ name: 'Бинт', columns: 2, rows: 1, weightGrams: 100 }),
     club: Object.freeze({ name: 'Дубинка', columns: 1, rows: 1, weightGrams: 400 }),
     knife: Object.freeze({ name: 'Нож', columns: 1, rows: 1, weightGrams: 100 }),

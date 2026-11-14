@@ -8,12 +8,15 @@ import { Client } from '@colyseus/sdk';
 import { expect, test } from '@playwright/test';
 import { initialGroundItem } from '@zombi-survive/content';
 import { initialStateRequest, localWorldRoomId, pickupStateRequest } from '@zombi-survive/protocol';
-import { initialWorldWeaponLoot } from '@zombi-survive/worldgen';
+import { initialWorldPistolLoot, initialWorldWeaponLoot } from '@zombi-survive/worldgen';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
 
 const origin = 'http://127.0.0.1:3123';
 const loot = initialWorldWeaponLoot.find(item => item.kind === 'knife');
+const pistol = initialWorldPistolLoot[0];
+if (pistol === undefined) throw new Error('Missing pistol loot');
+const remainingGround = `На земле: Пистолет 9 мм · ${String(pistol.position.xMeters)}, ${String(pistol.position.yMeters)} м`;
 const start = path => {
     const env = { ...process.env, PORT: '3123', CLIENT_ORIGIN: origin, WORLD_SAVE_PATH: path };
     delete env.COOP_HOST;
@@ -108,7 +111,7 @@ test('world weapon refuses an overweight pickup, then survives pickup, exact-ins
         await expect(page.locator('#weapon-label')).toHaveText('Оружие: топор');
         await page.getByRole('button', { name: 'Подобрать нож', exact: true }).click();
         for (const view of [page, tab]) {
-            await expect(view.locator('#ground-item')).toHaveText('На земле: пусто');
+            await expect(view.locator('#ground-item')).toHaveText(remainingGround);
             await expect(view.locator('#inventory')).toHaveText('Контейнер: предметов 5');
         }
         await page.locator(`[data-item-id="${loot.itemId}"]`).click();
@@ -125,7 +128,7 @@ test('world weapon refuses an overweight pickup, then survives pickup, exact-ins
         const locations = JSON.parse(
             saved.prepare('SELECT item_location FROM solo_world').get().item_location,
         );
-        expect(locations).toHaveLength(9);
+        expect(locations).toHaveLength(10);
         expect(locations.filter(location => location.item.itemId === loot.itemId)).toMatchObject([
             { type: 'hands' },
         ]);
@@ -140,7 +143,7 @@ test('world weapon refuses an overweight pickup, then survives pickup, exact-ins
         const restored = await fresh.newPage();
         await open(restored);
         await expect(restored.locator('#weapon-label')).toHaveText('Оружие: нож');
-        await expect(restored.locator('#ground-item')).toHaveText('На земле: пусто');
+        await expect(restored.locator('#ground-item')).toHaveText(remainingGround);
         room = await connect();
         const state = await room.request(pickupStateRequest);
         expect(state.hands.itemId).toBe(loot.itemId);

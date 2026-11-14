@@ -5,12 +5,15 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { initialGroundItem } from '@zombi-survive/content';
 import type { ItemLocation } from '@zombi-survive/domain';
+import { copyItem } from '@zombi-survive/domain';
 import { addStarterWeapons } from '@zombi-survive/simulation';
-import { initialWorldWeaponLoot } from '@zombi-survive/worldgen';
+import { initialWorldPistolLoot, initialWorldWeaponLoot } from '@zombi-survive/worldgen';
 import { afterEach, expect, test } from 'vitest';
 
 import { SoloWorldStore } from '../../apps/server/src/solo-world-store.ts';
+import { removePistolForLegacySave } from './legacy-save-fixture.ts';
 
+const worldItemManifest = [...initialWorldWeaponLoot, ...initialWorldPistolLoot];
 const directories: string[] = [];
 const stores: SoloWorldStore[] = [];
 const createPath = (): string => {
@@ -60,7 +63,7 @@ test('one host exclusively owns a save until close, then the next can load it', 
 });
 
 test.each([
-    'PRAGMA user_version = 10',
+    'PRAGMA user_version = 11',
     "UPDATE solo_world SET seed = 'another-world'",
     'UPDATE solo_world SET generator_version = 2',
     "UPDATE solo_world SET player_id = 'bad'",
@@ -141,7 +144,7 @@ test('schema v1 migrates atomically and keeps character, world and position', ()
     expect(migrated.currentProfile()).toEqual({ displayName: 'Выживший', nameRevision: 0 });
     migrated.close();
     const restored = new DatabaseSync(path);
-    expect(restored.prepare('PRAGMA user_version').get()?.['user_version']).toBe(9);
+    expect(restored.prepare('PRAGMA user_version').get()?.['user_version']).toBe(10);
     restored.close();
 });
 
@@ -201,7 +204,7 @@ test('schema v2 migration retains profile and seeds the existing item only once'
     };
     migrated.saveItemLocations([
         ...addStarterWeapons([collected], migrated.initialWorld.playerId),
-        ...initialWorldWeaponLoot.map(item => ({ type: 'ground' as const, item })),
+        ...worldItemManifest.map(item => ({ type: 'ground' as const, item })),
     ]);
     migrated.close();
     expect(
@@ -221,7 +224,7 @@ test('durable item transfer and cell are atomic, validated and retained after re
     };
     original.saveItemLocations([
         ...addStarterWeapons([collected], playerId),
-        ...initialWorldWeaponLoot.map(item => ({ type: 'ground' as const, item })),
+        ...worldItemManifest.map(item => ({ type: 'ground' as const, item })),
     ]);
     original.close();
     const database = new DatabaseSync(path);
@@ -237,7 +240,7 @@ test('durable item transfer and cell are atomic, validated and retained after re
     expect(() => {
         restored.saveItemLocations([
             ...addStarterWeapons([{ ...collected, cell: { column: 2, row: 2 } }], playerId),
-            ...initialWorldWeaponLoot.map(item => ({ type: 'ground' as const, item })),
+            ...worldItemManifest.map(item => ({ type: 'ground' as const, item })),
         ]);
     }).toThrow(/item disk failure/);
     expect(() => {
@@ -321,7 +324,7 @@ test.each([
     );
     database.close();
     const migrated = open(path);
-    expect(migrated.initialItemLocations).toHaveLength(9);
+    expect(migrated.initialItemLocations).toHaveLength(10);
     expect(migrated.initialItemLocations[0]).toEqual(bandage);
     const equipped = migrated.initialItemLocations.map(location =>
         location.item.itemId === `${playerId}:axe`
@@ -333,7 +336,7 @@ test.each([
     const restored = open(path);
     expect(restored.initialItemLocations).toEqual(equipped);
     expect(new Set(restored.initialItemLocations.map(location => location.item.itemId)).size).toBe(
-        9,
+        10,
     );
 });
 
@@ -396,7 +399,10 @@ test('v4 migration adds the finite overlay once, preserving hands, profile, cell
     const original = open(path);
     const playerId = original.initialWorld.playerId;
     const oldItems = original.initialItemLocations
-        .filter(location => !location.item.itemId.startsWith('loot-v1:'))
+        .filter(
+            location =>
+                !location.item.itemId.startsWith('loot-v1:') && location.item.kind !== 'pistol',
+        )
         .map(location =>
             location.item.itemId === `${playerId}:axe`
                 ? { type: 'hands' as const, playerId, item: location.item }
@@ -406,6 +412,7 @@ test('v4 migration adds the finite overlay once, preserving hands, profile, cell
     original.close();
     const database = new DatabaseSync(path);
     database.prepare('UPDATE solo_world SET item_location = ?').run(JSON.stringify(oldItems));
+    removePistolForLegacySave(database);
     database.exec(
         'ALTER TABLE solo_world DROP COLUMN combat_state; ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 4',
     );
@@ -418,7 +425,7 @@ test('v4 migration adds the finite overlay once, preserving hands, profile, cell
     const migrated = open(path);
     expect(migrated.initialItemLocations.slice(0, 5)).toEqual(oldItems);
     expect(migrated.initialItemLocations.slice(5)).toEqual(
-        initialWorldWeaponLoot.map(item => ({ type: 'ground', item })),
+        worldItemManifest.map(item => ({ type: 'ground', item })),
     );
     const knife = initialWorldWeaponLoot.find(item => item.kind === 'knife');
     if (knife === undefined) throw new Error('Missing loot.');
@@ -427,7 +434,7 @@ test('v4 migration adds the finite overlay once, preserving hands, profile, cell
             ? {
                   type: 'container' as const,
                   playerId,
-                  item: { itemId: knife.itemId, kind: knife.kind },
+                  item: copyItem(knife),
                   cell: { column: 0, row: 0 },
               }
             : location,
@@ -445,7 +452,7 @@ test('v4 migration adds the finite overlay once, preserving hands, profile, cell
             )
             .get(),
     ).toEqual(before);
-    expect(saved.prepare('PRAGMA user_version').get()?.['user_version']).toBe(9);
+    expect(saved.prepare('PRAGMA user_version').get()?.['user_version']).toBe(10);
     saved.close();
 });
 
@@ -464,7 +471,7 @@ test.each(['missing', 'duplicate', 'foreign', 'kind', 'position', 'owner', 'star
             locations[5] = {
                 type: 'container',
                 playerId: 'foreign',
-                item: { itemId: loot.item.itemId, kind: loot.item.kind },
+                item: copyItem(loot.item),
                 cell: { column: 0, row: 0 },
             };
         if (problem === 'kind') locations[5] = { ...loot, item: { ...loot.item, kind: 'axe' } };
@@ -496,6 +503,7 @@ test('failed v4 overlay migration rolls back the old schema and all item locatio
     first.close();
     const database = new DatabaseSync(path);
     database.prepare('UPDATE solo_world SET item_location = ?').run(JSON.stringify(oldItems));
+    removePistolForLegacySave(database);
     database.exec(
         "ALTER TABLE solo_world DROP COLUMN combat_state; ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 4; CREATE TRIGGER reject_loot BEFORE UPDATE OF item_location ON solo_world BEGIN SELECT RAISE(ABORT, 'loot migration failure'); END",
     );
@@ -553,6 +561,7 @@ test('v5 migration seeds combat once while preserving the entire world and inven
     const items = first.initialItemLocations;
     first.close();
     const database = new DatabaseSync(path);
+    removePistolForLegacySave(database);
     database.exec(
         'ALTER TABLE solo_world DROP COLUMN combat_state; ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 5',
     );
@@ -570,6 +579,7 @@ test('invalid v5 item data aborts combat migration without changing the file', (
     const path = createPath();
     open(path).close();
     const database = new DatabaseSync(path);
+    removePistolForLegacySave(database);
     database.exec(
         'ALTER TABLE solo_world DROP COLUMN combat_state; ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 5',
     );
@@ -618,6 +628,7 @@ test('v6 migration preserves combat, world, profile and items and only adds an u
     const ids = first.initialWorld;
     first.close();
     const database = new DatabaseSync(path);
+    removePistolForLegacySave(database);
     database.exec('ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 6');
     database
         .prepare('UPDATE solo_world SET combat_state = ?')
@@ -657,6 +668,7 @@ test.each(['invalid combat', 'failed update'])('v6 wound migration rolls back on
     const path = createPath();
     open(path).close();
     const database = new DatabaseSync(path);
+    removePistolForLegacySave(database);
     database.exec('ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 6');
     database
         .prepare('UPDATE solo_world SET combat_state = ?')
@@ -677,6 +689,7 @@ test('v7 migrates to v8 without changing items or wound; consumed bandage remain
     first.saveCombat({ health: 63, cooldownTicks: 7, bleedingTicks: 21 });
     first.close();
     const legacy = new DatabaseSync(path);
+    removePistolForLegacySave(legacy);
     legacy.exec('ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 7');
     legacy.close();
     const migrated = open(path);
@@ -702,6 +715,7 @@ test('v7 missing bandage is corruption, and failed validation cannot partially m
     first.close();
     const legacy = new DatabaseSync(path);
     legacy.prepare('UPDATE solo_world SET item_location = ?').run(JSON.stringify(remaining));
+    removePistolForLegacySave(legacy);
     legacy.exec('ALTER TABLE solo_world DROP COLUMN corpses; PRAGMA user_version = 7');
     legacy.close();
     const before = readFileSync(path);

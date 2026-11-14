@@ -1,4 +1,10 @@
-import { isMeleeWeaponId, type MeleeWeaponId, type WorldPosition } from '@zombi-survive/domain';
+import {
+    isMeleeWeaponId,
+    isWeaponId,
+    type MeleeWeaponId,
+    type WeaponId,
+    type WorldPosition,
+} from '@zombi-survive/domain';
 
 import { protocolVersion } from './movement.ts';
 
@@ -17,7 +23,7 @@ export type MeleeSnapshot = {
     readonly worldId: string;
     readonly playerId: string;
     readonly tick: number;
-    readonly weapon: MeleeWeaponId | null;
+    readonly weapon: WeaponId | null;
 };
 const isRecord = (value: unknown): value is Record<string, unknown> =>
     typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -41,7 +47,7 @@ export const isMeleeSnapshot = (value: unknown): value is MeleeSnapshot => {
 
     const tick = value['tick'];
     const isTick = typeof tick === 'number' && Number.isSafeInteger(tick) && tick >= 0;
-    const isWeapon = value['weapon'] === null || isMeleeWeaponId(value['weapon']);
+    const isWeapon = value['weapon'] === null || isWeaponId(value['weapon']);
 
     return (
         value['type'] === 'melee-state' &&
