@@ -45,7 +45,7 @@ export class LocalWorldRoom extends Room {
     private isStopping = false;
     private offlineVulnerabilityTicks = 0;
     private pendingStep: (() => void) | null = null;
-    private save: (() => boolean) | undefined;
+    private save: ((logoutVulnerabilityTicks?: number) => boolean) | undefined;
 
     override onCreate(options: {
         access: WorldAccess;
@@ -86,6 +86,11 @@ export class LocalWorldRoom extends Room {
             saved?.position,
         );
         this.movement = movement;
+        this.offlineVulnerabilityTicks = savedCombat.logoutVulnerabilityTicks ?? 0;
+        if (this.offlineVulnerabilityTicks > 0) {
+            movement.join('restored:offline', soloPlayerId);
+            movement.leave('restored:offline');
+        }
         const profile = createLocalWorldProfile(options.soloStore);
         this.onMessage<unknown>('rename-player', (client, command) =>
             profile.rename(movement.snapshot(client.sessionId), command),
@@ -93,9 +98,23 @@ export class LocalWorldRoom extends Room {
 
         if (options.soloStore !== undefined) {
             const store = options.soloStore;
-            this.save = () => {
+            this.save = logoutVulnerabilityTicks => {
                 try {
-                    store.savePosition(movement.soloPosition());
+                    if (logoutVulnerabilityTicks === undefined) {
+                        store.savePosition(movement.soloPosition());
+                    } else {
+                        const nextCombat: SavedCombat = {
+                            health: savedCombat.health,
+                            cooldownTicks: savedCombat.cooldownTicks,
+                            bleedingTicks: savedCombat.bleedingTicks,
+                            ...(savedCombat.lifeRevision === undefined
+                                ? {}
+                                : { lifeRevision: savedCombat.lifeRevision }),
+                            ...(logoutVulnerabilityTicks > 0 ? { logoutVulnerabilityTicks } : {}),
+                        };
+                        store.saveCombat(nextCombat, undefined, movement.soloPosition());
+                        savedCombat = nextCombat;
+                    }
                     return true;
                 } catch (error) {
                     this.isStopping = true;
@@ -299,16 +318,26 @@ export class LocalWorldRoom extends Room {
                     snapshots.set(sessionId, movement.snapshot(sessionId));
             }
 
+            const wasOfflineVulnerable =
+                this.offlineVulnerabilityTicks > 0 && !movement.isPlayerConnected(soloPlayerId);
+            const nextLogoutVulnerabilityTicks =
+                wasOfflineVulnerable && this.combat.health(soloPlayerId) > 0
+                    ? this.offlineVulnerabilityTicks - 1
+                    : 0;
             const nextCombat: SavedCombat = {
                 ...(lifeRevision === 0 ? {} : { lifeRevision }),
                 health: this.combat.health(soloPlayerId),
                 cooldownTicks: this.melee.remainingCooldown(soloPlayerId),
                 bleedingTicks: this.combat.bleedingTicks(soloPlayerId),
+                ...(nextLogoutVulnerabilityTicks > 0
+                    ? { logoutVulnerabilityTicks: nextLogoutVulnerabilityTicks }
+                    : {}),
             };
             const isCombatChanged =
                 nextCombat.health !== savedCombat.health ||
                 nextCombat.cooldownTicks !== savedCombat.cooldownTicks ||
-                nextCombat.bleedingTicks !== savedCombat.bleedingTicks;
+                nextCombat.bleedingTicks !== savedCombat.bleedingTicks ||
+                nextCombat.logoutVulnerabilityTicks !== savedCombat.logoutVulnerabilityTicks;
             // A committed equipment change becomes active in combat on the next step.
             const meleeStates = new Map(
                 [...snapshots].map(([sessionId, snapshot]) => [
@@ -335,6 +364,7 @@ export class LocalWorldRoom extends Room {
             if (store === undefined) {
                 corpses = nextCorpses;
                 savedCombat = nextCombat;
+                this.offlineVulnerabilityTicks = nextCombat.logoutVulnerabilityTicks ?? 0;
                 this.pickup.setCorpses(corpses);
             }
             const publish = (): void => {
@@ -369,7 +399,8 @@ export class LocalWorldRoom extends Room {
                         }
                     }
                 }
-                this.advanceOfflineVulnerability(movement, soloPlayerId);
+                if (wasOfflineVulnerable && this.offlineVulnerabilityTicks === 0)
+                    movement.hideDisconnectedSoloPlayer();
             };
 
             if (store === undefined || (!isCombatChanged && itemSave === null)) {
@@ -399,6 +430,7 @@ export class LocalWorldRoom extends Room {
                     corpses = nextCorpses;
                     this.pickup.setCorpses(corpses);
                     savedCombat = nextCombat;
+                    this.offlineVulnerabilityTicks = nextCombat.logoutVulnerabilityTicks ?? 0;
                 } catch (error) {
                     this.isStopping = true;
                     clearInterval(this.saveTimer);
@@ -420,18 +452,6 @@ export class LocalWorldRoom extends Room {
         });
     }
 
-    private advanceOfflineVulnerability(movement: LocalWorldMovement, playerId: string): void {
-        if (this.offlineVulnerabilityTicks === 0 || movement.isPlayerConnected(playerId)) return;
-
-        this.offlineVulnerabilityTicks--;
-        if (this.offlineVulnerabilityTicks > 0 && this.combat.health(playerId) > 0) return;
-
-        if (this.save?.() === false) return;
-
-        movement.hideDisconnectedSoloPlayer();
-        this.offlineVulnerabilityTicks = 0;
-    }
-
     override onAuth(_client: Client, _options: unknown, context: AuthContext): string | false {
         return this.access?.authenticate(context.headers) ?? false;
     }
@@ -443,8 +463,13 @@ export class LocalWorldRoom extends Room {
             throw new Error('Player authentication is missing.');
         }
 
+        if (playerId === this.access?.soloPlayerId && this.offlineVulnerabilityTicks > 0) {
+            this.pendingStep?.();
+            if (this.isStopping || this.save?.(0) === false)
+                throw new Error('Failed to save the returning player.');
+            this.offlineVulnerabilityTicks = 0;
+        }
         this.movement?.join(client.sessionId, playerId);
-        if (playerId === this.access?.soloPlayerId) this.offlineVulnerabilityTicks = 0;
         this.pickup.initializePlayer(playerId);
     }
 
@@ -467,16 +492,22 @@ export class LocalWorldRoom extends Room {
         this.pendingStep?.();
         if (this.isStopping) return;
 
-        if (this.save?.() === false) return;
-
         const isInCombat =
             this.combat.remainingCombatTicks(playerId) > 0 ||
             this.combat.bleedingTicks(playerId) > 0;
-        if (isInCombat) {
-            this.offlineVulnerabilityTicks = combatSettings.logoutVulnerabilityTicks;
-        } else {
-            this.movement?.hideDisconnectedSoloPlayer();
-        }
+        const logoutVulnerabilityTicks =
+            isInCombat && this.combat.health(playerId) > 0
+                ? combatSettings.logoutVulnerabilityTicks
+                : 0;
+        if (
+            (logoutVulnerabilityTicks === 0
+                ? this.save?.()
+                : this.save?.(logoutVulnerabilityTicks)) === false
+        )
+            return;
+
+        this.offlineVulnerabilityTicks = logoutVulnerabilityTicks;
+        if (logoutVulnerabilityTicks === 0) this.movement?.hideDisconnectedSoloPlayer();
     }
 
     override onBeforeShutdown(): void {
