@@ -34,6 +34,7 @@ import {
 import { readSavedCombat, type SavedCombat } from './saved-combat.ts';
 import { readSavedCorpses } from './saved-corpse.ts';
 import { readSavedItem, readSavedItems, writeSavedItems } from './saved-item.ts';
+import { readSavedZombies, writeSavedZombies } from './saved-zombie.ts';
 
 const pistolManifest = [...initialWorldWeaponLoot, ...initialWorldPistolLoot];
 const ammoManifest = [...pistolManifest, ...initialWorldAmmoLoot];
@@ -78,6 +79,7 @@ export class SoloWorldStore {
     readonly initialItemLocations: readonly ItemLocation[];
     readonly initialCombat: SavedCombat;
     readonly initialCorpses: readonly Corpse[];
+    readonly initialZombieHealth: ReadonlyMap<string, number>;
     private readonly database: DatabaseSync;
     private isClosed = false;
     private lootChunks: readonly string[] = [];
@@ -145,7 +147,8 @@ export class SoloWorldStore {
                 version !== 10 &&
                 version !== 11 &&
                 version !== 12 &&
-                version !== 13
+                version !== 13 &&
+                version !== 14
             ) {
                 throw new Error('Unsupported solo save schema version.');
             }
@@ -205,7 +208,7 @@ export class SoloWorldStore {
                 this.database.exec('PRAGMA user_version = 5');
             }
 
-            if (version === 13) {
+            if (version === 13 || version === 14) {
                 this.lootChunks = readSavedLootChunks(
                     this.database
                         .prepare('SELECT loot_chunks FROM solo_world WHERE id = 1')
@@ -283,6 +286,21 @@ export class SoloWorldStore {
                     'combat_state'
                 ],
             );
+            if (typeof version === 'number' && version < 14) {
+                const hasZombieHealth = this.database
+                    .prepare('PRAGMA table_info(solo_world)')
+                    .all()
+                    .some(column => column['name'] === 'zombie_health');
+                if (!hasZombieHealth)
+                    this.database.exec(
+                        "ALTER TABLE solo_world ADD COLUMN zombie_health TEXT NOT NULL DEFAULT '[]'",
+                    );
+            }
+            this.initialZombieHealth = readSavedZombies(
+                this.database.prepare('SELECT zombie_health FROM solo_world WHERE id = 1').get()?.[
+                    'zombie_health'
+                ],
+            );
             // v8 permits only the bandage to be absent. Legacy manifests were validated above.
             if (typeof version === 'number' && version < 9) {
                 this.database.exec(
@@ -347,7 +365,7 @@ export class SoloWorldStore {
                         ),
                     );
             }
-            if (version !== 13) this.database.exec('PRAGMA user_version = 13');
+            if (version !== 14) this.database.exec('PRAGMA user_version = 14');
             this.profile = {
                 displayName: this.initialWorld.displayName,
                 nameRevision: this.initialWorld.nameRevision,
@@ -411,6 +429,7 @@ export class SoloWorldStore {
         locations?: readonly ItemLocation[],
         position?: WorldPosition,
         corpses?: readonly Corpse[],
+        zombieHealth?: ReadonlyMap<string, number>,
     ): void {
         const saved = JSON.stringify(readSavedCombat(JSON.stringify(state)));
         const items = locations === undefined ? undefined : this.prepareItems(locations);
@@ -435,6 +454,11 @@ export class SoloWorldStore {
         if (position !== undefined) {
             assignments.push('x_meters = ?', 'y_meters = ?');
             values.push(position.xMeters, position.yMeters);
+        }
+
+        if (zombieHealth !== undefined) {
+            assignments.push('zombie_health = ?');
+            values.push(writeSavedZombies(zombieHealth));
         }
 
         const result = this.database
