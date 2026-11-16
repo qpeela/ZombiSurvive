@@ -545,6 +545,23 @@ test.each([100, 73, 0])(
     },
 );
 
+test('logout countdown survives restart and clears when the player returns', () => {
+    const path = createPath();
+    const first = open(path);
+    first.saveCombat({
+        health: 80,
+        cooldownTicks: 0,
+        bleedingTicks: 0,
+        logoutVulnerabilityTicks: 163,
+    });
+    first.close();
+    const restored = open(path);
+    expect(restored.initialCombat.logoutVulnerabilityTicks).toBe(163);
+    restored.saveCombat({ health: 80, cooldownTicks: 0, bleedingTicks: 0 });
+    restored.close();
+    expect(open(path).initialCombat.logoutVulnerabilityTicks).toBeUndefined();
+});
+
 test.each([
     'not json',
     '{}',
@@ -556,6 +573,9 @@ test.each([
     '{"health":90,"cooldownTicks":-1,"bleedingTicks":0}',
     '{"health":90,"cooldownTicks":25,"bleedingTicks":0}',
     '{"health":90,"cooldownTicks":0.5,"bleedingTicks":0}',
+    '{"health":90,"cooldownTicks":0,"bleedingTicks":0,"logoutVulnerabilityTicks":201}',
+    '{"health":90,"cooldownTicks":0,"bleedingTicks":0,"logoutVulnerabilityTicks":1.5}',
+    '{"health":0,"cooldownTicks":0,"bleedingTicks":0,"logoutVulnerabilityTicks":10}',
 ])('corrupt v7 combat state is rejected without resetting the save: %s', state => {
     const path = createPath();
     open(path).close();

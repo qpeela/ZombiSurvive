@@ -5,6 +5,7 @@ export type SavedCombat = {
     readonly lifeRevision?: number;
     readonly cooldownTicks: number;
     readonly bleedingTicks: number;
+    readonly logoutVulnerabilityTicks?: number;
 };
 
 const maxCooldownTicks = Math.max(
@@ -27,6 +28,8 @@ export const readSavedCombat = (value: unknown, isLegacy = false): SavedCombat =
         bleedingTicks >= 0 &&
         bleedingTicks <= combatSettings.bleedingIntervalTicks;
     const cooldownTicks = 'cooldownTicks' in state ? state.cooldownTicks : undefined;
+    const savedLogoutTicks =
+        'logoutVulnerabilityTicks' in state ? state.logoutVulnerabilityTicks : undefined;
     const isHealth =
         typeof health === 'number' &&
         Number.isInteger(health) &&
@@ -41,9 +44,25 @@ export const readSavedCombat = (value: unknown, isLegacy = false): SavedCombat =
     if (!isHealth || !isCooldown || !isBleeding)
         throw new Error('Solo save contains invalid combat state.');
 
+    if (
+        savedLogoutTicks !== undefined &&
+        (typeof savedLogoutTicks !== 'number' ||
+            !Number.isInteger(savedLogoutTicks) ||
+            savedLogoutTicks < 0 ||
+            savedLogoutTicks > combatSettings.logoutVulnerabilityTicks ||
+            (health === 0 && savedLogoutTicks > 0))
+    )
+        throw new Error('Solo save contains invalid logout vulnerability.');
+
+    const logoutVulnerabilityTicks =
+        typeof savedLogoutTicks === 'number' && savedLogoutTicks > 0
+            ? { logoutVulnerabilityTicks: savedLogoutTicks }
+            : {};
+
     const lifeRevision = 'lifeRevision' in state ? state.lifeRevision : undefined;
-    if (lifeRevision === undefined) return { health, cooldownTicks, bleedingTicks };
+    if (lifeRevision === undefined)
+        return { health, cooldownTicks, bleedingTicks, ...logoutVulnerabilityTicks };
     if (typeof lifeRevision !== 'number' || !Number.isSafeInteger(lifeRevision) || lifeRevision < 0)
         throw new Error('Solo save contains invalid life revision.');
-    return { health, cooldownTicks, bleedingTicks, lifeRevision };
+    return { health, cooldownTicks, bleedingTicks, lifeRevision, ...logoutVulnerabilityTicks };
 };
