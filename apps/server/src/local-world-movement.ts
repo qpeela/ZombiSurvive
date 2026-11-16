@@ -118,6 +118,15 @@ export class LocalWorldMovement {
         return [...this.sessions.values()].some(session => session.playerId === playerId);
     }
 
+    disconnectedSoloSnapshot(): MovementSnapshot | null {
+        if (this.isPlayerConnected(this.soloPlayerId)) return null;
+
+        const input = this.players.get(this.soloPlayerId);
+        if (input === undefined) return null;
+
+        return createMovementSnapshot(this.worldId, this.tick, input.player, null);
+    }
+
     hideDisconnectedSoloPlayer(): boolean {
         if (this.isPlayerConnected(this.soloPlayerId)) return false;
 

@@ -33,6 +33,12 @@ h1 {
     font-size: clamp(32px, 5vw, 56px);
 }
 
+.game-version {
+    color: #879779;
+    font-size: 12px;
+    margin: 0 0 12px;
+}
+
 .description {
     color: #a2afa3;
     line-height: 1.6;

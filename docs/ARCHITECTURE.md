@@ -21,6 +21,11 @@
 ## 2. Технологии
 
 - Node.js 24; конкретная версия — .nvmrc. Пакетный менеджер — npm, один package-lock.json.
+- Версия игры — SemVer в корневом package.json и package-lock.json. Клиент показывает
+  её в заголовке из production-сборки Vite. После каждой завершённой задачи разработки
+  повышать patch; если меняется публичный контракт или масштаб функции требует
+  нового minor/major, выбирать соответствующий уровень SemVer. Версии приватных
+  workspace-пакетов относятся к npm-сборке и не являются версиями игры.
 - TypeScript, ESLint flat config, typescript-eslint, Prettier и dependency-cruiser.
   Совместимые точные версии — package.json и lockfile.
 - Клиент: Phaser 4.2.1 + Vite 8.3.4, зафиксированы в T001.

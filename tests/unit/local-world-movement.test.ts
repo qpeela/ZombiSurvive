@@ -196,6 +196,22 @@ test('rejoining a running host keeps stamina but clears movement intentions', ()
     expect(movement.snapshot('return').player.position).toEqual(previous.position);
 });
 
+test('only a disconnected active solo player has an offline movement snapshot', () => {
+    const movement = new LocalWorldMovement('world', 'player');
+    movement.join('first');
+    expect(movement.disconnectedSoloSnapshot()).toBeNull();
+    movement.step();
+    movement.leave('first');
+    expect(movement.disconnectedSoloSnapshot()).toMatchObject({
+        worldId: 'world',
+        tick: 1,
+        player: { playerId: 'player' },
+        lastProcessedInputSequence: null,
+    });
+    movement.hideDisconnectedSoloPlayer();
+    expect(movement.disconnectedSoloSnapshot()).toBeNull();
+});
+
 test('participants move independently and cannot select another character through a command', () => {
     const movement = new LocalWorldMovement('world', 'host');
     movement.join('host-tab', 'host');

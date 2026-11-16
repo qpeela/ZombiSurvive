@@ -8,4 +8,5 @@ export const combatSettings = Object.freeze({
     attackRangeMeters: 1.1,
     attackIntervalTicks: 20,
     combatDurationTicks: 200,
+    logoutVulnerabilityTicks: 200,
 });
