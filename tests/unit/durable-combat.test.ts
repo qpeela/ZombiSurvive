@@ -18,13 +18,24 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-const setup = ({ health = 100, cooldownTicks = 0, bleedingTicks = 0 } = {}) => {
+const setup = ({
+    health = 100,
+    cooldownTicks = 0,
+    bleedingTicks = 0,
+    position = null,
+}: {
+    health?: number;
+    cooldownTicks?: number;
+    bleedingTicks?: number;
+    position?: { xMeters: number; yMeters: number } | null;
+} = {}) => {
     vi.useFakeTimers();
     vi.spyOn(Math, 'random').mockReturnValue(0.99);
     const directory = mkdtempSync(join(tmpdir(), 'zombi-combat-step-'));
     const path = join(directory, 'world.sqlite');
     const seed = new SoloWorldStore(path);
     seed.saveCombat({ health, cooldownTicks, bleedingTicks });
+    if (position !== null) seed.savePosition(position);
     seed.close();
     const store = new SoloWorldStore(path);
     const room = new LocalWorldRoom();
@@ -63,6 +74,7 @@ const setup = ({ health = 100, cooldownTicks = 0, bleedingTicks = 0 } = {}) => {
     return {
         room,
         store,
+        client,
         step: () => {
             step();
         },
@@ -71,6 +83,60 @@ const setup = ({ health = 100, cooldownTicks = 0, bleedingTicks = 0 } = {}) => {
         restored,
     };
 };
+
+test('a pursuing zombie keeps attacking after the last tab closes', () => {
+    const { room, store, client, step } = setup({ position: { xMeters: -7, yMeters: 0 } });
+    const save = vi.spyOn(store, 'saveCombat');
+    const advance = (ticks: number) => {
+        for (let tick = 0; tick < ticks; tick++) {
+            step();
+            vi.advanceTimersByTime(1);
+        }
+    };
+
+    advance(combatSettings.attackIntervalTicks);
+    expect(save.mock.lastCall?.[0].health).toBe(90);
+    room.clients.splice(0);
+    room.onLeave(client);
+    advance(combatSettings.attackIntervalTicks);
+    expect(save.mock.lastCall?.[0].health).toBe(80);
+});
+
+test('zombies damage a disconnected character only until the logout timer expires', () => {
+    const { room, store, client, step } = setup();
+    const save = vi.spyOn(store, 'saveCombat');
+    const savedHealth = () => save.mock.lastCall?.[0].health;
+    let isNearby = true;
+    vi.spyOn(LocalWorldZombie.prototype, 'step').mockImplementation(() => ({
+        zombies: [
+            {
+                zombieId: 'z',
+                targetPlayerId: store.initialWorld.playerId,
+                position: { xMeters: isNearby ? -0.9 : -20, yMeters: 0 },
+            },
+        ],
+        obstacles: [],
+    }));
+    vi.spyOn(LocalWorldZombie.prototype, 'isAlive').mockReturnValue(true);
+    const advance = (ticks: number) => {
+        for (let tick = 0; tick < ticks; tick++) {
+            step();
+            vi.advanceTimersByTime(1);
+        }
+    };
+
+    advance(combatSettings.attackIntervalTicks);
+    expect(savedHealth()).toBe(90);
+    room.clients.splice(0);
+    room.onLeave(client);
+    advance(combatSettings.attackIntervalTicks);
+    expect(savedHealth()).toBe(80);
+    isNearby = false;
+    advance(combatSettings.logoutVulnerabilityTicks - combatSettings.attackIntervalTicks);
+    isNearby = true;
+    advance(combatSettings.attackIntervalTicks * 2);
+    expect(savedHealth()).toBe(80);
+});
 
 test('cooldown commits outside timestep before publication and freezes overlapping steps', () => {
     const { store, step, send, restored } = setup({

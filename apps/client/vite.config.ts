@@ -1,5 +1,9 @@
 import { defineConfig, loadEnv } from 'vite';
 
+import rootPackage from '../../package.json' with { type: 'json' };
+
+const gameVersion = rootPackage.version;
+
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, process.cwd(), 'GAME_SERVER_URL');
     const target =
@@ -10,6 +14,12 @@ export default defineConfig(({ mode }) => {
     };
 
     return {
+        plugins: [
+            {
+                name: 'game-version',
+                transformIndexHtml: html => html.replace('__GAME_VERSION__', gameVersion),
+            },
+        ],
         server: { host: '127.0.0.1', port: 5173, strictPort: true, proxy },
         preview: { host: '127.0.0.1', port: 4173, strictPort: true, proxy },
     };

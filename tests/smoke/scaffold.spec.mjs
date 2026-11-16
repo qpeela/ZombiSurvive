@@ -1,4 +1,10 @@
+import { readFileSync } from 'node:fs';
+
 import { expect, test } from '@playwright/test';
+
+const gameVersion = JSON.parse(
+    readFileSync(new URL('../../package.json', import.meta.url)),
+).version;
 
 test('production client boots a Phaser scene without browser errors', async ({ page }) => {
     const errors = [];
@@ -12,6 +18,7 @@ test('production client boots a Phaser scene without browser errors', async ({ p
     await page.goto('/');
     await expect(page).toHaveTitle('ZombiSurvive');
     await expect(page.getByRole('heading', { name: 'ZombiSurvive' })).toBeVisible();
+    await expect(page.getByText(`Версия ${gameVersion}`)).toBeVisible();
     const canvas = page.locator('#game canvas');
     await expect(canvas).toBeVisible();
     await expect(canvas).toHaveAttribute('data-scene-ready', 'true');
