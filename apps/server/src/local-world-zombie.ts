@@ -18,10 +18,9 @@ import {
 import { loadWorldChunks } from '@zombi-survive/worldgen';
 
 export class LocalWorldZombie {
-    private readonly zombies = new Map<string, ZombieState>([
-        [initialZombie.zombieId, initialZombie],
-    ]);
-    private readonly health = new Map<string, number>();
+    private readonly zombies: Map<string, ZombieState>;
+    private readonly health: Map<string, number>;
+    private isHealthDirty = false;
     private readonly heard = new Map<string, HeardGunshot>();
     private readonly latestShotRevision = new Map<string, number>();
     private tick = 0;
@@ -29,12 +28,22 @@ export class LocalWorldZombie {
 
     private chunks: readonly WorldChunk[] = [];
 
+    constructor(savedHealth: ReadonlyMap<string, number> = new Map()) {
+        this.health = new Map(savedHealth);
+        this.zombies = new Map(
+            this.health.get(initialZombie.zombieId) === 0
+                ? []
+                : [[initialZombie.zombieId, initialZombie]],
+        );
+    }
+
     damage(zombieId: string, amount: number): { damage: number; isKilled: boolean } | null {
         if (!this.zombies.has(zombieId)) return null;
 
         const previousHealth = this.health.get(zombieId) ?? combatSettings.zombieHealth;
-        const health = previousHealth - amount;
+        const health = Math.max(0, previousHealth - amount);
         this.health.set(zombieId, health);
+        this.isHealthDirty = true;
 
         if (health <= 0) {
             this.zombies.delete(zombieId);
@@ -42,6 +51,14 @@ export class LocalWorldZombie {
         }
 
         return { damage: Math.min(previousHealth, amount), isKilled: health <= 0 };
+    }
+
+    pendingHealthSave(): ReadonlyMap<string, number> | null {
+        return this.isHealthDirty ? new Map(this.health) : null;
+    }
+
+    confirmHealthSave(): void {
+        this.isHealthDirty = false;
     }
 
     private isLoaded(position: WorldPosition): boolean {
@@ -105,6 +122,7 @@ export class LocalWorldZombie {
                     if (isStartingZombie) continue;
 
                     const zombieId = `slow:${key}:${String(x)},${String(y)}`;
+                    if (this.health.get(zombieId) === 0) continue;
                     this.zombies.set(zombieId, {
                         zombieId,
                         position: {
