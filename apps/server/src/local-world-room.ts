@@ -497,6 +497,7 @@ export class LocalWorldRoom extends Room {
         }
         this.movement?.join(client.sessionId, playerId);
         this.pickup.initializePlayer(playerId);
+        this.movement?.setCarriedWeight(playerId, this.pickup.weightGrams(playerId));
     }
 
     override onLeave(client: Client): void {

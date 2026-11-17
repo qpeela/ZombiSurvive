@@ -110,6 +110,13 @@ export class LocalWorldMovement {
         });
     }
 
+    setCarriedWeight(playerId: string, weightGrams: number): void {
+        const input = this.players.get(playerId);
+        if (input === undefined) throw new Error('Cannot weigh an unknown player.');
+
+        input.player = { ...input.player, carriedWeightGrams: weightGrams };
+    }
+
     leave(sessionId: string): void {
         this.sessions.delete(sessionId);
     }

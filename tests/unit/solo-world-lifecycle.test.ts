@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { type Client, Room } from '@colyseus/core';
-import { isMovementSnapshot, isPickupSnapshot } from '@zombi-survive/protocol';
+import { initialStateRequest, isMovementSnapshot, isPickupSnapshot } from '@zombi-survive/protocol';
 import { afterEach, expect, test, vi } from 'vitest';
 
 import { LocalWorldMovement } from '../../apps/server/src/local-world-movement.ts';
@@ -224,6 +224,44 @@ test('a restored world stays saved without clients and shutdown cancels the peri
         const restored = new SoloWorldStore(path);
         expect(restored.initialWorld.position).toEqual({ xMeters: 64, yMeters: -64 });
         restored.close();
+    } finally {
+        room.onDispose();
+        store.close();
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
+
+test('a restored player reports full carried mass in a request before the first simulation step', () => {
+    vi.useFakeTimers();
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-initial-load-'));
+    const path = join(directory, 'world.sqlite');
+    new SoloWorldStore(path).close();
+    const store = new SoloWorldStore(path);
+    const room = new LocalWorldRoom();
+    vi.spyOn(room, 'setTimestep').mockImplementation(() => room);
+    const handlers = new Map<string, (client: Client, value: unknown) => unknown>();
+    vi.spyOn(room, 'onMessage').mockImplementation((type, handler: unknown) => {
+        if (typeof type === 'string' && typeof handler === 'function')
+            handlers.set(type, handler as (client: Client, value: unknown) => unknown);
+        return () => {};
+    });
+    try {
+        room.onCreate({
+            access: new WorldAccess(false, 4000, 0, store.initialWorld.playerId),
+            soloStore: store,
+            onSaveError: error => {
+                throw error;
+            },
+        });
+        const client = {
+            sessionId: 'early',
+            auth: store.initialWorld.playerId,
+        } as unknown as Client;
+        room.onJoin(client);
+        expect(handlers.get(initialStateRequest)?.(client, undefined)).toMatchObject({
+            tick: 0,
+            player: { carriedWeightGrams: 1900 },
+        });
     } finally {
         room.onDispose();
         store.close();
