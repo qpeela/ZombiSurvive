@@ -6,6 +6,7 @@ export { movementSettings } from './movement.ts';
 export { collisionSettings, startingRuins } from './obstacles.ts';
 export { pistolSettings } from './pistol.ts';
 export { meleeWeapons } from './weapons.ts';
+export { worldClockSettings } from './world-clock.ts';
 export { worldGenerationSettings } from './world-generation.ts';
 export {
     chunkLootSettings,

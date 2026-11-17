@@ -34,6 +34,7 @@ import {
 import { readSavedCombat, type SavedCombat } from './saved-combat.ts';
 import { readSavedCorpses } from './saved-corpse.ts';
 import { readSavedItem, readSavedItems, writeSavedItems } from './saved-item.ts';
+import { readSavedWorldTime, type SavedWorldProgress } from './saved-world-time.ts';
 import {
     readSavedZombiePositions,
     readSavedZombies,
@@ -81,6 +82,7 @@ const validatePosition = (position: WorldPosition): void => {
 /** One host owns this connection. Transactions run outside the simulation step. */
 export class SoloWorldStore {
     readonly initialWorld: SavedSoloWorld;
+    readonly initialWorldTimeMs: number;
     readonly initialItemLocations: readonly ItemLocation[];
     readonly initialCombat: SavedCombat;
     readonly initialCorpses: readonly Corpse[];
@@ -155,7 +157,8 @@ export class SoloWorldStore {
                 version !== 12 &&
                 version !== 13 &&
                 version !== 14 &&
-                version !== 15
+                version !== 15 &&
+                version !== 16
             ) {
                 throw new Error('Unsupported solo save schema version.');
             }
@@ -323,6 +326,21 @@ export class SoloWorldStore {
                     .prepare('SELECT zombie_positions FROM solo_world WHERE id = 1')
                     .get()?.['zombie_positions'],
             );
+            if (typeof version === 'number' && version < 16) {
+                const hasWorldTime = this.database
+                    .prepare('PRAGMA table_info(solo_world)')
+                    .all()
+                    .some(column => column['name'] === 'world_time_ms');
+                if (!hasWorldTime)
+                    this.database.exec(
+                        'ALTER TABLE solo_world ADD COLUMN world_time_ms INTEGER NOT NULL DEFAULT 0',
+                    );
+            }
+            this.initialWorldTimeMs = readSavedWorldTime(
+                this.database.prepare('SELECT world_time_ms FROM solo_world WHERE id = 1').get()?.[
+                    'world_time_ms'
+                ],
+            );
             // v8 permits only the bandage to be absent. Legacy manifests were validated above.
             if (typeof version === 'number' && version < 9) {
                 this.database.exec(
@@ -387,7 +405,7 @@ export class SoloWorldStore {
                         ),
                     );
             }
-            if (version !== 15) this.database.exec('PRAGMA user_version = 15');
+            if (version !== 16) this.database.exec('PRAGMA user_version = 16');
             this.profile = {
                 displayName: this.initialWorld.displayName,
                 nameRevision: this.initialWorld.nameRevision,
@@ -425,19 +443,31 @@ export class SoloWorldStore {
         this.profile = { displayName, nameRevision };
     }
 
-    savePosition(position: WorldPosition): void {
+    savePosition(position: WorldPosition, worldTimeMs?: number): void {
         // This state comes from authoritative movement; only load performs geometry validation.
         this.database
-            .prepare('UPDATE solo_world SET x_meters = ?, y_meters = ? WHERE id = 1')
-            .run(position.xMeters, position.yMeters);
+            .prepare(
+                'UPDATE solo_world SET x_meters = ?, y_meters = ?, world_time_ms = COALESCE(?, world_time_ms) WHERE id = 1',
+            )
+            .run(
+                position.xMeters,
+                position.yMeters,
+                worldTimeMs === undefined ? null : readSavedWorldTime(worldTimeMs),
+            );
     }
 
-    saveItemLocations(locations: readonly ItemLocation[]): void {
+    saveItemLocations(locations: readonly ItemLocation[], progress?: SavedWorldProgress): void {
         const saved = this.prepareItems(locations);
         // One UPDATE is an atomic, synchronous FULL commit of ground/owner/cell together.
         const result = this.database
-            .prepare('UPDATE solo_world SET item_location = ?, loot_chunks = ? WHERE id = 1')
-            .run(saved.items, JSON.stringify(saved.chunks));
+            .prepare(
+                'UPDATE solo_world SET item_location = ?, loot_chunks = ?, world_time_ms = COALESCE(?, world_time_ms) WHERE id = 1',
+            )
+            .run(
+                saved.items,
+                JSON.stringify(saved.chunks),
+                progress === undefined ? null : readSavedWorldTime(progress.worldTimeMs),
+            );
 
         if (Number(result.changes) !== 1) {
             throw new Error('Solo item save lost its world row.');
@@ -453,6 +483,7 @@ export class SoloWorldStore {
         corpses?: readonly Corpse[],
         zombieHealth?: ReadonlyMap<string, number>,
         zombiePositions?: ReadonlyMap<string, WorldPosition>,
+        progress?: SavedWorldProgress,
     ): void {
         const saved = JSON.stringify(readSavedCombat(JSON.stringify(state)));
         const items = locations === undefined ? undefined : this.prepareItems(locations);
@@ -487,6 +518,11 @@ export class SoloWorldStore {
         if (zombiePositions !== undefined) {
             assignments.push('zombie_positions = ?');
             values.push(writeSavedZombiePositions(zombiePositions));
+        }
+
+        if (progress !== undefined) {
+            assignments.push('world_time_ms = ?');
+            values.push(readSavedWorldTime(progress.worldTimeMs));
         }
 
         const result = this.database

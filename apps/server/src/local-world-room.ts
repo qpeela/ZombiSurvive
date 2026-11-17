@@ -16,7 +16,11 @@ import {
     type MovementSnapshot,
     pickupStateRequest,
 } from '@zombi-survive/protocol';
-import { findRespawnPosition } from '@zombi-survive/simulation';
+import {
+    findRespawnPosition,
+    movementStepSeconds,
+    stepWorldClock,
+} from '@zombi-survive/simulation';
 import { generateChunkLoot, loadWorldChunks } from '@zombi-survive/worldgen';
 
 import { LocalWorldCombat } from './local-world-combat.ts';
@@ -43,6 +47,7 @@ export class LocalWorldRoom extends Room {
     private access: WorldAccess | null = null;
     private saveTimer: ReturnType<typeof setInterval> | undefined;
     private isStopping = false;
+    private worldTimeMs = 0;
     private offlineVulnerabilityTicks = 0;
     private pendingStep: (() => void) | null = null;
     private save: ((logoutVulnerabilityTicks?: number) => boolean) | undefined;
@@ -60,6 +65,7 @@ export class LocalWorldRoom extends Room {
         this.access = options.access;
 
         const now = options.now ?? Date.now;
+        this.worldTimeMs = options.soloStore?.initialWorldTimeMs ?? 0;
         const saved = options.soloStore?.initialWorld;
         this.zombie = new LocalWorldZombie(
             options.soloStore?.initialZombieHealth,
@@ -105,7 +111,7 @@ export class LocalWorldRoom extends Room {
             this.save = logoutVulnerabilityTicks => {
                 try {
                     if (logoutVulnerabilityTicks === undefined) {
-                        store.savePosition(movement.soloPosition());
+                        store.savePosition(movement.soloPosition(), this.worldTimeMs);
                     } else {
                         const nextCombat: SavedCombat = {
                             health: savedCombat.health,
@@ -116,7 +122,15 @@ export class LocalWorldRoom extends Room {
                                 : { lifeRevision: savedCombat.lifeRevision }),
                             ...(logoutVulnerabilityTicks > 0 ? { logoutVulnerabilityTicks } : {}),
                         };
-                        store.saveCombat(nextCombat, undefined, movement.soloPosition());
+                        store.saveCombat(
+                            nextCombat,
+                            undefined,
+                            movement.soloPosition(),
+                            undefined,
+                            undefined,
+                            undefined,
+                            { worldTimeMs: this.worldTimeMs },
+                        );
                         savedCombat = nextCombat;
                     }
                     return true;
@@ -130,7 +144,11 @@ export class LocalWorldRoom extends Room {
             this.saveTimer = setInterval(this.save, 1000);
         }
 
-        this.onMessage(initialStateRequest, client => movement.snapshot(client.sessionId));
+        const worldSnapshot = (sessionId: string): MovementSnapshot => ({
+            ...movement.snapshot(sessionId),
+            worldTimeMs: this.worldTimeMs,
+        });
+        this.onMessage(initialStateRequest, client => worldSnapshot(client.sessionId));
         this.onMessage(pickupStateRequest, client =>
             this.pickup.snapshot(movement.snapshot(client.sessionId)),
         );
@@ -182,6 +200,7 @@ export class LocalWorldRoom extends Room {
                 return;
             }
 
+            this.worldTimeMs = stepWorldClock(this.worldTimeMs, movementStepSeconds);
             const nowMs = now();
             const expectedLife = pendingRespawn;
             pendingRespawn = null;
@@ -239,7 +258,7 @@ export class LocalWorldRoom extends Room {
             );
 
             const snapshots = new Map(
-                this.clients.map(client => [client.sessionId, movement.snapshot(client.sessionId)]),
+                this.clients.map(client => [client.sessionId, worldSnapshot(client.sessionId)]),
             );
             if (this.offlineVulnerabilityTicks > 0) {
                 const offline = movement.disconnectedSoloSnapshot();
@@ -434,7 +453,8 @@ export class LocalWorldRoom extends Room {
                         isDying ||
                         expiredCorpses !== null ||
                         zombieSave !== null ||
-                        positionSave !== null
+                        positionSave !== null ||
+                        isCombatChanged
                     )
                         store.saveCombat(
                             nextCombat,
@@ -443,9 +463,10 @@ export class LocalWorldRoom extends Room {
                             isDying || expiredCorpses !== null ? nextCorpses : undefined,
                             zombieSave ?? undefined,
                             positionSave ?? undefined,
+                            { worldTimeMs: this.worldTimeMs },
                         );
-                    else if (isCombatChanged) store.saveCombat(nextCombat, itemSave ?? undefined);
-                    else if (itemSave !== null) store.saveItemLocations(itemSave);
+                    else if (itemSave !== null)
+                        store.saveItemLocations(itemSave, { worldTimeMs: this.worldTimeMs });
 
                     if (itemSave !== null) {
                         this.pickup.confirmSave();

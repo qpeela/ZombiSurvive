@@ -34,6 +34,7 @@ import { createInventoryGrid } from './inventory-grid';
 import { createMovementInputController } from './movement-input';
 import { MovementPrediction } from './movement-prediction';
 import { createPlayerProfileControls } from './player-profile';
+import { formatWorldTime } from './world-clock';
 import { createWorldConnection } from './world-connection';
 import { createWorldSession } from './world-session';
 
@@ -41,6 +42,7 @@ const profileForm = document.querySelector<HTMLFormElement>('#player-profile');
 const displayName = document.querySelector<HTMLInputElement>('#display-name');
 const saveName = document.querySelector<HTMLButtonElement>('#save-name');
 const profileMessage = document.querySelector<HTMLElement>('#profile-message');
+const worldTime = document.querySelector<HTMLElement>('#world-time');
 const playerName = document.querySelector<HTMLElement>('#player-name');
 const shell = document.querySelector<HTMLElement>('.game-shell');
 const fullscreenButton = document.querySelector<HTMLButtonElement>('#fullscreen');
@@ -85,6 +87,7 @@ if (
     !saveName ||
     !profileMessage ||
     !playerName ||
+    !worldTime ||
     !shell ||
     !fullscreenButton ||
     !fullscreenMessage ||
@@ -321,6 +324,12 @@ const connection = createWorldConnection(
         if (state.status === 'connected') {
             const { snapshot } = state;
             lastMovement = snapshot;
+            worldTime.textContent =
+                snapshot.worldTimeMs === undefined
+                    ? 'Время мира: —'
+                    : `Время мира: ${formatWorldTime(snapshot.worldTimeMs)}`;
+            if (snapshot.worldTimeMs === undefined) delete worldTime.dataset['worldMs'];
+            else worldTime.dataset['worldMs'] = String(snapshot.worldTimeMs);
             prediction.accept(snapshot, performance.now());
             confirmedPosition = snapshot.player.position;
             updatePickup();
@@ -344,6 +353,8 @@ const connection = createWorldConnection(
             return;
         }
 
+        worldTime.textContent = 'Время мира: —';
+        delete worldTime.dataset['worldMs'];
         profileUi.update(null);
         lifeState = null;
         scene.setAlive(false);

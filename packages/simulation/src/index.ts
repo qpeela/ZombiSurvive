@@ -22,5 +22,6 @@ export { pickUpItem } from './pickup.ts';
 export { spendPistolRound, tracePistolShot } from './pistol.ts';
 export { reloadPistol } from './reload.ts';
 export { findRespawnPosition } from './respawn.ts';
+export { stepWorldClock } from './world-clock.ts';
 export { stepZombie } from './zombie.ts';
 export { stepZombieAttack } from './zombie-attack.ts';
