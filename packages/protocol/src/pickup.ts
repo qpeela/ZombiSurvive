@@ -5,6 +5,7 @@ import {
     type InventoryItem,
     isWeaponId,
     type Item,
+    type WorldPosition,
 } from '@zombi-survive/domain';
 
 import { protocolVersion } from './movement.ts';
@@ -30,8 +31,16 @@ export type PickupCommand = {
     readonly protocolVersion: typeof protocolVersion;
     readonly itemId: string;
 };
+export type LootRestock = {
+    readonly pointId: string;
+    readonly kind: Item['kind'];
+    readonly position: WorldPosition;
+    readonly readyAtWorldMs: number;
+};
+
 export type PickupSnapshot = {
     readonly type: 'pickup-state';
+    readonly restocks?: readonly LootRestock[];
     readonly inventoryVersion: typeof inventoryVersion;
     readonly protocolVersion: typeof protocolVersion;
     readonly worldId: string;
@@ -129,6 +138,23 @@ export const isPickupCommand = (value: unknown): value is PickupCommand => {
 
     return isType && isVersion && isId(value['itemId']);
 };
+const isLootRestock = (value: unknown): value is LootRestock => {
+    if (!isRecord(value) || !isId(value['pointId'])) return false;
+    const kind = value['kind'];
+    const isKnownKind = kind === 'bandage' || kind === 'ammo9mm' || isWeaponId(kind);
+    const position = value['position'];
+    if (!isRecord(position)) return false;
+    const isValidPosition =
+        typeof position['xMeters'] === 'number' &&
+        Number.isFinite(position['xMeters']) &&
+        typeof position['yMeters'] === 'number' &&
+        Number.isFinite(position['yMeters']);
+    const deadline = value['readyAtWorldMs'];
+    const isValidDeadline =
+        typeof deadline === 'number' && Number.isSafeInteger(deadline) && deadline >= 0;
+    return isKnownKind && isValidPosition && isValidDeadline;
+};
+
 export const isPickupSnapshot = (value: unknown): value is PickupSnapshot => {
     if (!isRecord(value)) {
         return false;
@@ -154,6 +180,14 @@ export const isPickupSnapshot = (value: unknown): value is PickupSnapshot => {
         !items.every((item: unknown) => isRecord(item) && isCell(item['cell']) && isItem(item))
     ) {
         return false;
+    }
+
+    const restocks: unknown = value['restocks'];
+    if (restocks !== undefined) {
+        if (!Array.isArray(restocks) || restocks.length > 128 || !restocks.every(isLootRestock))
+            return false;
+        if (new Set(restocks.map((point: LootRestock) => point.pointId)).size !== restocks.length)
+            return false;
     }
 
     const hands: unknown = value['hands'];

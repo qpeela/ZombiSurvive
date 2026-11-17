@@ -14,6 +14,7 @@ import {
     isRespawnCommand,
     localWorldRoomId,
     type MovementSnapshot,
+    type PickupSnapshot,
     pickupStateRequest,
 } from '@zombi-survive/protocol';
 import {
@@ -25,6 +26,7 @@ import { generateChunkLoot, loadWorldChunks } from '@zombi-survive/worldgen';
 
 import { LocalWorldCombat } from './local-world-combat.ts';
 import { LocalWorldFirearm } from './local-world-firearm.ts';
+import { LocalWorldLootTimers } from './local-world-loot-timers.ts';
 import { LocalWorldMelee } from './local-world-melee.ts';
 import { LocalWorldMovement } from './local-world-movement.ts';
 import { LocalWorldPickup } from './local-world-pickup.ts';
@@ -40,6 +42,7 @@ export class LocalWorldRoom extends Room {
     private readonly visitedLootChunks = new Set<string>();
     private readonly firearm = new LocalWorldFirearm();
     private pickup = new LocalWorldPickup();
+    private lootTimers = new LocalWorldLootTimers();
     private zombie = new LocalWorldZombie();
     private combat = new LocalWorldCombat();
     private melee = new LocalWorldMelee(snapshot => this.pickup.weapon(snapshot));
@@ -66,6 +69,10 @@ export class LocalWorldRoom extends Room {
 
         const now = options.now ?? Date.now;
         this.worldTimeMs = options.soloStore?.initialWorldTimeMs ?? 0;
+        this.lootTimers = new LocalWorldLootTimers(
+            options.soloStore?.lootPoints(),
+            options.soloStore?.initialLootRestocks,
+        );
         const saved = options.soloStore?.initialWorld;
         this.zombie = new LocalWorldZombie(
             options.soloStore?.initialZombieHealth,
@@ -149,8 +156,12 @@ export class LocalWorldRoom extends Room {
             worldTimeMs: this.worldTimeMs,
         });
         this.onMessage(initialStateRequest, client => worldSnapshot(client.sessionId));
+        const pickupSnapshot = (snapshot: MovementSnapshot): PickupSnapshot => ({
+            ...this.pickup.snapshot(snapshot),
+            restocks: this.lootTimers.snapshot(snapshot.player.position),
+        });
         this.onMessage(pickupStateRequest, client =>
-            this.pickup.snapshot(movement.snapshot(client.sessionId)),
+            pickupSnapshot(movement.snapshot(client.sessionId)),
         );
         for (const type of ['equip-weapon', 'unequip-weapon']) {
             this.onMessage<unknown>(type, (client, value) => {
@@ -285,6 +296,7 @@ export class LocalWorldRoom extends Room {
                         chunkX,
                         chunkY,
                     }).filter(item => !known.has(item.itemId));
+                    this.lootTimers.register(loot);
                     if (loot.length > 0)
                         this.pickup.stageLocations([
                             ...locations,
@@ -386,6 +398,12 @@ export class LocalWorldRoom extends Room {
                 this.pickup.stageDeath(corpse);
                 nextCorpses = [...nextCorpses, corpse];
             }
+            this.lootTimers.stage(this.pickup.stagedLocations(), this.worldTimeMs);
+            const timerSave = this.lootTimers.pendingSave();
+            const worldProgress = {
+                worldTimeMs: this.worldTimeMs,
+                ...(timerSave === null ? {} : { restocks: timerSave }),
+            };
             const itemSave = this.pickup.takePendingSave();
             const zombieSave = this.zombie.pendingHealthSave();
             const positionSave = this.zombie.pendingPositionSave();
@@ -396,6 +414,7 @@ export class LocalWorldRoom extends Room {
                 this.pickup.setCorpses(corpses);
                 this.zombie.confirmHealthSave();
                 this.zombie.confirmPositionSave();
+                this.lootTimers.confirmSave();
             }
             const publish = (): void => {
                 for (const shot of this.firearm.acceptedShots()) this.zombie.hearShot(shot);
@@ -405,7 +424,7 @@ export class LocalWorldRoom extends Room {
 
                     if (snapshot !== undefined && meleeState !== undefined) {
                         client.send('movement-snapshot', snapshot);
-                        client.send('pickup-state', this.pickup.snapshot(snapshot));
+                        client.send('pickup-state', pickupSnapshot(snapshot));
                         client.send('zombie-state', this.zombie.snapshot(snapshot));
                         client.send('health-state', {
                             ...this.combat.snapshot(snapshot),
@@ -438,7 +457,8 @@ export class LocalWorldRoom extends Room {
                 (!isCombatChanged &&
                     itemSave === null &&
                     zombieSave === null &&
-                    positionSave === null)
+                    positionSave === null &&
+                    timerSave === null)
             ) {
                 publish();
 
@@ -454,7 +474,8 @@ export class LocalWorldRoom extends Room {
                         expiredCorpses !== null ||
                         zombieSave !== null ||
                         positionSave !== null ||
-                        isCombatChanged
+                        isCombatChanged ||
+                        timerSave !== null
                     )
                         store.saveCombat(
                             nextCombat,
@@ -463,15 +484,15 @@ export class LocalWorldRoom extends Room {
                             isDying || expiredCorpses !== null ? nextCorpses : undefined,
                             zombieSave ?? undefined,
                             positionSave ?? undefined,
-                            { worldTimeMs: this.worldTimeMs },
+                            worldProgress,
                         );
-                    else if (itemSave !== null)
-                        store.saveItemLocations(itemSave, { worldTimeMs: this.worldTimeMs });
+                    else if (itemSave !== null) store.saveItemLocations(itemSave, worldProgress);
 
                     if (itemSave !== null) {
                         this.pickup.confirmSave();
                     }
 
+                    this.lootTimers.confirmSave();
                     corpses = nextCorpses;
                     this.pickup.setCorpses(corpses);
                     savedCombat = nextCombat;

@@ -11,6 +11,7 @@ export {
 } from './equipment.ts';
 export { type HeardGunshot, hearGunshot, stepGunshotInvestigation } from './gunshot-noise.ts';
 export { findInventorySpace, inventoryWeightGrams, placeInventoryItem } from './inventory.ts';
+export { updateLootRestockTimers } from './loot-restock.ts';
 export { findMeleeTarget } from './melee.ts';
 export {
     movementStepSeconds,

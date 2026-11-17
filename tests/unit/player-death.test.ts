@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { type Client, Room } from '@colyseus/core';
+import { lootRestockSettings } from '@zombi-survive/content';
 import { isMovementSnapshot, isPickupSnapshot } from '@zombi-survive/protocol';
 import { afterEach, expect, test, vi } from 'vitest';
 
@@ -216,7 +217,19 @@ test('dead tabs cannot move, loot, rearrange, equip, attack or use their retaine
     use();
     step();
     vi.advanceTimersByTime(1);
-    expect(save).not.toHaveBeenCalled();
+    // World maintenance may schedule the already-empty bandage point; dead input changes nothing.
+    expect(save).toHaveBeenCalledExactlyOnceWith(
+        { health: 0, cooldownTicks: 0, bleedingTicks: 1 },
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        {
+            worldTimeMs: 3000,
+            restocks: new Map([['starter-bandage', 3000 + lootRestockSettings.periodWorldMs]]),
+        },
+    );
     expect(send.mock.calls.some(([type]) => type === 'melee-action')).toBe(false);
     const movements = send.mock.calls.filter(([type]) => type === 'movement-snapshot');
     for (const [, state] of movements)
