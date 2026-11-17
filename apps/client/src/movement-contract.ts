@@ -61,6 +61,7 @@ export const readMovementSnapshot = (value: unknown): MovementSnapshot | null =>
         protocolVersion: value.protocolVersion,
         worldId: value.worldId,
         tick: value.tick,
+        ...(value.worldTimeMs === undefined ? {} : { worldTimeMs: value.worldTimeMs }),
         player: {
             playerId: value.player.playerId,
             stamina: value.player.stamina,

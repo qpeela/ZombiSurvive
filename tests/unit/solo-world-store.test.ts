@@ -73,7 +73,7 @@ test('one host exclusively owns a save until close, then the next can load it', 
 });
 
 test.each([
-    'PRAGMA user_version = 16',
+    'PRAGMA user_version = 17',
     "UPDATE solo_world SET seed = 'another-world'",
     'UPDATE solo_world SET generator_version = 2',
     "UPDATE solo_world SET player_id = 'bad'",
@@ -154,7 +154,7 @@ test('schema v1 migrates atomically and keeps character, world and position', ()
     expect(migrated.currentProfile()).toEqual({ displayName: 'Выживший', nameRevision: 0 });
     migrated.close();
     const restored = new DatabaseSync(path);
-    expect(restored.prepare('PRAGMA user_version').get()?.['user_version']).toBe(15);
+    expect(restored.prepare('PRAGMA user_version').get()?.['user_version']).toBe(16);
     restored.close();
 });
 
@@ -465,7 +465,7 @@ test('v4 migration adds the finite overlay once, preserving hands, profile, cell
             )
             .get(),
     ).toEqual(before);
-    expect(saved.prepare('PRAGMA user_version').get()?.['user_version']).toBe(15);
+    expect(saved.prepare('PRAGMA user_version').get()?.['user_version']).toBe(16);
     saved.close();
 });
 

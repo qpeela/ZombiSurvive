@@ -153,6 +153,11 @@ test('cooldown commits outside timestep before publication and freezes overlappi
     expect(save).toHaveBeenCalledExactlyOnceWith(
         { health: 70, cooldownTicks: 8, bleedingTicks: 0 },
         undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { worldTimeMs: 3000 },
     );
     expect(send).toHaveBeenCalledWith(
         'health-state',
@@ -217,6 +222,11 @@ test('graceful shutdown flushes a prepared combat step exactly once', () => {
     expect(save).toHaveBeenCalledExactlyOnceWith(
         { health: 0, cooldownTicks: 2, bleedingTicks: 0 },
         undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { worldTimeMs: 3000 },
     );
     expect(restored()).toEqual({ health: 0, cooldownTicks: 2, bleedingTicks: 0 });
 });
@@ -230,6 +240,11 @@ test('restored wound commits its countdown and damage before publication, with n
     expect(save).toHaveBeenLastCalledWith(
         { health: 1, cooldownTicks: 0, bleedingTicks: 1 },
         undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { worldTimeMs: 3000 },
     );
     expect(send).toHaveBeenCalledWith(
         'health-state',

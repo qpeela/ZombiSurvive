@@ -59,6 +59,7 @@ export const isMovementTargetCommand = (value: unknown): value is MovementTarget
 
 export type MovementSnapshot = {
     readonly type: 'movement-snapshot';
+    readonly worldTimeMs?: number;
     readonly protocolVersion: typeof protocolVersion;
     readonly worldId: WorldId;
     readonly tick: number;
@@ -198,6 +199,12 @@ export const isMovementSnapshot = (value: unknown): value is MovementSnapshot =>
     const isValidWorldId = isId(value['worldId']);
     const sequence = value['lastProcessedInputSequence'];
     const isValidAcknowledgement = sequence === null || isSequence(sequence);
+    const worldTime = value['worldTimeMs'];
+    const isValidWorldTime =
+        worldTime === undefined ||
+        (typeof worldTime === 'number' && Number.isSafeInteger(worldTime) && worldTime >= 0);
+    if (!isValidWorldTime) return false;
+
     const player = value['player'];
 
     if (
