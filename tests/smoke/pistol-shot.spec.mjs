@@ -74,6 +74,7 @@ test('RMB, Space and HUD each shoot once; typing and key repeat do not shoot, em
         await expect.poll(running.output).toContain('Local world ready');
         await page.goto(origin);
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 3/8');
+        await expect(page.locator('#equipment-weight')).toContainText('2736 г');
         tab = await context.newPage();
         await tab.goto(origin);
         await expect(tab.locator('#ammo-label')).toHaveText('Патроны: 3/8');
@@ -82,6 +83,7 @@ test('RMB, Space and HUD each shoot once; typing and key repeat do not shoot, em
         await canvas.scrollIntoViewIfNeeded();
         await canvas.click({ button: 'right', position: { x: 600, y: 260 } });
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 2/8');
+        await expect(page.locator('#equipment-weight')).toContainText('2724 г');
         await expect(tab.locator('#ammo-label')).toHaveText('Патроны: 2/8');
         await expect(canvas).toHaveAttribute('data-target-visible', 'false');
         await expect
@@ -109,6 +111,8 @@ test('RMB, Space and HUD each shoot once; typing and key repeat do not shoot, em
         await page.locator('#pistol-shot').click();
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 0/8');
         await expect(tab.locator('#ammo-label')).toHaveText('Патроны: 0/8');
+        await expect(page.locator('#equipment-weight')).toContainText('2700 г');
+        await expect(tab.locator('#equipment-weight')).toContainText('2700 г');
         await expect(page.locator('#pistol-shot')).toBeDisabled();
         await page.screenshot({ path: '.cache/t037-pistol-shot.png', fullPage: true });
         await canvas.click({ button: 'right', position: { x: 600, y: 260 } });

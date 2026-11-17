@@ -106,11 +106,13 @@ test('inventory bandage confirms in both tabs, survives reload/retry and SIGKILL
         await expect(
             tab.getByRole('button', { name: 'Использовать бинт', exact: true }),
         ).toBeEnabled();
+        await expect(page.locator('#equipment-weight')).toContainText('2000 г');
         await page.screenshot({ path: '.cache/t031-before-bandage.png', fullPage: true });
         await page.getByRole('button', { name: 'Использовать бинт', exact: true }).click();
         for (const current of [page, tab]) {
             await expect(current.locator('#bleeding-label')).toHaveText('Кровотечение: нет');
             await expect(current.locator('#inventory')).toHaveText('Контейнер: предметов 4');
+            await expect(current.locator('#equipment-weight')).toContainText('1900 г');
             await expect(
                 current.getByRole('button', { name: 'Использовать бинт', exact: true }),
             ).toBeDisabled();

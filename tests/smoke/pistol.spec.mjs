@@ -52,8 +52,10 @@ test('a partial pistol magazine survives ground pickup, hands, inventory, tabs, 
         await page.goto(origin);
         await page.getByRole('button', { name: 'Подобрать пистолет 9 мм', exact: true }).click();
         await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 1');
+        await expect(page.locator('#equipment-weight')).toContainText('836 г');
         await page.getByRole('button', { name: 'Экипировать пистолет', exact: true }).click();
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 3/8');
+        await expect(page.locator('#equipment-weight')).toContainText('836 г');
         await expect(page.locator('canvas')).toHaveAttribute('data-weapon', 'pistol');
         await expect(page.locator('canvas')).toHaveAttribute('data-weapon-visible', 'true');
         await expect(page.locator('#melee-attack')).toBeDisabled();
@@ -62,10 +64,13 @@ test('a partial pistol magazine survives ground pickup, hands, inventory, tabs, 
         await expect(tab.locator('#ammo-label')).toHaveText('Патроны: 3/8');
         await page.getByRole('button', { name: 'Убрать оружие в сетку', exact: true }).click();
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: —');
+        await expect(page.locator('#equipment-weight')).toContainText('836 г');
         await page.getByRole('button', { name: 'Экипировать пистолет', exact: true }).click();
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 3/8');
+        await expect(page.locator('#equipment-weight')).toContainText('836 г');
         await page.reload();
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 3/8');
+        await expect(page.locator('#equipment-weight')).toContainText('836 г');
         await page.screenshot({ path: '.cache/t036-pistol-magazine.png', fullPage: true });
         running.host.kill('SIGKILL');
         await running.exited;
@@ -85,6 +90,7 @@ test('a partial pistol magazine survives ground pickup, hands, inventory, tabs, 
         await expect.poll(running.output).toContain('Local world ready');
         await page.reload();
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 3/8');
+        await expect(page.locator('#equipment-weight')).toContainText('836 г');
         await expect(page.locator('canvas')).toHaveAttribute('data-weapon', 'pistol');
         expect(errors).toEqual([]);
     } finally {

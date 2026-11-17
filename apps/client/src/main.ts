@@ -20,7 +20,7 @@ import {
     type WorldPosition,
 } from '@zombi-survive/domain';
 import type { MovementSnapshot } from '@zombi-survive/protocol';
-import { findInventorySpace } from '@zombi-survive/simulation';
+import { equipmentWeightGrams, findInventorySpace } from '@zombi-survive/simulation';
 import { AUTO, Game, Scale } from 'phaser';
 
 import { BootScene } from './boot-scene';
@@ -64,6 +64,7 @@ const combatStatus = document.querySelector<HTMLElement>('#combat-status');
 const movementLabel = document.querySelector<HTMLElement>('#movement-label');
 const groundLabel = document.querySelector<HTMLElement>('#ground-item');
 const inventory = document.querySelector<HTMLElement>('#inventory');
+const equipmentWeight = document.querySelector<HTMLElement>('#equipment-weight');
 const pickup = document.querySelector<HTMLButtonElement>('#pickup');
 const inventoryGrid = document.querySelector<HTMLElement>('#inventory-grid');
 const inventorySelector = document.querySelector<HTMLButtonElement>('#inventory-select');
@@ -105,6 +106,7 @@ if (
     !movementLabel ||
     !groundLabel ||
     !inventory ||
+    !equipmentWeight ||
     !pickup ||
     !inventoryGrid ||
     !inventorySelector ||
@@ -353,6 +355,7 @@ const connection = createWorldConnection(
         pickup.disabled = true;
         groundLabel.textContent = 'На земле: —';
         inventory.textContent = 'Контейнер: —';
+        equipmentWeight.textContent = 'Вес снаряжения: —';
         inventoryItems = [];
         isBleeding = false;
         updateBandage();
@@ -406,6 +409,8 @@ const connection = createWorldConnection(
         inventoryItems = snapshot.items;
         updateBandage();
         hands = snapshot.hands;
+        const weightGrams = equipmentWeightGrams({ items: snapshot.items, hands });
+        equipmentWeight.textContent = `Вес снаряжения: ${String(weightGrams)} г (сетка, руки и боезапас)`;
         updateFirearm();
         ammoLabel.textContent =
             hands?.kind === 'pistol'
