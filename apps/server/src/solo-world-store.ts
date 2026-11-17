@@ -34,6 +34,7 @@ import {
 import { readSavedCombat, type SavedCombat } from './saved-combat.ts';
 import { readSavedCorpses } from './saved-corpse.ts';
 import { readSavedItem, readSavedItems, writeSavedItems } from './saved-item.ts';
+import { readSavedRestocks, writeSavedRestocks } from './saved-loot-restock.ts';
 import { readSavedWorldTime, type SavedWorldProgress } from './saved-world-time.ts';
 import {
     readSavedZombiePositions,
@@ -83,6 +84,7 @@ const validatePosition = (position: WorldPosition): void => {
 export class SoloWorldStore {
     readonly initialWorld: SavedSoloWorld;
     readonly initialWorldTimeMs: number;
+    readonly initialLootRestocks: ReadonlyMap<string, number>;
     readonly initialItemLocations: readonly ItemLocation[];
     readonly initialCombat: SavedCombat;
     readonly initialCorpses: readonly Corpse[];
@@ -158,7 +160,8 @@ export class SoloWorldStore {
                 version !== 13 &&
                 version !== 14 &&
                 version !== 15 &&
-                version !== 16
+                version !== 16 &&
+                version !== 17
             ) {
                 throw new Error('Unsupported solo save schema version.');
             }
@@ -405,7 +408,23 @@ export class SoloWorldStore {
                         ),
                     );
             }
-            if (version !== 16) this.database.exec('PRAGMA user_version = 16');
+            if (typeof version === 'number' && version < 17) {
+                const hasRestocks = this.database
+                    .prepare('PRAGMA table_info(solo_world)')
+                    .all()
+                    .some(column => column['name'] === 'loot_restocks');
+                if (!hasRestocks)
+                    this.database.exec(
+                        "ALTER TABLE solo_world ADD COLUMN loot_restocks TEXT NOT NULL DEFAULT '[]'",
+                    );
+            }
+            this.initialLootRestocks = readSavedRestocks(
+                this.database.prepare('SELECT loot_restocks FROM solo_world WHERE id = 1').get()?.[
+                    'loot_restocks'
+                ],
+                this.lootPoints(),
+            );
+            if (version !== 17) this.database.exec('PRAGMA user_version = 17');
             this.profile = {
                 displayName: this.initialWorld.displayName,
                 nameRevision: this.initialWorld.nameRevision,
@@ -456,17 +475,24 @@ export class SoloWorldStore {
             );
     }
 
+    lootPoints(): readonly GroundItem[] {
+        return [initialGroundItem, ...this.worldLoot];
+    }
+
     saveItemLocations(locations: readonly ItemLocation[], progress?: SavedWorldProgress): void {
         const saved = this.prepareItems(locations);
         // One UPDATE is an atomic, synchronous FULL commit of ground/owner/cell together.
         const result = this.database
             .prepare(
-                'UPDATE solo_world SET item_location = ?, loot_chunks = ?, world_time_ms = COALESCE(?, world_time_ms) WHERE id = 1',
+                'UPDATE solo_world SET item_location = ?, loot_chunks = ?, world_time_ms = COALESCE(?, world_time_ms), loot_restocks = COALESCE(?, loot_restocks) WHERE id = 1',
             )
             .run(
                 saved.items,
                 JSON.stringify(saved.chunks),
                 progress === undefined ? null : readSavedWorldTime(progress.worldTimeMs),
+                progress?.restocks === undefined
+                    ? null
+                    : writeSavedRestocks(progress.restocks, [initialGroundItem, ...saved.manifest]),
             );
 
         if (Number(result.changes) !== 1) {
@@ -523,6 +549,15 @@ export class SoloWorldStore {
         if (progress !== undefined) {
             assignments.push('world_time_ms = ?');
             values.push(readSavedWorldTime(progress.worldTimeMs));
+            if (progress.restocks !== undefined) {
+                assignments.push('loot_restocks = ?');
+                values.push(
+                    writeSavedRestocks(progress.restocks, [
+                        initialGroundItem,
+                        ...(items?.manifest ?? this.worldLoot),
+                    ]),
+                );
+            }
         }
 
         const result = this.database

@@ -41,3 +41,6 @@ export const expandedWeaponLootSites = Object.freeze([
         yMeters: -14,
     }),
 ]);
+
+// Six game hours at the current clock scale: six running host minutes.
+export const lootRestockSettings = Object.freeze({ periodWorldMs: 6 * 60 * 60 * 1000 });

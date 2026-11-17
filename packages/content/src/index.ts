@@ -11,6 +11,7 @@ export { worldGenerationSettings } from './world-generation.ts';
 export {
     chunkLootSettings,
     expandedWeaponLootSites,
+    lootRestockSettings,
     weaponLootSites,
     worldLootSettings,
 } from './world-loot.ts';

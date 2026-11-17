@@ -71,6 +71,7 @@ const loadLabel = document.querySelector<HTMLElement>('#load-label');
 const movementLabel = document.querySelector<HTMLElement>('#movement-label');
 const groundLabel = document.querySelector<HTMLElement>('#ground-item');
 const inventory = document.querySelector<HTMLElement>('#inventory');
+const restockLabel = document.querySelector<HTMLElement>('#restock-label');
 const equipmentWeight = document.querySelector<HTMLElement>('#equipment-weight');
 const pickup = document.querySelector<HTMLButtonElement>('#pickup');
 const inventoryGrid = document.querySelector<HTMLElement>('#inventory-grid');
@@ -116,6 +117,7 @@ if (
     !groundLabel ||
     !inventory ||
     !equipmentWeight ||
+    !restockLabel ||
     !pickup ||
     !inventoryGrid ||
     !inventorySelector ||
@@ -379,6 +381,9 @@ const connection = createWorldConnection(
         groundLabel.textContent = 'На земле: —';
         inventory.textContent = 'Контейнер: —';
         equipmentWeight.textContent = 'Вес снаряжения: —';
+        restockLabel.textContent = 'Пополнение рядом: —';
+        delete restockLabel.dataset['pointId'];
+        delete restockLabel.dataset['readyAtWorldMs'];
         inventoryItems = [];
         isBleeding = false;
         updateBandage();
@@ -430,6 +435,16 @@ const connection = createWorldConnection(
                 : `Подобрать ${itemDisplayName(groundItem).toLocaleLowerCase('ru-RU')}`;
         inventory.textContent = `Контейнер: предметов ${String(snapshot.items.length)}`;
         inventoryItems = snapshot.items;
+        const restock = snapshot.restocks?.[0];
+        if (restock === undefined) {
+            restockLabel.textContent = 'Пополнение рядом: —';
+            delete restockLabel.dataset['pointId'];
+            delete restockLabel.dataset['readyAtWorldMs'];
+        } else {
+            restockLabel.textContent = `Срок пополнения · ${itemDefinitions[restock.kind].name}: ${formatWorldTime(restock.readyAtWorldMs)}`;
+            restockLabel.dataset['pointId'] = restock.pointId;
+            restockLabel.dataset['readyAtWorldMs'] = String(restock.readyAtWorldMs);
+        }
         updateBandage();
         hands = snapshot.hands;
         const weightGrams = equipmentWeightGrams({ items: snapshot.items, hands });

@@ -1,4 +1,7 @@
-export type SavedWorldProgress = { readonly worldTimeMs: number };
+export type SavedWorldProgress = {
+    readonly worldTimeMs: number;
+    readonly restocks?: ReadonlyMap<string, number>;
+};
 
 export const readSavedWorldTime = (value: unknown): number => {
     const isValidTime = typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;

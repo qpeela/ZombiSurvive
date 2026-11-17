@@ -41,6 +41,7 @@ export {
     isPickupCommand,
     isPickupSnapshot,
     isUseBandageCommand,
+    type LootRestock,
     type PickupCommand,
     type PickupSnapshot,
     pickupStateRequest,
