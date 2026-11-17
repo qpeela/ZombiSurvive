@@ -23,6 +23,8 @@ export type PlayerMovementState = {
     readonly position: WorldPosition;
     /** Normalized reserve in [0, 1]. Only simulation changes it. */
     readonly stamina: number;
+    /** Authoritative carried mass; absent in legacy snapshots means zero. */
+    readonly carriedWeightGrams?: number;
     readonly isExhausted: boolean;
     readonly isSneaking: boolean;
     /** Current movement noise radius; zero while idle. */

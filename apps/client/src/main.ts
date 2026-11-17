@@ -20,7 +20,11 @@ import {
     type WorldPosition,
 } from '@zombi-survive/domain';
 import type { MovementSnapshot } from '@zombi-survive/protocol';
-import { equipmentWeightGrams, findInventorySpace } from '@zombi-survive/simulation';
+import {
+    equipmentWeightGrams,
+    findInventorySpace,
+    sprintDrainMultiplier,
+} from '@zombi-survive/simulation';
 import { AUTO, Game, Scale } from 'phaser';
 
 import { BootScene } from './boot-scene';
@@ -61,6 +65,7 @@ const health = document.querySelector<HTMLProgressElement>('#health');
 const healthLabel = document.querySelector<HTMLElement>('#health-label');
 const bleedingLabel = document.querySelector<HTMLElement>('#bleeding-label');
 const combatStatus = document.querySelector<HTMLElement>('#combat-status');
+const loadLabel = document.querySelector<HTMLElement>('#load-label');
 const movementLabel = document.querySelector<HTMLElement>('#movement-label');
 const groundLabel = document.querySelector<HTMLElement>('#ground-item');
 const inventory = document.querySelector<HTMLElement>('#inventory');
@@ -104,6 +109,7 @@ if (
     !bleedingLabel ||
     !combatStatus ||
     !movementLabel ||
+    !loadLabel ||
     !groundLabel ||
     !inventory ||
     !equipmentWeight ||
@@ -290,6 +296,12 @@ scene.onFrame = () => {
     const player = prediction.sample(performance.now());
     scene.setPlayer(player);
     stamina.value = player?.stamina ?? 0;
+    if (player === null) loadLabel.textContent = 'Нагрузка: —';
+    else {
+        const weightGrams = player.carriedWeightGrams ?? 0;
+        const multiplier = sprintDrainMultiplier(weightGrams).toFixed(2).replace('.', ',');
+        loadLabel.textContent = `Нагрузка: ${String(weightGrams)} г · Расход спринта: ×${multiplier}`;
+    }
     movementLabel.textContent =
         player === null
             ? 'Режим: —'

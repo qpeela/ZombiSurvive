@@ -8,6 +8,8 @@ export const movementSettings = Object.freeze({
     sprintNoiseRadiusMeters: 16,
     sneakNoiseRadiusMeters: 2,
     staminaDrainPerSecond: 0.2,
+    loadReferenceWeightGrams: 2000,
+    maxLoadDrainMultiplier: 3,
     staminaRecoveryPerSecond: 0.1,
     sprintRecoveryThreshold: 0.2,
 });

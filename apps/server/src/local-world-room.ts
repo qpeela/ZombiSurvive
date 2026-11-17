@@ -233,7 +233,10 @@ export class LocalWorldRoom extends Room {
             }
 
             const expiredCorpses = this.pickup.stageExpiry(nowMs);
-            movement.step(playerId => this.combat.health(playerId));
+            movement.step(
+                playerId => this.combat.health(playerId),
+                playerId => this.pickup.weightGrams(playerId),
+            );
 
             const snapshots = new Map(
                 this.clients.map(client => [client.sessionId, movement.snapshot(client.sessionId)]),

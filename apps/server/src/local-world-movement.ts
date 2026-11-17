@@ -186,7 +186,10 @@ export class LocalWorldMovement {
         }
     }
 
-    step(health: (playerId: string) => number = () => 100): void {
+    step(
+        health: (playerId: string) => number = () => 100,
+        carriedWeight?: (playerId: string) => number,
+    ): void {
         this.tick++;
         const pending = [...this.sessions.entries()]
             .filter(([, session]) => session.pending !== null)
@@ -243,6 +246,11 @@ export class LocalWorldMovement {
         const obstacles = this.chunks.flatMap(chunk => chunk.obstacles);
 
         for (const player of this.players.values()) {
+            if (carriedWeight !== undefined)
+                player.player = {
+                    ...player.player,
+                    carriedWeightGrams: carriedWeight(player.player.playerId),
+                };
             if (health(player.player.playerId) <= 0) {
                 this.stopPlayer(player.player.playerId);
 

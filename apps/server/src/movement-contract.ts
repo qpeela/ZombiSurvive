@@ -54,6 +54,9 @@ export const createMovementSnapshot = (
         player: {
             playerId: player.playerId,
             stamina: player.stamina,
+            ...(player.carriedWeightGrams === undefined
+                ? {}
+                : { carriedWeightGrams: player.carriedWeightGrams }),
             isExhausted: player.isExhausted,
             isSneaking: player.isSneaking,
             noiseRadiusMeters: player.noiseRadiusMeters,
@@ -63,6 +66,9 @@ export const createMovementSnapshot = (
         otherPlayers: otherPlayers.map(other => ({
             playerId: other.playerId,
             stamina: other.stamina,
+            ...(other.carriedWeightGrams === undefined
+                ? {}
+                : { carriedWeightGrams: other.carriedWeightGrams }),
             isExhausted: other.isExhausted,
             isSneaking: other.isSneaking,
             noiseRadiusMeters: other.noiseRadiusMeters,
