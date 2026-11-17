@@ -155,7 +155,7 @@ test('v12 migration preserves the complete old world and adds a registry without
     expect(loaded.initialItemLocations).toEqual(original);
     loaded.close();
     const migrated = new DatabaseSync(path);
-    expect(migrated.prepare('PRAGMA user_version').get()?.['user_version']).toBe(14);
+    expect(migrated.prepare('PRAGMA user_version').get()?.['user_version']).toBe(15);
     expect(migrated.prepare('SELECT loot_chunks FROM solo_world').get()?.['loot_chunks']).toBe(
         '[]',
     );

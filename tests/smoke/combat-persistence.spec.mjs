@@ -260,3 +260,43 @@ for (const action of ['health', 'attack']) {
         }
     });
 }
+
+test('a published zombie position survives SIGKILL and loads exactly once after restart', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-position-persist-'));
+    const path = join(directory, 'world.sqlite');
+    seed(path, 100, { xMeters: -3, yMeters: 0 });
+    let running = start(path);
+    let room;
+    try {
+        await expect.poll(running.output).toContain('Local world ready');
+        room = await connect();
+        const position = await new Promise(resolve =>
+            room.onMessage('zombie-state', state => {
+                const zombie = state.zombies.find(zombie => zombie.zombieId === 'slow-zombie-1');
+                if (zombie !== undefined && zombie.position.xMeters > -8) {
+                    running.host.kill('SIGKILL');
+                    resolve(zombie.position);
+                }
+            }),
+        );
+        await running.exited;
+        room.connection.close();
+        const store = new SoloWorldStore(path);
+        expect(store.initialZombiePositions.get('slow-zombie-1')).toEqual(position);
+        store.savePosition({ xMeters: 0, yMeters: 0 });
+        store.close();
+        running = start(path);
+        await expect.poll(running.output).toContain('Local world ready');
+        room = await connect();
+        const zombies = await new Promise(resolve =>
+            room.onMessage('zombie-state', state =>
+                resolve(state.zombies.filter(zombie => zombie.zombieId === 'slow-zombie-1')),
+            ),
+        );
+        expect(zombies).toEqual([{ zombieId: 'slow-zombie-1', position, targetPlayerId: null }]);
+    } finally {
+        room?.connection.close();
+        await stop(running);
+        rmSync(directory, { recursive: true, force: true });
+    }
+});

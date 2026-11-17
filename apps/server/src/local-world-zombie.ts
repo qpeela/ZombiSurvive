@@ -21,6 +21,8 @@ export class LocalWorldZombie {
     private readonly zombies: Map<string, ZombieState>;
     private readonly health: Map<string, number>;
     private isHealthDirty = false;
+    private readonly positions: Map<string, WorldPosition>;
+    private isPositionDirty = false;
     private readonly heard = new Map<string, HeardGunshot>();
     private readonly latestShotRevision = new Map<string, number>();
     private tick = 0;
@@ -28,13 +30,41 @@ export class LocalWorldZombie {
 
     private chunks: readonly WorldChunk[] = [];
 
-    constructor(savedHealth: ReadonlyMap<string, number> = new Map()) {
+    constructor(
+        savedHealth: ReadonlyMap<string, number> = new Map(),
+        savedPositions: ReadonlyMap<string, WorldPosition> = new Map(),
+    ) {
+        this.positions = new Map(
+            [...savedPositions].map(([id, position]) => [id, { ...position }]),
+        );
         this.health = new Map(savedHealth);
         this.zombies = new Map(
             this.health.get(initialZombie.zombieId) === 0
                 ? []
-                : [[initialZombie.zombieId, initialZombie]],
+                : [
+                      [
+                          initialZombie.zombieId,
+                          {
+                              ...initialZombie,
+                              position:
+                                  this.positions.get(initialZombie.zombieId) ??
+                                  initialZombie.position,
+                          },
+                      ],
+                  ],
         );
+        for (const [zombieId, position] of this.positions) {
+            if (this.health.get(zombieId) !== 0)
+                this.zombies.set(zombieId, { zombieId, position, targetPlayerId: null });
+        }
+    }
+
+    pendingPositionSave(): ReadonlyMap<string, WorldPosition> | null {
+        return this.isPositionDirty ? new Map(this.positions) : null;
+    }
+
+    confirmPositionSave(): void {
+        this.isPositionDirty = false;
     }
 
     damage(zombieId: string, amount: number): { damage: number; isKilled: boolean } | null {
@@ -122,7 +152,7 @@ export class LocalWorldZombie {
                     if (isStartingZombie) continue;
 
                     const zombieId = `slow:${key}:${String(x)},${String(y)}`;
-                    if (this.health.get(zombieId) === 0) continue;
+                    if (this.health.get(zombieId) === 0 || this.zombies.has(zombieId)) continue;
                     this.zombies.set(zombieId, {
                         zombieId,
                         position: {
@@ -174,6 +204,13 @@ export class LocalWorldZombie {
                     obstacles,
                     stepSeconds: movementStepSeconds,
                 });
+            const isMoved =
+                next.position.xMeters !== zombie.position.xMeters ||
+                next.position.yMeters !== zombie.position.yMeters;
+            if (isMoved) {
+                this.positions.set(id, { ...next.position });
+                this.isPositionDirty = true;
+            }
             this.zombies.set(id, next);
             if (activePlayers.length > 0 || heard !== undefined) activeZombies.push(next);
         }
