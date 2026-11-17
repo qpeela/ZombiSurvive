@@ -1,4 +1,4 @@
-import { inventorySettings } from '@zombi-survive/content';
+import { ammoSettings, inventorySettings } from '@zombi-survive/content';
 import {
     copyItem,
     type InventoryItem,
@@ -7,7 +7,7 @@ import {
     type ItemLocation,
 } from '@zombi-survive/domain';
 
-import { findInventorySpace, placeInventoryItem } from './inventory.ts';
+import { findInventorySpace, inventoryWeightGrams, placeInventoryItem } from './inventory.ts';
 
 export const playerInventory = (
     locations: readonly ItemLocation[],
@@ -25,6 +25,23 @@ export const playerHands = (locations: readonly ItemLocation[], playerId: string
     );
 
     return hands === undefined ? null : copyItem(hands.item);
+};
+
+/** Total carried mass, including loaded rounds; the container's placement budget is separate. */
+export const equipmentWeightGrams = ({
+    items,
+    hands,
+}: {
+    readonly items: readonly Item[];
+    readonly hands: Item | null;
+}): number => {
+    const equipment = hands === null ? items : [...items, hands];
+    const loadedRounds = equipment.reduce(
+        (rounds, item) => rounds + (item.kind === 'pistol' ? item.rounds : 0),
+        0,
+    );
+
+    return inventoryWeightGrams(equipment) + loadedRounds * ammoSettings.roundWeightGrams;
 };
 
 /** Replays must name the same instance. Every rejected transfer keeps the input intact. */
