@@ -61,7 +61,10 @@ export class LocalWorldRoom extends Room {
 
         const now = options.now ?? Date.now;
         const saved = options.soloStore?.initialWorld;
-        this.zombie = new LocalWorldZombie(options.soloStore?.initialZombieHealth);
+        this.zombie = new LocalWorldZombie(
+            options.soloStore?.initialZombieHealth,
+            options.soloStore?.initialZombiePositions,
+        );
         const soloPlayerId = options.access.soloPlayerId;
         let savedCombat: SavedCombat = options.soloStore?.initialCombat ?? {
             health: combatSettings.maxHealth,
@@ -363,12 +366,14 @@ export class LocalWorldRoom extends Room {
             }
             const itemSave = this.pickup.takePendingSave();
             const zombieSave = this.zombie.pendingHealthSave();
+            const positionSave = this.zombie.pendingPositionSave();
             if (store === undefined) {
                 corpses = nextCorpses;
                 savedCombat = nextCombat;
                 this.offlineVulnerabilityTicks = nextCombat.logoutVulnerabilityTicks ?? 0;
                 this.pickup.setCorpses(corpses);
                 this.zombie.confirmHealthSave();
+                this.zombie.confirmPositionSave();
             }
             const publish = (): void => {
                 for (const shot of this.firearm.acceptedShots()) this.zombie.hearShot(shot);
@@ -408,7 +413,10 @@ export class LocalWorldRoom extends Room {
 
             if (
                 store === undefined ||
-                (!isCombatChanged && itemSave === null && zombieSave === null)
+                (!isCombatChanged &&
+                    itemSave === null &&
+                    zombieSave === null &&
+                    positionSave === null)
             ) {
                 publish();
 
@@ -419,13 +427,19 @@ export class LocalWorldRoom extends Room {
             const finishStep = (): void => {
                 this.pendingStep = null;
                 try {
-                    if (isDying || expiredCorpses !== null || zombieSave !== null)
+                    if (
+                        isDying ||
+                        expiredCorpses !== null ||
+                        zombieSave !== null ||
+                        positionSave !== null
+                    )
                         store.saveCombat(
                             nextCombat,
                             itemSave ?? undefined,
                             deathPosition,
                             isDying || expiredCorpses !== null ? nextCorpses : undefined,
                             zombieSave ?? undefined,
+                            positionSave ?? undefined,
                         );
                     else if (isCombatChanged) store.saveCombat(nextCombat, itemSave ?? undefined);
                     else if (itemSave !== null) store.saveItemLocations(itemSave);
@@ -438,6 +452,7 @@ export class LocalWorldRoom extends Room {
                     this.pickup.setCorpses(corpses);
                     savedCombat = nextCombat;
                     if (zombieSave !== null) this.zombie.confirmHealthSave();
+                    if (positionSave !== null) this.zombie.confirmPositionSave();
                     this.offlineVulnerabilityTicks = nextCombat.logoutVulnerabilityTicks ?? 0;
                 } catch (error) {
                     this.isStopping = true;
