@@ -167,6 +167,14 @@ const isPlayer = (value: unknown): value is PlayerMovementState => {
         return false;
     }
 
+    const carriedWeight = value['carriedWeightGrams'];
+    const isValidWeight =
+        carriedWeight === undefined ||
+        (typeof carriedWeight === 'number' &&
+            Number.isSafeInteger(carriedWeight) &&
+            carriedWeight >= 0);
+    if (!isValidWeight) return false;
+
     const position = value['position'];
 
     if (!isRecord(position)) {

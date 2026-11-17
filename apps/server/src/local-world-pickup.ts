@@ -22,6 +22,7 @@ import {
 } from '@zombi-survive/protocol';
 import {
     addStarterWeapons,
+    equipmentWeightGrams,
     expireCorpses,
     pickUpItem,
     placeInventoryItem,
@@ -291,6 +292,13 @@ export class LocalWorldPickup {
         });
         if (this.requiresCommit) this.pendingSave = next;
         else this.locations = next;
+    }
+
+    weightGrams(playerId: string): number {
+        return equipmentWeightGrams({
+            items: playerInventory(this.locations, playerId),
+            hands: playerHands(this.locations, playerId),
+        });
     }
 
     weapon(movement: MovementSnapshot): WeaponId | null {

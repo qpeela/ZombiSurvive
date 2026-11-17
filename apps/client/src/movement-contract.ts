@@ -64,6 +64,9 @@ export const readMovementSnapshot = (value: unknown): MovementSnapshot | null =>
         player: {
             playerId: value.player.playerId,
             stamina: value.player.stamina,
+            ...(value.player.carriedWeightGrams === undefined
+                ? {}
+                : { carriedWeightGrams: value.player.carriedWeightGrams }),
             isExhausted: value.player.isExhausted,
             isSneaking: value.player.isSneaking,
             noiseRadiusMeters: value.player.noiseRadiusMeters,
@@ -75,6 +78,9 @@ export const readMovementSnapshot = (value: unknown): MovementSnapshot | null =>
         otherPlayers: value.otherPlayers.map(player => ({
             playerId: player.playerId,
             stamina: player.stamina,
+            ...(player.carriedWeightGrams === undefined
+                ? {}
+                : { carriedWeightGrams: player.carriedWeightGrams }),
             isExhausted: player.isExhausted,
             isSneaking: player.isSneaking,
             noiseRadiusMeters: player.noiseRadiusMeters,

@@ -8,6 +8,16 @@ import type {
 
 export const movementStepSeconds = 1 / movementSettings.ticksPerSecond;
 
+export const sprintDrainMultiplier = (weightGrams: number): number => {
+    if (!Number.isSafeInteger(weightGrams) || weightGrams < 0)
+        throw new RangeError('Carried weight must be a nonnegative integer.');
+
+    return Math.min(
+        movementSettings.maxLoadDrainMultiplier,
+        1 + weightGrams / movementSettings.loadReferenceWeightGrams,
+    );
+};
+
 const prepareStep = ({
     player,
     isMoving,
@@ -28,7 +38,8 @@ const prepareStep = ({
     const canSprint = !player.isExhausted && player.stamina > 0;
     const isRunning = isMoving && isSprinting && !isSneaking && canSprint;
     const staminaChange = isRunning
-        ? -movementSettings.staminaDrainPerSecond
+        ? -movementSettings.staminaDrainPerSecond *
+          sprintDrainMultiplier(player.carriedWeightGrams ?? 0)
         : movementSettings.staminaRecoveryPerSecond;
     const stamina = Math.min(1, Math.max(0, player.stamina + staminaChange * stepSeconds));
     const isExhausted =

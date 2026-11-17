@@ -233,7 +233,10 @@ export class LocalWorldRoom extends Room {
             }
 
             const expiredCorpses = this.pickup.stageExpiry(nowMs);
-            movement.step(playerId => this.combat.health(playerId));
+            movement.step(
+                playerId => this.combat.health(playerId),
+                playerId => this.pickup.weightGrams(playerId),
+            );
 
             const snapshots = new Map(
                 this.clients.map(client => [client.sessionId, movement.snapshot(client.sessionId)]),
@@ -494,6 +497,7 @@ export class LocalWorldRoom extends Room {
         }
         this.movement?.join(client.sessionId, playerId);
         this.pickup.initializePlayer(playerId);
+        this.movement?.setCarriedWeight(playerId, this.pickup.weightGrams(playerId));
     }
 
     override onLeave(client: Client): void {

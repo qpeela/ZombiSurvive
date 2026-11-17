@@ -40,6 +40,9 @@ test('Shift sprints, exhausts, recovers, and supports clicks and reload in the h
         await page.goto('http://127.0.0.1:3106/');
         await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
         await expect(page.locator('canvas')).toHaveAttribute('data-player-visible', 'true');
+        await expect(page.locator('#load-label')).toHaveText(
+            'Нагрузка: 1900 г · Расход спринта: ×1,95',
+        );
         await page.getByRole('heading').click();
         await page.keyboard.down('Shift');
         await page.keyboard.down('w');
