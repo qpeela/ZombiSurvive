@@ -9,6 +9,7 @@ import {
     movementSettings,
     pickupSettings,
     pistolSettings,
+    weatherPhases,
 } from '@zombi-survive/content';
 import {
     type Corpse,
@@ -25,6 +26,7 @@ import {
     equipmentWeightGrams,
     findInventorySpace,
     getDaylightPhase,
+    getWorldWeather,
     sprintDrainMultiplier,
 } from '@zombi-survive/simulation';
 import { AUTO, Game, Scale } from 'phaser';
@@ -45,6 +47,7 @@ const displayName = document.querySelector<HTMLInputElement>('#display-name');
 const saveName = document.querySelector<HTMLButtonElement>('#save-name');
 const profileMessage = document.querySelector<HTMLElement>('#profile-message');
 const flashlightButton = document.querySelector<HTMLButtonElement>('#flashlight');
+const weatherLabel = document.querySelector<HTMLElement>('#weather-label');
 const daylightLabel = document.querySelector<HTMLElement>('#daylight-label');
 const worldTime = document.querySelector<HTMLElement>('#world-time');
 const playerName = document.querySelector<HTMLElement>('#player-name');
@@ -94,6 +97,7 @@ if (
     !playerName ||
     !worldTime ||
     !daylightLabel ||
+    !weatherLabel ||
     !flashlightButton ||
     !shell ||
     !fullscreenButton ||
@@ -378,6 +382,12 @@ const connection = createWorldConnection(
             daylightLabel.textContent =
                 phase === null ? 'Освещение: —' : `Освещение: ${daylightPhases[phase].label}`;
             daylightLabel.dataset['phase'] = phase ?? 'unknown';
+            const weather =
+                snapshot.worldTimeMs === undefined ? null : getWorldWeather(snapshot.worldTimeMs);
+            scene.setWeather(weather, snapshot.worldTimeMs ?? 0);
+            weatherLabel.textContent =
+                weather === null ? 'Погода: —' : `Погода: ${weatherPhases[weather].label}`;
+            weatherLabel.dataset['weather'] = weather ?? 'unknown';
             prediction.accept(snapshot, performance.now());
             confirmedPosition = snapshot.player.position;
             updateFlashlight();
@@ -403,6 +413,9 @@ const connection = createWorldConnection(
         }
 
         scene.setDaylightPhase(null);
+        scene.setWeather(null, 0);
+        weatherLabel.textContent = 'Погода: —';
+        delete weatherLabel.dataset['weather'];
         daylightLabel.textContent = 'Освещение: —';
         delete daylightLabel.dataset['phase'];
         worldTime.textContent = 'Время мира: —';
