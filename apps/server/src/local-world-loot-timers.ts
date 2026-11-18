@@ -36,19 +36,13 @@ export class LocalWorldLootTimers {
     replenish(
         locations: readonly ItemLocation[],
         worldTimeMs: number,
-        positions: readonly WorldPosition[],
     ): readonly ItemLocation[] | null {
-        const points = [...this.points.values()].filter(point =>
-            positions.some(
-                position =>
-                    Math.hypot(
-                        point.position.xMeters - position.xMeters,
-                        point.position.yMeters - position.yMeters,
-                    ) <= worldLootSettings.visibilityMeters,
-            ),
-        );
-
-        return replenishAmmo({ points, locations, worldTimeMs, deadlines: this.committed });
+        return replenishAmmo({
+            points: [...this.points.values()],
+            locations,
+            worldTimeMs,
+            deadlines: this.committed,
+        });
     }
 
     pendingSave(): ReadonlyMap<string, number> | null {
