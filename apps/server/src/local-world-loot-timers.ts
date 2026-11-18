@@ -1,7 +1,7 @@
 import { worldLootSettings } from '@zombi-survive/content';
 import type { GroundItem, ItemLocation, WorldPosition } from '@zombi-survive/domain';
 import type { LootRestock } from '@zombi-survive/protocol';
-import { replenishAmmo, updateLootRestockTimers } from '@zombi-survive/simulation';
+import { replenishLoot, updateLootRestockTimers } from '@zombi-survive/simulation';
 
 export class LocalWorldLootTimers {
     private readonly points = new Map<string, GroundItem>();
@@ -37,7 +37,7 @@ export class LocalWorldLootTimers {
         locations: readonly ItemLocation[],
         worldTimeMs: number,
     ): readonly ItemLocation[] | null {
-        return replenishAmmo({
+        return replenishLoot({
             points: [...this.points.values()],
             locations,
             worldTimeMs,

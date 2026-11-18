@@ -1,4 +1,4 @@
-import type { AmmoStack, GroundItem, Item } from './item.ts';
+import type { AmmoStack, BandageItem, GroundItem, Item } from './item.ts';
 import type { PlayerId } from './movement.ts';
 
 export type InventoryCell = { readonly column: number; readonly row: number };
@@ -10,7 +10,7 @@ export type InventorySettings = {
 };
 
 export type ItemLocation =
-    | { readonly type: 'consumed'; readonly item: AmmoStack }
+    | { readonly type: 'consumed'; readonly item: AmmoStack | BandageItem }
     | { readonly type: 'expired'; readonly item: Item }
     | { readonly type: 'corpse'; readonly item: Item; readonly corpseId: string }
     | { readonly type: 'hands'; readonly item: Item; readonly playerId: PlayerId }

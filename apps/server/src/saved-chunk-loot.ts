@@ -6,7 +6,7 @@ const invalid = (): never => {
     throw new Error('Solo save contains an invalid chunk loot registry.');
 };
 
-export const chunkLootForKey = (key: string): readonly GroundItem[] => {
+export const chunkLootForKey = (key: string, includeBandages = true): readonly GroundItem[] => {
     const coordinates = key.split(',');
     const chunkX = Number(coordinates[0]);
     const chunkY = Number(coordinates[1]);
@@ -21,12 +21,12 @@ export const chunkLootForKey = (key: string): readonly GroundItem[] => {
     });
     if (loot.length === 0) return invalid();
 
-    return loot;
+    return includeBandages ? loot : loot.filter(item => item.kind !== 'bandage');
 };
 
 export const chunkLootKeyFromItemId = (itemId: string): string | null => {
     if (!itemId.startsWith('chunk-loot-v1:')) return null;
-    const match = /^chunk-loot-v1:(-?\d+):(-?\d+):(weapon|ammo)$/.exec(itemId);
+    const match = /^chunk-loot-v1:(-?\d+):(-?\d+):(weapon|ammo|bandage)$/.exec(itemId);
     if (match === null) return invalid();
     const key = `${match[1] ?? ''},${match[2] ?? ''}`;
     if (key !== `${String(Number(match[1]))},${String(Number(match[2]))}`) return invalid();

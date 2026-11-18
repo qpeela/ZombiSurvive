@@ -273,7 +273,7 @@ test('a nearly full bag can reach the separate ammo pack without taking the heav
         await page.screenshot({ path: '.cache/t039a-ammo-with-full-bag.png', fullPage: true });
         await stop(running, 'SIGKILL');
         const saved = new SoloWorldStore(path);
-        expect(saved.initialItemLocations).toHaveLength(20);
+        expect(saved.initialItemLocations).toHaveLength(21);
         expect(
             saved.initialItemLocations.find(location => location.item.itemId === ammo.itemId),
         ).toMatchObject({ type: 'container', item: { quantity: 7 } });

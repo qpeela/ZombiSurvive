@@ -121,7 +121,13 @@ const readKnownItem = (
     const kind = item['kind'];
     const itemId = item['itemId'];
     if (typeof itemId !== 'string') return invalidItem();
-    if (kind === 'bandage' && itemId === initialGroundItem.itemId) return { itemId, kind };
+    if (kind === 'bandage') {
+        const isStarter = itemId === initialGroundItem.itemId;
+        const isWorld = worldLoot.get(itemId)?.kind === kind;
+        if (!isStarter && !isWorld) return invalidItem();
+
+        return { itemId, kind };
+    }
     if (kind === 'ammo9mm') {
         const spawn = worldLoot.get(itemId);
         const quantity = item['quantity'];
@@ -185,7 +191,7 @@ export const readSavedItems = (
         if (pointId === null) continue;
 
         const point = originalItems.get(pointId);
-        if (point?.kind !== 'ammo9mm') return invalidItem();
+        if (point?.kind !== 'ammo9mm' && point?.kind !== 'bandage') return invalidItem();
 
         restocked.push({ ...point, itemId });
     }
@@ -212,8 +218,10 @@ export const readSavedItems = (
         let location: ItemLocation;
         if (entry['type'] === 'consumed') {
             if (
-                item.kind !== 'ammo9mm' ||
-                item.quantity !== 0 ||
+                !(
+                    (item.kind === 'ammo9mm' && item.quantity === 0) ||
+                    (item.kind === 'bandage' && worldItems.has(item.itemId))
+                ) ||
                 entry['playerId'] !== undefined ||
                 entry['cell'] !== undefined ||
                 entry['corpseId'] !== undefined ||
@@ -236,7 +244,7 @@ export const readSavedItems = (
                 if (corpseId !== undefined) return invalidItem();
                 location = { type: 'expired', item };
             }
-        } else if (item.kind === 'bandage') {
+        } else if (item.itemId === initialGroundItem.itemId) {
             location = readSavedItem(JSON.stringify(entry), playerId);
         } else if (entry['type'] === 'ground') {
             const spawn = worldItems.get(item.itemId);
@@ -272,7 +280,10 @@ export const readSavedItems = (
             items = placed;
         }
     }
-    if (locations.filter(location => location.item.kind !== 'bandage').length !== finiteItemCount)
+    if (
+        locations.filter(location => location.item.itemId !== initialGroundItem.itemId).length !==
+        finiteItemCount
+    )
         return invalidItem();
     if (worldLoot.some(item => !ids.has(item.itemId))) return invalidItem();
     const groundPoints = locations

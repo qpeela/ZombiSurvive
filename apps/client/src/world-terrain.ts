@@ -1,3 +1,4 @@
+import { medicalOutpost } from '@zombi-survive/content';
 import type { WorldChunk, WorldObstacle, WorldPosition } from '@zombi-survive/domain';
 import { loadWorldChunks } from '@zombi-survive/worldgen';
 import type { GameObjects, Scene } from 'phaser';
@@ -16,6 +17,7 @@ const chunkMetadata = (chunk: WorldChunk) => ({
 export class WorldTerrain {
     obstacles: readonly WorldObstacle[] = [];
     private chunks: readonly WorldChunk[] = [];
+    private readonly labels = new Map<string, GameObjects.Text>();
     private readonly graphics = new Map<string, GameObjects.Graphics>();
     private readonly scene: Scene;
 
@@ -40,6 +42,8 @@ export class WorldTerrain {
             if (!retained.has(id)) {
                 graphics.destroy();
                 this.graphics.delete(id);
+                this.labels.get(id)?.destroy();
+                this.labels.delete(id);
             }
         }
 
@@ -118,6 +122,7 @@ export class WorldTerrain {
             const isInView = isInsideX && isInsideY;
             // Graphics replays its command buffer every frame, even outside the viewport.
             this.graphics.get(chunkId(chunk))?.setVisible(isInView);
+            this.labels.get(chunkId(chunk))?.setVisible(isInView);
         }
 
         this.scene.game.canvas.dataset['visibleWorldChunkCount'] = String(
@@ -146,6 +151,63 @@ export class WorldTerrain {
                 chunk.sizeMeters * pixelsPerMeter,
                 chunk.sizeMeters * pixelsPerMeter,
             );
+
+        const isOutpost =
+            chunk.chunkX === medicalOutpost.chunkX && chunk.chunkY === medicalOutpost.chunkY;
+        if (isOutpost) {
+            const { floor, entrance } = medicalOutpost;
+            const x = 480 + floor.minXMeters * pixelsPerMeter;
+            const y = 270 + floor.minYMeters * pixelsPerMeter;
+            // A tiled floor, broken roof and medical cross distinguish these existing ruins.
+            graphics
+                .fillStyle(0x77776a)
+                .fillRect(
+                    x,
+                    y,
+                    floor.widthMeters * pixelsPerMeter,
+                    floor.heightMeters * pixelsPerMeter,
+                );
+            graphics.lineStyle(1, 0x454c42, 0.8);
+            for (let index = 0; index <= 8; index++) {
+                graphics.lineBetween(
+                    x + index * pixelsPerMeter,
+                    y,
+                    x + index * pixelsPerMeter,
+                    y + 8.5 * pixelsPerMeter,
+                );
+                graphics.lineBetween(
+                    x,
+                    y + index * pixelsPerMeter,
+                    x + 8.5 * pixelsPerMeter,
+                    y + index * pixelsPerMeter,
+                );
+            }
+            graphics.fillStyle(0x465147).fillTriangle(x, y, x + 90, y, x, y + 45);
+            graphics.fillStyle(0xd5d0ae).fillRect(x + 105, y + 20, 58, 48);
+            graphics
+                .fillStyle(0x943e36)
+                .fillRect(x + 128, y + 26, 12, 36)
+                .fillRect(x + 116, y + 38, 36, 12);
+            const entranceX = 480 + entrance.xMeters * pixelsPerMeter;
+            const entranceY = 270 + entrance.yMeters * pixelsPerMeter;
+            graphics
+                .lineStyle(3, 0xdfc584)
+                .lineBetween(entranceX, entranceY, entranceX, entranceY - 20);
+            graphics.lineBetween(entranceX, entranceY - 20, entranceX - 7, entranceY - 13);
+            graphics.lineBetween(entranceX, entranceY - 20, entranceX + 7, entranceY - 13);
+            this.labels.set(
+                chunkId(chunk),
+                this.scene.add
+                    .text(x + 100, y - 18, 'Заброшенный медпункт', {
+                        fontFamily: 'monospace',
+                        fontSize: '12px',
+                        color: '#e8dcb8',
+                        backgroundColor: '#202b25',
+                    })
+                    .setOrigin(0.5)
+                    .setDepth(-1),
+            );
+        }
 
         for (const obstacle of chunk.obstacles) {
             const x = 480 + obstacle.minXMeters * pixelsPerMeter;
