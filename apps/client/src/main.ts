@@ -1,6 +1,7 @@
 import './style.css';
 
 import {
+    daylightPhases,
     itemDefinitions,
     itemDisplayName,
     itemWeightGrams,
@@ -23,6 +24,7 @@ import type { MovementSnapshot } from '@zombi-survive/protocol';
 import {
     equipmentWeightGrams,
     findInventorySpace,
+    getDaylightPhase,
     sprintDrainMultiplier,
 } from '@zombi-survive/simulation';
 import { AUTO, Game, Scale } from 'phaser';
@@ -42,6 +44,7 @@ const profileForm = document.querySelector<HTMLFormElement>('#player-profile');
 const displayName = document.querySelector<HTMLInputElement>('#display-name');
 const saveName = document.querySelector<HTMLButtonElement>('#save-name');
 const profileMessage = document.querySelector<HTMLElement>('#profile-message');
+const daylightLabel = document.querySelector<HTMLElement>('#daylight-label');
 const worldTime = document.querySelector<HTMLElement>('#world-time');
 const playerName = document.querySelector<HTMLElement>('#player-name');
 const shell = document.querySelector<HTMLElement>('.game-shell');
@@ -89,6 +92,7 @@ if (
     !profileMessage ||
     !playerName ||
     !worldTime ||
+    !daylightLabel ||
     !shell ||
     !fullscreenButton ||
     !fullscreenMessage ||
@@ -332,6 +336,12 @@ const connection = createWorldConnection(
                     : `Время мира: ${formatWorldTime(snapshot.worldTimeMs)}`;
             if (snapshot.worldTimeMs === undefined) delete worldTime.dataset['worldMs'];
             else worldTime.dataset['worldMs'] = String(snapshot.worldTimeMs);
+            const phase =
+                snapshot.worldTimeMs === undefined ? null : getDaylightPhase(snapshot.worldTimeMs);
+            scene.setDaylightPhase(phase);
+            daylightLabel.textContent =
+                phase === null ? 'Освещение: —' : `Освещение: ${daylightPhases[phase].label}`;
+            daylightLabel.dataset['phase'] = phase ?? 'unknown';
             prediction.accept(snapshot, performance.now());
             confirmedPosition = snapshot.player.position;
             updatePickup();
@@ -355,6 +365,9 @@ const connection = createWorldConnection(
             return;
         }
 
+        scene.setDaylightPhase(null);
+        daylightLabel.textContent = 'Освещение: —';
+        delete daylightLabel.dataset['phase'];
         worldTime.textContent = 'Время мира: —';
         delete worldTime.dataset['worldMs'];
         profileUi.update(null);

@@ -2,6 +2,7 @@ export { useBandage } from './bandage.ts';
 export { stepBleeding, woundFromZombieHit } from './bleeding.ts';
 export { resolveMovement } from './collisions.ts';
 export { expireCorpses } from './corpse-expiry.ts';
+export { getDaylightPhase } from './daylight.ts';
 export {
     addStarterWeapons,
     equipmentWeightGrams,
