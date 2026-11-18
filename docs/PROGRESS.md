@@ -5,7 +5,18 @@
 - Поручение от 18 ноября 2026: последовательно выполнить T052–T056 отдельными
   PR; после успешных локальных и обязательных CI-проверок сливать каждый.
   PR создавать и открывать во встроенном браузере GitHub. Кооператив PAUSED.
-- T056 «Ручной фонарик»: IN_PROGRESS, ветка `codex/t056-flashlight`
+- Завершение поручения T052–T056 оформлено пятью PR:
+  [#64](https://github.com/qpeela/ZombiSurvive/pull/64),
+  [#65](https://github.com/qpeela/ZombiSurvive/pull/65),
+  [#66](https://github.com/qpeela/ZombiSurvive/pull/66),
+  [#67](https://github.com/qpeela/ZombiSurvive/pull/67),
+  [#68](https://github.com/qpeela/ZombiSurvive/pull/68).
+  Первые четыре слиты после успешного Quality; после подтверждённого merge #68
+  все пять имеют результат DONE в main. Версия — 0.1.12. Следующая T057
+  не начинается в этом поручении. Кооператив остаётся PAUSED.
+- T056 «Ручной фонарик»: результат в main после слияния
+  [PR #68](https://github.com/qpeela/ZombiSurvive/pull/68) — DONE;
+  пока PR открыт — CI_PENDING. Ветка `codex/t056-flashlight`
   от main fe5509a, версия 0.1.12. L и кнопка HUD переключают локальный
   фонарик; мышь задаёт конус 60° до 12 м. Один угловой предикат используется
   видимостью и освещением, естественный ночной обзор 3 м остаётся вокруг игрока.
@@ -17,7 +28,8 @@
   focus, HUD/reload/disconnect/retry и выключение при смерти. Снимки луча
   на предмете и зомби осмотрены, HUD читаем. Полный npm run check прошёл:
   формат/lint, типы, архитектура, сборки, 749 unit + 17 tooling + 20 contract +
-  100 smoke (10,5 минуты), без skipped. Ожидается публикация PR/Quality.
+  100 smoke (10,5 минуты), без skipped. Перед merge обязателен успешный
+  Quality финального коммита PR #68; актуальный CI и merge видны по ссылке.
   Стены перекрывают свет в следующей T057; она не входит в порученные пять.
 - T055 «Ночная видимость»: DONE,
   [PR #67](https://github.com/qpeela/ZombiSurvive/pull/67), ветка `codex/t055-night-visibility`
