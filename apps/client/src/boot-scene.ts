@@ -9,6 +9,7 @@ import {
     type ZombieState,
 } from '@zombi-survive/domain';
 import type { MeleeAction, ShotAction, ShotAim } from '@zombi-survive/protocol';
+import { isPositionVisible } from '@zombi-survive/simulation';
 import { GameObjects, type Input, Scene } from 'phaser';
 
 import { CharacterVisual } from './character-visual';
@@ -55,6 +56,8 @@ export class BootScene extends Scene {
     private crosshair: GameObjects.Graphics | null = null;
     private destinationMarker: GameObjects.Graphics | null = null;
     private destination: WorldPosition | null = null;
+    private visibilitySignature = '';
+    onVisibilityChange: () => void = () => {};
     onFrame: () => void = () => {};
     onShoot: (aim: ShotAim) => void = () => {};
     onMove: (position: WorldPosition) => void = () => {};
@@ -164,6 +167,8 @@ export class BootScene extends Scene {
             this.character = null;
             this.game.canvas.dataset['playerCharacter'] = 'null';
             this.game.canvas.dataset['zombieCharacters'] = '[]';
+            this.game.canvas.dataset['visibleZombies'] = '[]';
+            this.game.canvas.dataset['groundItemVisible'] = 'false';
             this.game.canvas.dataset['otherCharacters'] = '[]';
             this.feedback.clear();
             this.clearShots();
@@ -187,6 +192,46 @@ export class BootScene extends Scene {
 
         this.daylightPhase = phase;
         this.lighting?.setPhase(phase);
+    }
+
+    canSee(position: WorldPosition): boolean {
+        return isPositionVisible({
+            observer: this.player?.position ?? null,
+            target: position,
+            phase: this.daylightPhase,
+        });
+    }
+
+    private updateVisibility(): void {
+        const visibleZombies: string[] = [];
+        for (const [id, marker] of this.zombieMarkers) {
+            const isVisible = this.canSee({
+                xMeters: (marker.root.x - 480) / pixelsPerMeter,
+                yMeters: (marker.root.y - 270) / pixelsPerMeter,
+            });
+            marker.root.setVisible(isVisible);
+            if (isVisible) visibleZombies.push(id);
+        }
+        for (const marker of this.otherMarkers.values())
+            marker.root.setVisible(
+                this.canSee({
+                    xMeters: (marker.root.x - 480) / pixelsPerMeter,
+                    yMeters: (marker.root.y - 270) / pixelsPerMeter,
+                }),
+            );
+        const visibleCorpses = this.corpses.filter(corpse => this.canSee(corpse.position));
+        const corpseIds = new Set(visibleCorpses.map(corpse => corpse.corpseId));
+        for (const [id, marker] of this.corpseMarkers) marker.setVisible(corpseIds.has(id));
+        const isGroundVisible = this.groundItem !== null && this.canSee(this.groundItem.position);
+        this.itemMarker?.setVisible(isGroundVisible);
+        const canvas = this.game.canvas;
+        canvas.dataset['visibleZombies'] = JSON.stringify(visibleZombies);
+        canvas.dataset['groundItemVisible'] = String(isGroundVisible);
+        const signature = JSON.stringify([isGroundVisible, ...corpseIds]);
+        if (signature === this.visibilitySignature) return;
+
+        this.visibilitySignature = signature;
+        this.onVisibilityChange();
     }
 
     setZombies(zombies: readonly ZombieState[]): void {
@@ -361,6 +406,8 @@ export class BootScene extends Scene {
             }
             visual.tracer.setAlpha(Math.max(0, 1 - effect.ageMs / 180));
             visual.text.setAlpha(1 - effect.ageMs / shotEffectDurationMs);
+            visual.text.setVisible(this.canSee(impact.position));
+            visual.tracer.setVisible(this.canSee(impact.position));
         }
         this.game.canvas.dataset['shotEffects'] = JSON.stringify(this.shots.effects);
     }
@@ -424,6 +471,8 @@ export class BootScene extends Scene {
                 this.effects.set(effect.tick, visuals);
             }
 
+            visuals.text.setVisible(this.canSee(impact.position));
+            visuals.ring.setVisible(this.canSee(impact.position));
             const progress = effect.ageMs / meleeEffectDurationMs;
             visuals.text.setPosition(x, y - 25 - progress * 20).setAlpha(1 - progress);
             visuals.ring.setScale(1 + progress).setAlpha(1 - progress);
@@ -563,15 +612,20 @@ export class BootScene extends Scene {
         for (const marker of this.otherMarkers.values()) marker.advance({ deltaMs });
         for (const marker of this.zombieMarkers.values()) marker.advance({ deltaMs });
 
+        this.updateVisibility();
         const canvas = this.game.canvas;
         canvas.dataset['playerCharacter'] = JSON.stringify(
             this.player === null || !this.isAlive ? null : this.character?.snapshot(),
         );
         canvas.dataset['otherCharacters'] = JSON.stringify(
-            [...this.otherMarkers.values()].map(marker => marker.snapshot()),
+            [...this.otherMarkers.values()]
+                .filter(marker => marker.root.visible)
+                .map(marker => marker.snapshot()),
         );
         canvas.dataset['zombieCharacters'] = JSON.stringify(
-            [...this.zombieMarkers.values()].map(marker => marker.snapshot()),
+            [...this.zombieMarkers.values()]
+                .filter(marker => marker.root.visible)
+                .map(marker => marker.snapshot()),
         );
     }
 

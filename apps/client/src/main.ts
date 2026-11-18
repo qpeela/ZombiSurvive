@@ -225,14 +225,29 @@ const prediction = new MovementPrediction();
 let lifeRevision: number | null = null;
 let lastMovement: MovementSnapshot | null = null;
 let groundItem: GroundItem | null = null;
+let receivedGroundItem: GroundItem | null = null;
 let confirmedPosition: WorldPosition | null = null;
 let corpses: readonly (Corpse & { readonly items: readonly Item[] })[] = [];
 const corpseUi = createCorpseControls(corpseItems, itemId => {
     connection.pickUp(itemId);
 });
 const updatePickup = (): void => {
+    groundItem =
+        receivedGroundItem !== null && scene.canSee(receivedGroundItem.position)
+            ? receivedGroundItem
+            : null;
+    pickup.hidden = receivedGroundItem !== null && groundItem === null;
+    groundLabel.textContent =
+        groundItem === null
+            ? 'На земле: пусто'
+            : `На земле: ${itemDisplayName(groundItem)} · ${String(groundItem.position.xMeters)}, ${String(groundItem.position.yMeters)} м`;
+    pickup.textContent =
+        groundItem === null
+            ? 'Подобрать предмет'
+            : `Подобрать ${itemDisplayName(groundItem).toLocaleLowerCase('ru-RU')}`;
+
     corpseUi.update({
-        corpses,
+        corpses: corpses.filter(corpse => scene.canSee(corpse.position)),
         position: confirmedPosition,
         items: inventoryItems,
         isAlive: lifeState === 'alive',
@@ -260,6 +275,9 @@ const updatePickup = (): void => {
     pickup.title = hasSpace
         ? details
         : `${details} · Недостаточно места или превышена масса контейнера.`;
+};
+scene.onVisibilityChange = () => {
+    if (confirmedPosition !== null) updatePickup();
 };
 const messages = {
     connecting: 'Подключение к локальному миру…',
@@ -385,7 +403,10 @@ const connection = createWorldConnection(
         combatStatus.hidden = true;
         delete combatStatus.dataset['remainingTicks'];
         ammoLabel.textContent = 'Патроны: —';
+        receivedGroundItem = null;
         groundItem = null;
+        pickup.hidden = false;
+        pickup.textContent = 'Подобрать предмет';
         corpses = [];
         corpseUi.update({ corpses, position: null, items: [], isAlive: false });
         scene.setCorpses([]);
@@ -436,16 +457,8 @@ const connection = createWorldConnection(
     snapshot => {
         corpses = snapshot.corpses ?? [];
         scene.setCorpses(corpses);
-        groundItem = snapshot.groundItem;
-        scene.setGroundItem(groundItem);
-        groundLabel.textContent =
-            groundItem === null
-                ? 'На земле: пусто'
-                : `На земле: ${itemDisplayName(groundItem)} · ${String(groundItem.position.xMeters)}, ${String(groundItem.position.yMeters)} м`;
-        pickup.textContent =
-            groundItem === null
-                ? 'Подобрать предмет'
-                : `Подобрать ${itemDisplayName(groundItem).toLocaleLowerCase('ru-RU')}`;
+        receivedGroundItem = snapshot.groundItem;
+        scene.setGroundItem(receivedGroundItem);
         inventory.textContent = `Контейнер: предметов ${String(snapshot.items.length)}`;
         inventoryItems = snapshot.items;
         const restock = snapshot.restocks?.[0];
