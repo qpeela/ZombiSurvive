@@ -1,4 +1,4 @@
-import { itemDisplayName } from '@zombi-survive/content';
+import { type DaylightPhase, itemDisplayName } from '@zombi-survive/content';
 import {
     type Corpse,
     type GroundItem,
@@ -16,11 +16,14 @@ import { drawHeldWeapon, heldWeaponGrip } from './held-weapon';
 import { MeleeAnimation } from './melee-animation';
 import { meleeEffectDurationMs, MeleeFeedback } from './melee-feedback';
 import { shotEffectDurationMs, ShotFeedback } from './shot-feedback';
+import { WorldLighting } from './world-lighting';
 import { WorldTerrain } from './world-terrain';
 
 const pixelsPerMeter = 24;
 
 export class BootScene extends Scene {
+    private daylightPhase: DaylightPhase | null = null;
+    private lighting: WorldLighting | null = null;
     private player: PlayerMovementState | null = null;
     private isAlive = false;
     private marker: GameObjects.Container | null = null;
@@ -62,6 +65,8 @@ export class BootScene extends Scene {
 
     create(): void {
         this.terrain = new WorldTerrain(this);
+        this.lighting = new WorldLighting(this);
+        this.lighting.setPhase(this.daylightPhase);
         this.grid = this.add.graphics();
         this.aim = this.add
             .graphics()
@@ -147,6 +152,8 @@ export class BootScene extends Scene {
             this.game.canvas.removeEventListener('mousemove', onPointerPosition, true);
             this.game.canvas.removeEventListener('mousedown', onPointerPosition, true);
             this.game.canvas.removeEventListener('contextmenu', onContextMenu);
+            this.lighting?.destroy();
+            this.lighting = null;
             this.terrain?.destroy();
             this.terrain = null;
             this.grid = null;
@@ -173,6 +180,13 @@ export class BootScene extends Scene {
         });
         this.game.canvas.dataset['sceneReady'] = 'true';
         this.game.canvas.setAttribute('aria-label', 'Игровое поле ZombiSurvive');
+    }
+
+    setDaylightPhase(phase: DaylightPhase | null): void {
+        if (phase === this.daylightPhase) return;
+
+        this.daylightPhase = phase;
+        this.lighting?.setPhase(phase);
     }
 
     setZombies(zombies: readonly ZombieState[]): void {

@@ -1,5 +1,6 @@
 export { combatSettings } from './combat.ts';
 export { corpseSettings } from './corpses.ts';
+export { type DaylightPhase, daylightPhases } from './daylight.ts';
 export { initialGroundItem, inventorySettings, itemDefinitions, pickupSettings } from './items.ts';
 export { ammoSettings, itemDisplayName, itemWeightGrams } from './items.ts';
 export { movementSettings } from './movement.ts';
