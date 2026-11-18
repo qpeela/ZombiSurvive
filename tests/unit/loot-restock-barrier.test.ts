@@ -4,6 +4,7 @@ import { join } from 'node:path';
 
 import { type Client } from '@colyseus/core';
 import { lootRestockSettings } from '@zombi-survive/content';
+import { copyItem } from '@zombi-survive/domain';
 import { pickupStateRequest, protocolVersion } from '@zombi-survive/protocol';
 import { afterEach, expect, test, vi } from 'vitest';
 
@@ -27,7 +28,9 @@ for (const isFailed of [false, true]) {
         seed.savePosition(ammo.position);
         seed.saveItemLocations(
             seed.initialItemLocations.map(location =>
-                location.type === 'container' ? { type: 'expired', item: location.item } : location,
+                location.type === 'container'
+                    ? { type: 'expired', item: copyItem(location.item) }
+                    : location,
             ),
         );
         seed.close();
@@ -93,6 +96,97 @@ for (const isFailed of [false, true]) {
                             readyAtWorldMs: 6000 + lootRestockSettings.periodWorldMs,
                         },
                     ],
+                });
+            }
+        } finally {
+            room.onDispose();
+            store.close();
+            rmSync(directory, { recursive: true, force: true });
+        }
+    });
+}
+
+for (const isFailed of [false, true]) {
+    test(`a pickup request cannot expose uncommitted replenished stock (write failure: ${String(isFailed)})`, () => {
+        vi.useFakeTimers();
+        const directory = mkdtempSync(join(tmpdir(), 'zombi-restock-stock-barrier-'));
+        const path = join(directory, 'world.sqlite');
+        const seed = new SoloWorldStore(path);
+        const ammo = seed.lootPoints().find(item => item.kind === 'ammo9mm');
+        if (ammo === undefined) throw new Error('Missing ammo point.');
+        seed.savePosition(ammo.position);
+        seed.saveItemLocations(
+            seed.initialItemLocations.map(location =>
+                location.type === 'container' || location.item.itemId === ammo.itemId
+                    ? { type: 'expired', item: copyItem(location.item) }
+                    : location,
+            ),
+            { worldTimeMs: 0, restocks: new Map([[ammo.itemId, 6000]]) },
+        );
+        seed.close();
+        const store = new SoloWorldStore(path);
+        const room = new LocalWorldRoom();
+        let step = () => {};
+        vi.spyOn(room, 'setTimestep').mockImplementation(callback => {
+            step = () => callback?.(50);
+        });
+        const handlers = new Map<string, (client: Client, value: unknown) => unknown>();
+        vi.spyOn(room, 'onMessage').mockImplementation((type, handler: unknown) => {
+            if (typeof type === 'string' && typeof handler === 'function')
+                handlers.set(type, handler as (client: Client, value: unknown) => unknown);
+            return () => {};
+        });
+        const failed = vi.fn();
+        try {
+            room.onCreate({
+                access: new WorldAccess(false, 4000, 0, store.initialWorld.playerId),
+                soloStore: store,
+                onSaveError: failed,
+            });
+            const send = vi.fn<(type: string, value: unknown) => void>();
+            const client = {
+                sessionId: 'first',
+                auth: store.initialWorld.playerId,
+                send,
+            } as unknown as Client;
+            room.clients.push(client);
+            room.onJoin(client);
+            step();
+            vi.advanceTimersByTime(1);
+            send.mockClear();
+            const write = vi.spyOn(store, 'saveCombat');
+            if (isFailed)
+                write.mockImplementation(() => {
+                    throw new Error('timer failure');
+                });
+            handlers.get('pickup-item')?.(client, {
+                type: 'pickup-item',
+                protocolVersion,
+                itemId: ammo.itemId,
+            });
+            step();
+            expect(send).not.toHaveBeenCalled();
+            expect(handlers.get(pickupStateRequest)?.(client, undefined)).toMatchObject({
+                restocks: [expect.objectContaining({ pointId: ammo.itemId })],
+                items: [],
+            });
+            vi.advanceTimersByTime(1);
+            if (isFailed) {
+                expect(failed).toHaveBeenCalledOnce();
+                expect(send).not.toHaveBeenCalled();
+                expect(handlers.get(pickupStateRequest)?.(client, undefined)).toMatchObject({
+                    restocks: [expect.objectContaining({ pointId: ammo.itemId })],
+                    items: [],
+                });
+            } else {
+                expect(failed).not.toHaveBeenCalled();
+                expect(
+                    write.mock.calls
+                        .at(-1)?.[1]
+                        ?.find(location => location.item.itemId === `${ammo.itemId}:restock:6000`),
+                ).toMatchObject({ type: 'ground', item: { quantity: 8 } });
+                expect(handlers.get(pickupStateRequest)?.(client, undefined)).toMatchObject({
+                    restocks: [],
                 });
             }
         } finally {

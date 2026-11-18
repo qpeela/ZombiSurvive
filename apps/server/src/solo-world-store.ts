@@ -15,6 +15,7 @@ import {
     type GroundItem,
     isDisplayName,
     type ItemLocation,
+    restockPointId,
     type WorldPosition,
 } from '@zombi-survive/domain';
 import { addStarterWeapons, expireCorpses } from '@zombi-survive/simulation';
@@ -161,7 +162,8 @@ export class SoloWorldStore {
                 version !== 14 &&
                 version !== 15 &&
                 version !== 16 &&
-                version !== 17
+                version !== 17 &&
+                version !== 18
             ) {
                 throw new Error('Unsupported solo save schema version.');
             }
@@ -424,7 +426,7 @@ export class SoloWorldStore {
                 ],
                 this.lootPoints(),
             );
-            if (version !== 17) this.database.exec('PRAGMA user_version = 17');
+            if (version !== 18) this.database.exec('PRAGMA user_version = 18');
             this.profile = {
                 displayName: this.initialWorld.displayName,
                 nameRevision: this.initialWorld.nameRevision,
@@ -619,7 +621,9 @@ export class SoloWorldStore {
         const known = new Set(this.lootChunks);
         const additions: string[] = [];
         for (const location of locations) {
-            const key = chunkLootKeyFromItemId(location.item.itemId);
+            const key = chunkLootKeyFromItemId(
+                restockPointId(location.item.itemId) ?? location.item.itemId,
+            );
             if (key !== null && !known.has(key)) {
                 known.add(key);
                 additions.push(key);

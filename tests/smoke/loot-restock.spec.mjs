@@ -201,3 +201,58 @@ test('a real rejected deadline commit publishes neither a timer nor collected am
         rmSync(directory, { recursive: true, force: true });
     }
 });
+
+test('a due ammo point supplies one new pack while the previously carried pack survives reload and restart', async ({
+    page,
+}) => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-ammo-replenish-'));
+    const path = join(directory, 'world.sqlite');
+    const { ammo } = seed({ path, isPistolTaken: true });
+    const store = new SoloWorldStore(path);
+    const deadline = 300_000;
+    store.saveItemLocations(
+        store.initialItemLocations.map(location =>
+            location.item.itemId === ammo.itemId
+                ? {
+                      type: 'container',
+                      playerId: store.initialWorld.playerId,
+                      cell: { column: 0, row: 0 },
+                      item: { itemId: ammo.itemId, kind: 'ammo9mm', quantity: 3 },
+                  }
+                : location,
+        ),
+        { worldTimeMs: 0, restocks: new Map([[ammo.itemId, deadline]]) },
+    );
+    store.close();
+    let running = start(path);
+    try {
+        await expect.poll(running.output).toContain('Local world ready');
+        await open(page);
+        await expect(ammoButton(page)).toBeHidden();
+        await expect(ammoButton(page)).toContainText('×8', { timeout: 10_000 });
+        await ammoButton(page).click();
+        await expect(ammoButton(page)).toBeHidden();
+        await expect(page.locator('#equipment-weight')).toContainText('132 г');
+        await page.reload();
+        await expect(page.locator('#equipment-weight')).toContainText('132 г');
+        await stop(running);
+        const saved = new SoloWorldStore(path);
+        expect(
+            saved.initialItemLocations.find(location => location.item.itemId === ammo.itemId),
+        ).toMatchObject({ type: 'container', item: { quantity: 3 } });
+        expect(
+            saved.initialItemLocations.filter(
+                location => location.item.itemId === `${ammo.itemId}:restock:${deadline}`,
+            ),
+        ).toMatchObject([{ type: 'container', item: { quantity: 8 } }]);
+        saved.close();
+        running = start(path);
+        await expect.poll(running.output).toContain('Local world ready');
+        await open(page);
+        await expect(page.locator('#equipment-weight')).toContainText('132 г');
+        await expect(ammoButton(page)).toBeHidden();
+    } finally {
+        await stop(running);
+        rmSync(directory, { recursive: true, force: true });
+    }
+});

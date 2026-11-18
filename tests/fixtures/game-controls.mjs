@@ -24,7 +24,11 @@ export const clickWorld = async ({ page, position, button = 'left' }) => {
 export const movePlayerTo = async ({ page, position, timeoutMs = 15000 }) => {
     await clickWorld({ page, position });
     const status = page.getByRole('status');
-    // Screen-pixel quantization does not represent an exact world-space float.
+    const box = await page.locator('canvas').boundingBox();
+    if (box === null) throw new Error('Game canvas is not visible.');
+    // Pointer coordinates quantize to a CSS pixel. Scale both axes back to meters
+    // instead of demanding sub-pixel precision from a reduced canvas on CI.
+    const toleranceMeters = Math.max(0.05, Math.hypot(960 / box.width, 540 / box.height) / 24);
     await expect
         .poll(
             async () => {
@@ -36,7 +40,7 @@ export const movePlayerTo = async ({ page, position, timeoutMs = 15000 }) => {
             },
             { timeout: timeoutMs },
         )
-        .toBeLessThanOrEqual(0.05);
+        .toBeLessThanOrEqual(toleranceMeters);
 };
 export const activateStartingZombie = async page => {
     await movePlayerTo({ page, position: { xMeters: -3, yMeters: 0 } });

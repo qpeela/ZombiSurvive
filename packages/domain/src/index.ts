@@ -8,6 +8,7 @@ export {
 } from './health.ts';
 export type { InventoryCell, InventoryItem, InventorySettings, ItemLocation } from './inventory.ts';
 export { type AmmoStack, copyItem, type GroundItem, type Item, type PistolItem } from './item.ts';
+export { restockPointId } from './loot-point.ts';
 export type {
     MovementAxis,
     MovementDirection,
