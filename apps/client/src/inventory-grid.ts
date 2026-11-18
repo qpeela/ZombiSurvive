@@ -98,19 +98,20 @@ export const createInventoryGrid = ({
             grid.append(footprint);
             footprints.push(footprint);
 
-            if (item.kind !== 'bandage') {
+            const hasDuplicates =
+                next?.some(candidate => {
+                    const isOtherItem = candidate.itemId !== item.itemId;
+                    const isSameKind = candidate.kind === item.kind;
+
+                    return isOtherItem && isSameKind;
+                }) ?? false;
+            const isSelectable = item.kind !== 'bandage' || hasDuplicates;
+            if (isSelectable) {
                 const button = document.createElement('button');
                 button.type = 'button';
                 button.disabled = !isEnabled;
                 button.dataset['itemId'] = item.itemId;
                 button.textContent = `Переместить: ${itemDisplayName(item)} · ${String(definition.columns)} × ${String(definition.rows)} · ${String(itemWeightGrams(item))} г`;
-                const hasDuplicates =
-                    next?.some(candidate => {
-                        const isOtherItem = candidate.itemId !== item.itemId;
-                        const isSameKind = candidate.kind === item.kind;
-
-                        return isOtherItem && isSameKind;
-                    }) ?? false;
 
                 if (hasDuplicates) {
                     button.textContent += ` · ячейка ${String(item.cell.column + 1)}, ${String(item.cell.row + 1)}`;
