@@ -401,7 +401,6 @@ export class LocalWorldRoom extends Room {
             const replenished = this.lootTimers.replenish(
                 this.pickup.stagedLocations(),
                 this.worldTimeMs,
-                [...snapshots.values()].map(snapshot => snapshot.player.position),
             );
             if (replenished !== null) this.pickup.stageLocations(replenished);
 
