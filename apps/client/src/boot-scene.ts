@@ -33,6 +33,7 @@ export class BootScene extends Scene {
     private weapon: WeaponId | null = null;
     private weaponImage: GameObjects.Graphics | null = null;
     private facingAngle = 0;
+    private isFlashlightOn = false;
     private readonly animation = new MeleeAnimation();
     private readonly shots = new ShotFeedback();
     private readonly shotVisuals = new Map<
@@ -194,11 +195,18 @@ export class BootScene extends Scene {
         this.lighting?.setPhase(phase);
     }
 
+    setFlashlight(isEnabled: boolean): void {
+        this.isFlashlightOn = isEnabled;
+    }
+
     canSee(position: WorldPosition): boolean {
         return isPositionVisible({
             observer: this.player?.position ?? null,
             target: position,
             phase: this.daylightPhase,
+            ...(this.isFlashlightOn && this.isAlive
+                ? { flashlight: { angleRadians: this.facingAngle } }
+                : {}),
         });
     }
 
@@ -561,6 +569,11 @@ export class BootScene extends Scene {
             canvas.dataset['aimY'] = String((y - 270) / pixelsPerMeter);
         }
 
+        this.lighting?.draw({
+            position: this.player?.position ?? null,
+            angleRadians: this.facingAngle,
+            isFlashlightOn: this.isFlashlightOn && this.isAlive,
+        });
         this.updateWeapon(deltaMs);
         this.updateCharacters(deltaMs);
         this.updateFeedback(deltaMs);

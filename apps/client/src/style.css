@@ -259,3 +259,8 @@ button:focus-visible {
 #profile-message {
     max-width: 420px;
 }
+
+.flashlight-control {
+    pointer-events: auto;
+    justify-self: start;
+}
