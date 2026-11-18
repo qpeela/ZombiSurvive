@@ -1,4 +1,4 @@
-import { type DaylightPhase, itemDisplayName } from '@zombi-survive/content';
+import { type DaylightPhase, itemDisplayName, type WorldWeather } from '@zombi-survive/content';
 import {
     type Corpse,
     type GroundItem,
@@ -19,10 +19,14 @@ import { meleeEffectDurationMs, MeleeFeedback } from './melee-feedback';
 import { shotEffectDurationMs, ShotFeedback } from './shot-feedback';
 import { WorldLighting } from './world-lighting';
 import { WorldTerrain } from './world-terrain';
+import { WorldWeatherVisual } from './world-weather';
 
 const pixelsPerMeter = 24;
 
 export class BootScene extends Scene {
+    private weather: WorldWeather | null = null;
+    private weatherTimeMs = 0;
+    private weatherVisual: WorldWeatherVisual | null = null;
     private daylightPhase: DaylightPhase | null = null;
     private lighting: WorldLighting | null = null;
     private player: PlayerMovementState | null = null;
@@ -70,6 +74,7 @@ export class BootScene extends Scene {
     create(): void {
         this.terrain = new WorldTerrain(this);
         this.lighting = new WorldLighting(this);
+        this.weatherVisual = new WorldWeatherVisual(this);
         this.lighting.setPhase(this.daylightPhase);
         this.grid = this.add.graphics();
         this.aim = this.add
@@ -156,6 +161,8 @@ export class BootScene extends Scene {
             this.game.canvas.removeEventListener('mousemove', onPointerPosition, true);
             this.game.canvas.removeEventListener('mousedown', onPointerPosition, true);
             this.game.canvas.removeEventListener('contextmenu', onContextMenu);
+            this.weatherVisual?.destroy();
+            this.weatherVisual = null;
             this.lighting?.destroy();
             this.lighting = null;
             this.terrain?.destroy();
@@ -186,6 +193,11 @@ export class BootScene extends Scene {
         });
         this.game.canvas.dataset['sceneReady'] = 'true';
         this.game.canvas.setAttribute('aria-label', 'Игровое поле ZombiSurvive');
+    }
+
+    setWeather(weather: WorldWeather | null, worldTimeMs: number): void {
+        this.weather = weather;
+        this.weatherTimeMs = worldTimeMs;
     }
 
     setDaylightPhase(phase: DaylightPhase | null): void {
@@ -576,6 +588,7 @@ export class BootScene extends Scene {
             isFlashlightOn: this.isFlashlightOn && this.isAlive,
             obstacles: this.terrain?.obstacles ?? [],
         });
+        this.weatherVisual?.draw(this.weather, this.weatherTimeMs);
         this.updateWeapon(deltaMs);
         this.updateCharacters(deltaMs);
         this.updateFeedback(deltaMs);
