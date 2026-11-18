@@ -204,6 +204,7 @@ export class BootScene extends Scene {
             observer: this.player?.position ?? null,
             target: position,
             phase: this.daylightPhase,
+            obstacles: this.terrain?.obstacles ?? [],
             ...(this.isFlashlightOn && this.isAlive
                 ? { flashlight: { angleRadians: this.facingAngle } }
                 : {}),
@@ -573,6 +574,7 @@ export class BootScene extends Scene {
             position: this.player?.position ?? null,
             angleRadians: this.facingAngle,
             isFlashlightOn: this.isFlashlightOn && this.isAlive,
+            obstacles: this.terrain?.obstacles ?? [],
         });
         this.updateWeapon(deltaMs);
         this.updateCharacters(deltaMs);

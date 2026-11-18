@@ -1,4 +1,4 @@
-import type { WorldChunk, WorldPosition } from '@zombi-survive/domain';
+import type { WorldChunk, WorldObstacle, WorldPosition } from '@zombi-survive/domain';
 import { loadWorldChunks } from '@zombi-survive/worldgen';
 import type { GameObjects, Scene } from 'phaser';
 
@@ -14,6 +14,7 @@ const chunkMetadata = (chunk: WorldChunk) => ({
 
 /** Owns only the local visible neighbourhood and its Phaser resources. */
 export class WorldTerrain {
+    obstacles: readonly WorldObstacle[] = [];
     private chunks: readonly WorldChunk[] = [];
     private readonly graphics = new Map<string, GameObjects.Graphics>();
     private readonly scene: Scene;
@@ -51,9 +52,10 @@ export class WorldTerrain {
         }
 
         this.chunks = chunks;
+        this.obstacles = chunks.flatMap(chunk => chunk.obstacles);
         const canvas = this.scene.game.canvas;
         canvas.dataset['worldChunks'] = JSON.stringify(chunks.map(chunkMetadata));
-        canvas.dataset['obstacles'] = JSON.stringify(chunks.flatMap(chunk => chunk.obstacles));
+        canvas.dataset['obstacles'] = JSON.stringify(this.obstacles);
         const center = chunks.find(chunk => {
             if (position === null) {
                 return false;

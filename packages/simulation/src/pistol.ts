@@ -1,38 +1,14 @@
 import { pistolSettings } from '@zombi-survive/content';
 import type { PistolItem, WorldObstacle, WorldPosition, ZombieState } from '@zombi-survive/domain';
 
+import { obstacleRayDistance } from './obstacle-ray.ts';
+
 /** Compare-and-set the instance, so a retry remains harmless after cooldown/restart. */
 export const spendPistolRound = (pistol: PistolItem, revision: number): PistolItem | null => {
     const current = pistol.revision ?? 0;
     const isReady = pistol.rounds > 0 && current === revision && current < Number.MAX_SAFE_INTEGER;
     if (!isReady) return null;
     return { ...pistol, rounds: pistol.rounds - 1, revision: current + 1 };
-};
-
-const wallDistance = (input: {
-    origin: WorldPosition;
-    direction: { x: number; y: number };
-    wall: WorldObstacle;
-}): number | null => {
-    let near = 0;
-    let far: number = pistolSettings.rangeMeters;
-    const { origin, direction, wall } = input;
-    const axes = [
-        [origin.xMeters, direction.x, wall.minXMeters, wall.maxXMeters],
-        [origin.yMeters, direction.y, wall.minYMeters, wall.maxYMeters],
-    ] as const;
-    for (const [start, delta, min, max] of axes) {
-        if (Math.abs(delta) < 1e-12) {
-            if (start < min || start > max) return null;
-            continue;
-        }
-        const first = (min - start) / delta;
-        const second = (max - start) / delta;
-        near = Math.max(near, Math.min(first, second));
-        far = Math.min(far, Math.max(first, second));
-        if (near > far) return null;
-    }
-    return near;
 };
 
 /** First intersection wins; walls win ties. Targets include visible, non-pursuing zombies. */
@@ -53,7 +29,12 @@ export const tracePistolShot = ({
     let distance: number = pistolSettings.rangeMeters;
     let hasWall = false;
     for (const wall of obstacles) {
-        const hit = wallDistance({ origin, direction, wall });
+        const hit = obstacleRayDistance({
+            origin,
+            direction,
+            wall,
+            rangeMeters: pistolSettings.rangeMeters,
+        });
         if (hit !== null && hit <= distance) {
             distance = hit;
             hasWall = true;
