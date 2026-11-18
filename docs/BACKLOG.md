@@ -1912,7 +1912,7 @@ HUD и lifecycle), unit/smoke, версия и документация. Про�
 
 ### T055 — Ночная видимость
 
-Статус: IN_PROGRESS. Зависимости: T054.
+Статус: CI_PENDING; [PR #67](https://github.com/qpeela/ZombiSurvive/pull/67). Зависимости: T054.
 
 **Область:** content/simulation (дальность видимости), client (сцена и подсказки),
 unit/smoke, версия и документация. Проверки: тот же дневной/ночной маршрут,
