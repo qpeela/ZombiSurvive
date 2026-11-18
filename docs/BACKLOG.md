@@ -1900,7 +1900,7 @@ ID и владельцы, reload/restart, отказ записи без пуб�
 
 ### T054 — Смена дня и ночи
 
-Статус: IN_PROGRESS. Зависимости: T050.
+Статус: CI_PENDING; [PR #66](https://github.com/qpeela/ZombiSurvive/pull/66). Зависимости: T050.
 
 **Область:** content/simulation (фазы по часам мира), client (оттенок поля,
 HUD и lifecycle), unit/smoke, версия и документация. Проверки: все границы
