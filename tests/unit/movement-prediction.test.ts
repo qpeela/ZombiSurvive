@@ -270,3 +270,27 @@ test('death suspension discards unacknowledged targets and accepts only authorit
     prediction.setIntent(right, 1100);
     expect(prediction.sample(1200)?.position.xMeters).toBeGreaterThan(0);
 });
+
+test('an unsent bootstrap stop cannot exhaust the replay horizon before the first input after idle', () => {
+    const prediction = new MovementPrediction();
+    prediction.accept(snapshot(1), 0);
+    prediction.setIntent(stop, 0);
+    prediction.accept(snapshot(20), 1000);
+    prediction.setIntent(right, 1000);
+    expect(prediction.sample(1050)?.position.xMeters).toBeCloseTo(0.2, 12);
+    prediction.recordSent(createMovementInput(1, right.direction), 1050);
+    prediction.accept(snapshot(21), 1100);
+    expect(prediction.sample(1100)?.position.xMeters).toBeCloseTo(0.4, 12);
+    expect(prediction.sample(60000)).toEqual(prediction.sample(1500));
+});
+
+test('an initial stop does not claim prediction ownership over another tab while no command was sent', () => {
+    const prediction = new MovementPrediction();
+    const authority = {
+        ...snapshot(1),
+        player: { ...snapshot(1).player, stamina: 0.5, noiseRadiusMeters: 8 },
+    };
+    prediction.accept(authority, 0);
+    prediction.setIntent(stop, 0);
+    expect(prediction.sample(200)).toEqual(authority.player);
+});

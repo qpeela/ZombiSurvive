@@ -91,6 +91,11 @@ test('held transport shows predicted input before acknowledgement and reconciles
         await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
         await expect(page.locator('canvas')).toHaveAttribute('data-player-visible', 'true');
         await page.getByRole('heading').click();
+        // Exercise first input after the bootstrap stop is older than the prediction horizon.
+        const readyTick = Number(await page.getByRole('status').getAttribute('data-tick'));
+        await expect
+            .poll(async () => Number(await page.getByRole('status').getAttribute('data-tick')))
+            .toBeGreaterThanOrEqual(readyTick + 15);
         const start = await state(page);
         isHeld = true;
         await page.keyboard.down('d');
