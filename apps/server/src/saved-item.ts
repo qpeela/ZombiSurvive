@@ -7,6 +7,7 @@ import {
     isWeaponId,
     type Item,
     type ItemLocation,
+    restockPointId,
 } from '@zombi-survive/domain';
 import { placeInventoryItem } from '@zombi-survive/simulation';
 
@@ -170,16 +171,30 @@ export const readSavedItems = (
     worldLoot: readonly GroundItem[] = [],
     isConsumableBandage = false,
 ): readonly ItemLocation[] => {
-    const maximumBytes = Math.max(16_384, (worldLoot.length + 5) * 512);
+    const maximumBytes = 64 * 1024 * 1024;
     if (typeof value !== 'string' || value.length > maximumBytes) return invalidItem();
     const saved: unknown = JSON.parse(value);
     if (!Array.isArray(saved)) return invalidItem();
-    const finiteItemCount = 4 + worldLoot.length;
+    const restocked: GroundItem[] = [];
+    const originalItems = new Map(worldLoot.map(item => [item.itemId, item]));
+    for (const entry of saved as unknown[]) {
+        if (!isRecord(entry) || !isRecord(entry['item'])) return invalidItem();
+        const itemId = entry['item']['itemId'];
+        if (typeof itemId !== 'string') return invalidItem();
+        const pointId = restockPointId(itemId);
+        if (pointId === null) continue;
+
+        const point = originalItems.get(pointId);
+        if (point?.kind !== 'ammo9mm') return invalidItem();
+
+        restocked.push({ ...point, itemId });
+    }
+    const finiteItemCount = 4 + worldLoot.length + restocked.length;
     const hasCompleteManifest = saved.length === finiteItemCount + 1;
     const hasConsumedBandage = isConsumableBandage && saved.length === finiteItemCount;
     if (!hasCompleteManifest && !hasConsumedBandage) return invalidItem();
-    const worldItems = new Map(worldLoot.map(item => [item.itemId, item]));
-    if (worldItems.size !== worldLoot.length) return invalidItem();
+    const worldItems = new Map([...worldLoot, ...restocked].map(item => [item.itemId, item]));
+    if (worldItems.size !== worldLoot.length + restocked.length) return invalidItem();
     const locations: ItemLocation[] = [];
     const ids = new Set<string>();
     let items: readonly InventoryItem[] = [];
@@ -259,6 +274,12 @@ export const readSavedItems = (
     }
     if (locations.filter(location => location.item.kind !== 'bandage').length !== finiteItemCount)
         return invalidItem();
+    if (worldLoot.some(item => !ids.has(item.itemId))) return invalidItem();
+    const groundPoints = locations
+        .filter(location => location.type === 'ground')
+        .map(location => restockPointId(location.item.itemId) ?? location.item.itemId);
+    if (new Set(groundPoints).size !== groundPoints.length) return invalidItem();
+
     return locations;
 };
 

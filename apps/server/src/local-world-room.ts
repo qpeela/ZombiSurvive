@@ -398,6 +398,13 @@ export class LocalWorldRoom extends Room {
                 this.pickup.stageDeath(corpse);
                 nextCorpses = [...nextCorpses, corpse];
             }
+            const replenished = this.lootTimers.replenish(
+                this.pickup.stagedLocations(),
+                this.worldTimeMs,
+                [...snapshots.values()].map(snapshot => snapshot.player.position),
+            );
+            if (replenished !== null) this.pickup.stageLocations(replenished);
+
             this.lootTimers.stage(this.pickup.stagedLocations(), this.worldTimeMs);
             const timerSave = this.lootTimers.pendingSave();
             const worldProgress = {
