@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test';
 
 /** Use rendered camera coordinates and actual pointer input, never a game-state shortcut. */
-export const clickWorld = async ({ page, position, button = 'left' }) => {
+const worldPointerPosition = async ({ page, position }) => {
     const canvas = page.locator('canvas');
     await canvas.scrollIntoViewIfNeeded();
     await expect(canvas).toHaveAttribute('data-camera-x', /-?\d/);
@@ -19,7 +19,15 @@ export const clickWorld = async ({ page, position, button = 'left' }) => {
 
     if (!isInside) throw new Error('World target needs a visible waypoint.');
 
-    await page.mouse.click(box.x + x, box.y + y, { button });
+    return { x: box.x + x, y: box.y + y };
+};
+export const clickWorld = async ({ page, position, button = 'left' }) => {
+    const point = await worldPointerPosition({ page, position });
+    await page.mouse.click(point.x, point.y, { button });
+};
+export const aimWorld = async ({ page, position }) => {
+    const point = await worldPointerPosition({ page, position });
+    await page.mouse.move(point.x, point.y);
 };
 export const movePlayerTo = async ({ page, position, timeoutMs = 15000 }) => {
     await clickWorld({ page, position });

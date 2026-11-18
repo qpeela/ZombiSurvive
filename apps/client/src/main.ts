@@ -44,6 +44,7 @@ const profileForm = document.querySelector<HTMLFormElement>('#player-profile');
 const displayName = document.querySelector<HTMLInputElement>('#display-name');
 const saveName = document.querySelector<HTMLButtonElement>('#save-name');
 const profileMessage = document.querySelector<HTMLElement>('#profile-message');
+const flashlightButton = document.querySelector<HTMLButtonElement>('#flashlight');
 const daylightLabel = document.querySelector<HTMLElement>('#daylight-label');
 const worldTime = document.querySelector<HTMLElement>('#world-time');
 const playerName = document.querySelector<HTMLElement>('#player-name');
@@ -93,6 +94,7 @@ if (
     !playerName ||
     !worldTime ||
     !daylightLabel ||
+    !flashlightButton ||
     !shell ||
     !fullscreenButton ||
     !fullscreenMessage ||
@@ -227,6 +229,22 @@ let lastMovement: MovementSnapshot | null = null;
 let groundItem: GroundItem | null = null;
 let receivedGroundItem: GroundItem | null = null;
 let confirmedPosition: WorldPosition | null = null;
+let isFlashlightOn = false;
+const updateFlashlight = (): void => {
+    const isAvailable = confirmedPosition !== null && lifeState === 'alive';
+    if (!isAvailable) isFlashlightOn = false;
+
+    scene.setFlashlight(isFlashlightOn);
+    flashlightButton.disabled = !isAvailable;
+    flashlightButton.setAttribute('aria-pressed', String(isFlashlightOn));
+    flashlightButton.textContent = `Фонарик: ${isFlashlightOn ? 'вкл.' : 'выкл.'} (L)`;
+};
+const onFlashlight = (): void => {
+    if (flashlightButton.disabled) return;
+
+    isFlashlightOn = !isFlashlightOn;
+    updateFlashlight();
+};
 let corpses: readonly (Corpse & { readonly items: readonly Item[] })[] = [];
 const corpseUi = createCorpseControls(corpseItems, itemId => {
     connection.pickUp(itemId);
@@ -362,6 +380,7 @@ const connection = createWorldConnection(
             daylightLabel.dataset['phase'] = phase ?? 'unknown';
             prediction.accept(snapshot, performance.now());
             confirmedPosition = snapshot.player.position;
+            updateFlashlight();
             updatePickup();
             otherPlayers = snapshot.otherPlayers;
             input.updatePosition(snapshot.player.position);
@@ -411,6 +430,7 @@ const connection = createWorldConnection(
         corpseUi.update({ corpses, position: null, items: [], isAlive: false });
         scene.setCorpses([]);
         confirmedPosition = null;
+        updateFlashlight();
         pickup.disabled = true;
         groundLabel.textContent = 'На земле: —';
         inventory.textContent = 'Контейнер: —';
@@ -505,6 +525,7 @@ const connection = createWorldConnection(
         lifeState = snapshot.lifeState;
         const isAlive = lifeState === 'alive';
         scene.setAlive(isAlive);
+        updateFlashlight();
         deathScreen.hidden = isAlive;
         respawnButton.disabled = isAlive;
         input.setEnabled(isAlive);
@@ -635,12 +656,19 @@ const onReload = (): void => {
 };
 
 reloadButton.addEventListener('click', onReload);
-const onAttackKey = (event: KeyboardEvent): void => {
+const onGameActionKey = (event: KeyboardEvent): void => {
     const target = event.target;
     const isEditing =
         target instanceof HTMLElement &&
         (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
     const isModified = event.ctrlKey || event.metaKey || event.altKey;
+
+    if (event.code === 'KeyL' && !isEditing && !isModified) {
+        event.preventDefault();
+        if (!event.repeat) onFlashlight();
+
+        return;
+    }
 
     if (event.code === 'Space' && !isEditing && !isModified) {
         event.preventDefault();
@@ -664,7 +692,8 @@ const onAttackKey = (event: KeyboardEvent): void => {
     }
 };
 attack.addEventListener('click', onAttack);
-window.addEventListener('keydown', onAttackKey);
+window.addEventListener('keydown', onGameActionKey);
+flashlightButton.addEventListener('click', onFlashlight);
 const onRespawn = (): void => {
     if (lifeState === 'dead') connection.respawn();
 };
@@ -696,7 +725,8 @@ if (import.meta.hot) {
         attack.removeEventListener('click', onAttack);
         shotButton.removeEventListener('click', onShot);
         reloadButton.removeEventListener('click', onReload);
-        window.removeEventListener('keydown', onAttackKey);
+        window.removeEventListener('keydown', onGameActionKey);
+        flashlightButton.removeEventListener('click', onFlashlight);
         respawnButton.removeEventListener('click', onRespawn);
         pickup.removeEventListener('click', onPickup);
         reconnect.removeEventListener('click', onConnect);

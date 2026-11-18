@@ -30,3 +30,5 @@ export const daylightPhases = Object.freeze({
     }),
 });
 export type DaylightPhase = keyof typeof daylightPhases;
+
+export const flashlightSettings = Object.freeze({ rangeMeters: 12, halfAngleRadians: Math.PI / 6 });
