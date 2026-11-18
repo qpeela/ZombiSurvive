@@ -108,6 +108,11 @@ export class MovementPrediction {
         }
 
         const latest = this.pending.at(-1) ?? this.acknowledged;
+        const isInitialStop = latest === null && sameIntent(intent, stopped);
+        // An unsent bootstrap stop owns no movement and must not age the replay window.
+        if (isInitialStop) {
+            return;
+        }
 
         if (latest !== null && sameIntent(latest.intent, intent)) {
             return;

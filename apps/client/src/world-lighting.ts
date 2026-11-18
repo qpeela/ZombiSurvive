@@ -1,6 +1,16 @@
-import { type DaylightPhase, daylightPhases, flashlightSettings } from '@zombi-survive/content';
+import {
+    type DaylightPhase,
+    daylightPhases,
+    flashlightSettings,
+    fogSettings,
+    type WorldWeather,
+} from '@zombi-survive/content';
 import type { WorldObstacle, WorldPosition } from '@zombi-survive/domain';
-import { isWithinFlashlightAngle, obstacleRayDistance } from '@zombi-survive/simulation';
+import {
+    getVisibilityRanges,
+    isWithinFlashlightAngle,
+    obstacleRayDistance,
+} from '@zombi-survive/simulation';
 import type { GameObjects, Scene } from 'phaser';
 
 const fullCircle = Math.PI * 2;
@@ -34,10 +44,12 @@ export class WorldLighting {
         angleRadians,
         isFlashlightOn,
         obstacles,
+        weather,
     }: {
         readonly position: WorldPosition | null;
         readonly angleRadians: number;
         readonly isFlashlightOn: boolean;
+        readonly weather: WorldWeather | null;
         readonly obstacles: readonly WorldObstacle[];
     }): void {
         const camera = this.scene.cameras.main;
@@ -46,6 +58,7 @@ export class WorldLighting {
         const { width, height } = this.scene.scale;
         const signature = [
             this.phase,
+            weather,
             position?.xMeters,
             position?.yMeters,
             x,
@@ -65,9 +78,21 @@ export class WorldLighting {
         if (this.phase === null) return;
 
         const settings = daylightPhases[this.phase];
-        this.overlay.fillStyle(settings.color, settings.opacity);
         const isDark = this.phase === 'night' || this.phase === 'dusk';
-        if (position === null || !isDark) {
+        const isFoggy = weather === 'fog';
+        const { ambientMeters, flashlightMeters } = getVisibilityRanges({
+            phase: this.phase,
+            weather,
+        });
+        const maximumRangeMeters = Math.max(ambientMeters, flashlightMeters);
+        if (isFoggy) {
+            this.overlay
+                .fillStyle(fogSettings.dayColor, fogSettings.insideOpacity)
+                .fillRect(0, 0, width, height);
+        }
+        const color = isDark ? fogSettings.nightColor : fogSettings.dayColor;
+        this.overlay.fillStyle(isFoggy ? color : settings.color, isFoggy ? 1 : settings.opacity);
+        if (position === null || (!isDark && !isFoggy)) {
             this.overlay.fillRect(0, 0, width, height);
             return;
         }
@@ -86,11 +111,11 @@ export class WorldLighting {
             );
         const nearbyWalls = obstacles.filter(wall => {
             const isNearX =
-                wall.minXMeters <= position.xMeters + flashlightSettings.rangeMeters &&
-                wall.maxXMeters >= position.xMeters - flashlightSettings.rangeMeters;
+                wall.minXMeters <= position.xMeters + maximumRangeMeters &&
+                wall.maxXMeters >= position.xMeters - maximumRangeMeters;
             const isNearY =
-                wall.minYMeters <= position.yMeters + flashlightSettings.rangeMeters &&
-                wall.maxYMeters >= position.yMeters - flashlightSettings.rangeMeters;
+                wall.minYMeters <= position.yMeters + maximumRangeMeters &&
+                wall.maxYMeters >= position.yMeters - maximumRangeMeters;
 
             return isNearX && isNearY;
         });
@@ -120,9 +145,7 @@ export class WorldLighting {
                     angleRadians: (first + second) / 2,
                     facingAngleRadians: angleRadians,
                 });
-            const radiusMeters = isInBeam
-                ? Math.max(settings.visibilityMeters, flashlightSettings.rangeMeters)
-                : settings.visibilityMeters;
+            const radiusMeters = isInBeam ? maximumRangeMeters : ambientMeters;
             const rayRadius = (angle: number): number => {
                 const direction = { x: Math.cos(angle), y: Math.sin(angle) };
                 let distance = radiusMeters;

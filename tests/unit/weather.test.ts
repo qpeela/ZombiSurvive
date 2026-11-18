@@ -20,3 +20,16 @@ test('weather never invents a clock for invalid data', () => {
         expect(() => getWorldWeather(value)).toThrow(RangeError);
     }
 });
+
+test('fog spans the second day from 08:00 until midnight, overrides rain, and repeats without wall-clock state', () => {
+    for (const offset of [0, weatherSettings.cycleWorldMs * 50]) {
+        expect(getWorldWeather(offset + 24 * 3_600_000 - 1)).toBe('clear');
+        expect(getWorldWeather(offset + 24 * 3_600_000)).toBe('fog');
+        expect(getWorldWeather(offset + 28 * 3_600_000)).toBe('fog');
+        expect(getWorldWeather(offset + 40 * 3_600_000 - 1)).toBe('fog');
+        // At midnight the regular 00:00–04:00 rain resumes.
+        expect(getWorldWeather(offset + 40 * 3_600_000)).toBe('rain');
+    }
+    expect(getWorldWeather(0)).toBe('clear');
+    expect(getWorldWeather(24 * 3_600_000)).toBe('fog');
+});

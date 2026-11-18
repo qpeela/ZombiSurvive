@@ -6,9 +6,15 @@ export const getWorldWeather = (worldTimeMs: number): WorldWeather => {
     if (!isValidTime) throw new RangeError('Invalid weather world time.');
 
     const cycleTimeMs = worldTimeMs % weatherSettings.cycleWorldMs;
+    const isFoggy =
+        cycleTimeMs >= weatherSettings.fogStartsAtWorldMs &&
+        cycleTimeMs < weatherSettings.fogEndsAtWorldMs;
+    if (isFoggy) return 'fog';
+
+    const rainTimeMs = cycleTimeMs % weatherSettings.rainCycleWorldMs;
     const isRaining =
-        cycleTimeMs >= weatherSettings.rainStartsAtWorldMs &&
-        cycleTimeMs < weatherSettings.rainEndsAtWorldMs;
+        rainTimeMs >= weatherSettings.rainStartsAtWorldMs &&
+        rainTimeMs < weatherSettings.rainEndsAtWorldMs;
 
     return isRaining ? 'rain' : 'clear';
 };
