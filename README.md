@@ -19,6 +19,7 @@ Phaser предсказывает своё движение, UI показыва
 - [Техническая архитектура](docs/ARCHITECTURE.md)
 - [Контракты движения](docs/MOVEMENT_PROTOCOL.md)
 - [Приёмка одиночного прототипа и ограничения](docs/SOLO_ACCEPTANCE.md)
+- [Приёмка ночной вылазки в медпункт](docs/NIGHT_OUTING_ACCEPTANCE.md)
 - [Единый кодстайл](docs/CODE_STYLE.md)
 - [Правила агентов](AGENTS.md)
 - [Очередь задач](docs/BACKLOG.md) и [прогресс](docs/PROGRESS.md)
