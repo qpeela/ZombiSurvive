@@ -2,6 +2,8 @@
 
 Обновлено: 18 ноября 2026 года.
 
+Итоговая запись подтверждённого деплоя: [PR #74](https://github.com/qpeela/ZombiSurvive/pull/74).
+
 - Поручение T057–T061 завершено: пять отдельных PR
   [#69](https://github.com/qpeela/ZombiSurvive/pull/69),
   [#70](https://github.com/qpeela/ZombiSurvive/pull/70),
