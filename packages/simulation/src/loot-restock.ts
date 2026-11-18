@@ -1,4 +1,4 @@
-import { ammoSettings, lootRestockSettings } from '@zombi-survive/content';
+import { ammoSettings, lootRestockSettings, medicalOutpost } from '@zombi-survive/content';
 import { type GroundItem, type ItemLocation, restockPointId } from '@zombi-survive/domain';
 
 /** A stable point uses its original manifest ID, independently of its current owner. */
@@ -40,7 +40,7 @@ export const updateLootRestockTimers = ({
 };
 
 /** A missed period produces one pack, never a backlog of accumulated stock. */
-export const replenishAmmo = ({
+export const replenishLoot = ({
     points,
     locations,
     deadlines,
@@ -58,7 +58,10 @@ export const replenishAmmo = ({
     );
     const additions: ItemLocation[] = [];
     for (const point of points) {
-        if (point.kind !== 'ammo9mm' || occupied.has(point.itemId)) continue;
+        const isAmmo = point.kind === 'ammo9mm';
+        const isMedicalBandage =
+            point.kind === 'bandage' && point.itemId === medicalOutpost.bandageItemId;
+        if ((!isAmmo && !isMedicalBandage) || occupied.has(point.itemId)) continue;
 
         const deadline = deadlines.get(point.itemId);
         if (deadline === undefined || deadline > worldTimeMs) continue;
@@ -69,12 +72,14 @@ export const replenishAmmo = ({
 
         additions.push({
             type: 'ground',
-            item: {
-                itemId,
-                kind: 'ammo9mm',
-                quantity: ammoSettings.stackQuantity,
-                position: { ...point.position },
-            },
+            item: isAmmo
+                ? {
+                      itemId,
+                      kind: 'ammo9mm',
+                      quantity: ammoSettings.stackQuantity,
+                      position: { ...point.position },
+                  }
+                : { itemId, kind: 'bandage', position: { ...point.position } },
         });
     }
 

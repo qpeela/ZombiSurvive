@@ -163,7 +163,8 @@ export class SoloWorldStore {
                 version !== 15 &&
                 version !== 16 &&
                 version !== 17 &&
-                version !== 18
+                version !== 18 &&
+                version !== 19
             ) {
                 throw new Error('Unsupported solo save schema version.');
             }
@@ -231,7 +232,7 @@ export class SoloWorldStore {
                 );
                 this.worldLoot = [
                     ...worldItemManifest,
-                    ...this.lootChunks.flatMap(chunkLootForKey),
+                    ...this.lootChunks.flatMap(key => chunkLootForKey(key, version >= 19)),
                 ];
             }
             const priorManifest = version === 10 ? pistolManifest : ammoManifest;
@@ -426,7 +427,26 @@ export class SoloWorldStore {
                 ],
                 this.lootPoints(),
             );
-            if (version !== 18) this.database.exec('PRAGMA user_version = 18');
+            if (typeof version === 'number' && version < 19) {
+                const additions = this.lootChunks.flatMap(key =>
+                    chunkLootForKey(key).filter(item => item.kind === 'bandage'),
+                );
+                this.worldLoot = [...this.worldLoot, ...additions];
+                this.initialItemLocations = [
+                    ...this.initialItemLocations,
+                    ...additions.map(item => ({ type: 'ground' as const, item })),
+                ];
+                this.database
+                    .prepare('UPDATE solo_world SET item_location = ? WHERE id = 1')
+                    .run(
+                        writeSavedItems(
+                            this.initialItemLocations,
+                            this.initialWorld.playerId,
+                            this.worldLoot,
+                        ),
+                    );
+            }
+            if (version !== 19) this.database.exec('PRAGMA user_version = 19');
             this.profile = {
                 displayName: this.initialWorld.displayName,
                 nameRevision: this.initialWorld.nameRevision,
@@ -633,7 +653,7 @@ export class SoloWorldStore {
         const manifest =
             additions.length === 0
                 ? this.worldLoot
-                : [...this.worldLoot, ...additions.flatMap(chunkLootForKey)];
+                : [...this.worldLoot, ...additions.flatMap(key => chunkLootForKey(key))];
         const items = writeSavedItems(locations, this.initialWorld.playerId, manifest);
 
         return { items, chunks, manifest };

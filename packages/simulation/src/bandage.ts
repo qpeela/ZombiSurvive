@@ -1,4 +1,10 @@
-import type { BleedingState, ItemLocation, PlayerHealth } from '@zombi-survive/domain';
+import { medicalOutpost } from '@zombi-survive/content';
+import {
+    type BleedingState,
+    type ItemLocation,
+    type PlayerHealth,
+    restockPointId,
+} from '@zombi-survive/domain';
 
 type BandageInput = {
     readonly locations: readonly ItemLocation[];
@@ -28,7 +34,15 @@ export const useBandage = ({
     }
 
     return {
-        locations: locations.filter(location => location !== bandage),
+        locations: locations.flatMap(location => {
+            if (location !== bandage) return [location];
+
+            const pointId = restockPointId(itemId) ?? itemId;
+            // Keep durable world instances in the manifest, just like spent ammo packs.
+            return pointId === medicalOutpost.bandageItemId
+                ? [{ type: 'consumed' as const, item: { itemId, kind: 'bandage' as const } }]
+                : [];
+        }),
         player: { ...player, bleedingTicks: 0 },
     };
 };

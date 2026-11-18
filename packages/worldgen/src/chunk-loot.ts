@@ -2,6 +2,7 @@ import {
     ammoSettings,
     chunkLootSettings,
     collisionSettings,
+    medicalOutpost,
     pistolSettings,
     weaponLootSites,
 } from '@zombi-survive/content';
@@ -69,5 +70,14 @@ export const generateChunkLoot = (key: WorldChunkKey): readonly GroundItem[] => 
         position: ammoPosition,
     };
 
-    return existingWeapon === undefined ? [weapon, ammo] : [ammo];
+    const loot: GroundItem[] = existingWeapon === undefined ? [weapon, ammo] : [ammo];
+    const isOutpost = key.chunkX === medicalOutpost.chunkX && key.chunkY === medicalOutpost.chunkY;
+    if (isOutpost)
+        loot.push({
+            itemId: medicalOutpost.bandageItemId,
+            kind: 'bandage',
+            position: { ...medicalOutpost.bandagePosition },
+        });
+
+    return loot;
 };

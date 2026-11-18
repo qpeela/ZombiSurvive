@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 import { lootRestockSettings } from '@zombi-survive/content';
 import { type GroundItem, type ItemLocation } from '@zombi-survive/domain';
-import { replenishAmmo, updateLootRestockTimers } from '@zombi-survive/simulation';
+import { replenishLoot, updateLootRestockTimers } from '@zombi-survive/simulation';
 import { expect, test } from 'vitest';
 
 import { readSavedItems } from '../../apps/server/src/saved-item.ts';
@@ -27,8 +27,8 @@ const carried: ItemLocation = {
 
 test('one new instance appears exactly at the deadline, preserving carried stock', () => {
     const input = { points: [point], locations: [carried], deadlines };
-    expect(replenishAmmo({ ...input, worldTimeMs: deadline - 1 })).toBeNull();
-    const next = replenishAmmo({ ...input, worldTimeMs: deadline });
+    expect(replenishLoot({ ...input, worldTimeMs: deadline - 1 })).toBeNull();
+    const next = replenishLoot({ ...input, worldTimeMs: deadline });
     expect(next).toEqual([
         carried,
         {
@@ -40,7 +40,7 @@ test('one new instance appears exactly at the deadline, preserving carried stock
         },
     ]);
     expect(
-        replenishAmmo({ ...input, locations: next ?? [], worldTimeMs: deadline * 4 }),
+        replenishLoot({ ...input, locations: next ?? [], worldTimeMs: deadline * 4 }),
     ).toBeNull();
     expect(
         updateLootRestockTimers({ ...input, locations: next ?? [], worldTimeMs: deadline }),
@@ -57,7 +57,7 @@ test('a partial replenished pack keeps its point occupied over multiple periods'
         },
     };
     expect(
-        replenishAmmo({
+        replenishLoot({
             points: [point],
             locations: [carried, partial],
             deadlines,
@@ -75,7 +75,7 @@ test('a partial replenished pack keeps its point occupied over multiple periods'
 });
 
 test('collecting the replacement starts a fresh period with a different instance ID', () => {
-    const first = replenishAmmo({
+    const first = replenishLoot({
         points: [point],
         locations: [],
         deadlines,
@@ -92,7 +92,7 @@ test('collecting the replacement starts a fresh period with a different instance
     });
     expect(nextDeadlines?.get(point.itemId)).toBe(deadline * 2 + 1000);
     expect(
-        replenishAmmo({
+        replenishLoot({
             points: [point],
             locations,
             deadlines: nextDeadlines ?? new Map(),
@@ -119,7 +119,7 @@ test('replenished ammo round-trips with original ownership; malformed or duplica
 
             return location;
         });
-        const next = replenishAmmo({
+        const next = replenishLoot({
             points: [ammo],
             locations,
             deadlines: new Map([[ammo.itemId, deadline]]),

@@ -91,7 +91,7 @@ test('every sampled chunk initially has a weapon and ammo, including old layers,
         }
     }
     expect(lootFor(0, 0)).toEqual([]);
-    expect(lootFor(1, 0).map(item => item.kind)).toEqual(['ammo9mm']);
+    expect(lootFor(1, 0).map(item => item.kind)).toEqual(['ammo9mm', 'bandage']);
 });
 
 test('new loot sites are reachable through the real navigation with the player collider footprint', () => {
@@ -155,7 +155,7 @@ test('v12 migration preserves the complete old world and adds a registry without
     expect(loaded.initialItemLocations).toEqual(original);
     loaded.close();
     const migrated = new DatabaseSync(path);
-    expect(migrated.prepare('PRAGMA user_version').get()?.['user_version']).toBe(18);
+    expect(migrated.prepare('PRAGMA user_version').get()?.['user_version']).toBe(19);
     expect(migrated.prepare('SELECT loot_chunks FROM solo_world').get()?.['loot_chunks']).toBe(
         '[]',
     );
@@ -187,7 +187,7 @@ test('new chunk keys and items commit together; consumed ammo and expired weapon
     ]);
     loaded.close();
     loaded = open(path);
-    expect(loaded.initialItemLocations).toHaveLength(22);
+    expect(loaded.initialItemLocations).toHaveLength(23);
     expect(
         loaded.initialItemLocations.filter(location => location.type === 'expired'),
     ).toHaveLength(1);

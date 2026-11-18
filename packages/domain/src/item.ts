@@ -15,8 +15,12 @@ export type AmmoStack = {
     readonly quantity: number;
 };
 
+export type BandageItem = { readonly itemId: string; readonly kind: 'bandage' };
 export type Item =
-    { readonly itemId: string; readonly kind: 'bandage' | MeleeWeaponId } | PistolItem | AmmoStack;
+    | BandageItem
+    | { readonly itemId: string; readonly kind: MeleeWeaponId }
+    | PistolItem
+    | AmmoStack;
 export type GroundItem = Item & { readonly position: WorldPosition };
 
 /** Copy item state without retaining a ground position or inventory cell. */
