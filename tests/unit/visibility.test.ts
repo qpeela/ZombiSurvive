@@ -117,3 +117,26 @@ test('a disconnected observer and invalid beam cannot reveal a distant target', 
         }),
     ).toBe(false);
 });
+
+test('walls stop ambient sight and the beam; an open passage reveals the same target', () => {
+    const wall = { id: 'wall', minXMeters: 4, maxXMeters: 4.5, minYMeters: -2, maxYMeters: 2 };
+    const target = { xMeters: 8, yMeters: 0 };
+    const input = {
+        observer: { xMeters: 0, yMeters: 0 },
+        target,
+        phase: 'night' as const,
+        flashlight: { angleRadians: 0 },
+        obstacles: [wall],
+    };
+    expect(isPositionVisible(input)).toBe(false);
+    expect(isPositionVisible({ ...input, phase: 'day' })).toBe(false);
+    expect(
+        isPositionVisible({
+            ...input,
+            observer: { xMeters: 6, yMeters: -4 },
+            flashlight: { angleRadians: Math.atan2(4, 2) },
+        }),
+    ).toBe(true);
+    expect(isPositionVisible({ ...input, target: { xMeters: 2, yMeters: 0 } })).toBe(true);
+    expect(isPositionVisible({ ...input, target: { xMeters: 4, yMeters: 0 } })).toBe(true);
+});

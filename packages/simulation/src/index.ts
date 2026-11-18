@@ -20,6 +20,7 @@ export {
     stepPlayerMovement,
     stepPlayerToward,
 } from './movement.ts';
+export { obstacleRayDistance } from './obstacle-ray.ts';
 export { pickUpItem } from './pickup.ts';
 export { spendPistolRound, tracePistolShot } from './pistol.ts';
 export { reloadPistol } from './reload.ts';

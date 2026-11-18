@@ -2,6 +2,7 @@ import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 
 import { expect, test } from '@playwright/test';
+import { meleeWeapons } from '@zombi-survive/content';
 
 test('server-confirmed swings animate all weapons; refusal, switching and reconnect cannot replay them', async ({
     page,
@@ -44,7 +45,17 @@ test('server-confirmed swings animate all weapons; refusal, switching and reconn
             lastTick = Number(await canvas.getAttribute('data-weapon-attack-tick'));
             await expect(canvas).not.toHaveAttribute('data-weapon-animation', 'idle');
             if (weapon === 'axe') await canvas.screenshot({ path: '.cache/t024-axe-swing.png' });
-            await expect(canvas).toHaveAttribute('data-weapon-animation', 'idle');
+            // A local animation can finish before a busy host has advanced its cooldown.
+            // Pause that host for the axe to exercise both clocks independently.
+            if (weapon === 'axe') host.kill('SIGSTOP');
+            try {
+                await expect(canvas).toHaveAttribute('data-weapon-animation', 'idle');
+            } finally {
+                if (weapon === 'axe') host.kill('SIGCONT');
+            }
+            await expect
+                .poll(async () => Number(await page.getByRole('status').getAttribute('data-tick')))
+                .toBeGreaterThanOrEqual(lastTick + meleeWeapons[weapon].cooldownTicks);
         }
         await page.getByRole('button', { name: 'Ударить (F)', exact: true }).click();
         await expect
