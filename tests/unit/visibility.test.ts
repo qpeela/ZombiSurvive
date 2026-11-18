@@ -140,3 +140,37 @@ test('walls stop ambient sight and the beam; an open passage reveals the same ta
     expect(isPositionVisible({ ...input, target: { xMeters: 2, yMeters: 0 } })).toBe(true);
     expect(isPositionVisible({ ...input, target: { xMeters: 4, yMeters: 0 } })).toBe(true);
 });
+
+test('fog limits daylight to 8m and a night beam to 6m, preserving the 3m night circle', () => {
+    const observer = { xMeters: 0, yMeters: 0 };
+    const input = { observer, phase: 'day' as const, weather: 'fog' as const };
+    expect(isPositionVisible({ ...input, target: { xMeters: 8, yMeters: 0 } })).toBe(true);
+    expect(isPositionVisible({ ...input, target: { xMeters: 8.001, yMeters: 0 } })).toBe(false);
+    const night = { ...input, phase: 'night' as const, flashlight: { angleRadians: 0 } };
+    expect(isPositionVisible({ ...night, target: { xMeters: 6, yMeters: 0 } })).toBe(true);
+    expect(isPositionVisible({ ...night, target: { xMeters: 6.001, yMeters: 0 } })).toBe(false);
+    expect(isPositionVisible({ ...night, target: { xMeters: -3, yMeters: 0 } })).toBe(true);
+    expect(isPositionVisible({ ...night, target: { xMeters: -3.001, yMeters: 0 } })).toBe(false);
+    expect(
+        isPositionVisible({ ...night, weather: 'clear', target: { xMeters: 10, yMeters: 0 } }),
+    ).toBe(true);
+});
+
+test('fog does not illuminate through walls or reveal a target outside the cone', () => {
+    const input = {
+        observer: { xMeters: 0, yMeters: 0 },
+        phase: 'night' as const,
+        weather: 'fog' as const,
+        flashlight: { angleRadians: 0 },
+    };
+    expect(isPositionVisible({ ...input, target: { xMeters: 0, yMeters: 5 } })).toBe(false);
+    expect(
+        isPositionVisible({
+            ...input,
+            target: { xMeters: 5, yMeters: 0 },
+            obstacles: [
+                { id: 'wall', minXMeters: 4, maxXMeters: 4.5, minYMeters: -2, maxYMeters: 2 },
+            ],
+        }),
+    ).toBe(false);
+});
