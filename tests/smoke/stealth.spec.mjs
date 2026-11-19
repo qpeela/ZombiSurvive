@@ -41,7 +41,7 @@ test('Ctrl stealth agrees with authority, overrides Shift, supports clicks, and 
         const canvas = page.locator('canvas');
         await expect(status).toHaveAttribute('data-status', 'connected');
         await expect(canvas).toHaveAttribute('data-player-visible', 'true');
-        await page.getByRole('heading').click();
+        await page.getByRole('heading', { name: 'ZombiSurvive', exact: true }).click();
         await page.keyboard.down('ShiftLeft');
         await page.keyboard.down('w');
         await expect.poll(async () => (await state(page)).stamina).toBeLessThan(0.95);

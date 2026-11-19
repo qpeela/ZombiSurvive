@@ -213,6 +213,7 @@ test('complete solo cycle uses real UI, retains one life and finite items across
         await expect(page.locator('#held-ammo')).toHaveText('Магазин: 8/8 · Запас: 4');
         await page.screenshot({ path: '.cache/t040-return.png', fullPage: true });
         await canvas.scrollIntoViewIfNeeded();
+        await page.locator('#game').focus();
         await page.keyboard.down('Shift');
         await page.keyboard.down('s');
         try {

@@ -46,7 +46,7 @@ const connectPage = async page => {
     await page.goto('/');
     await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
     await expect(page.locator('canvas')).toHaveAttribute('data-player-visible', 'true');
-    await page.getByRole('heading').click();
+    await page.getByRole('heading', { name: 'ZombiSurvive', exact: true }).click();
 
     return readPosition(page);
 };
@@ -123,7 +123,7 @@ test('blur and connection loss clear held keys; retry waits for fresh input', as
     await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
     await waitStopped(page);
     await page.keyboard.up('a');
-    await page.getByRole('heading').click();
+    await page.getByRole('heading', { name: 'ZombiSurvive', exact: true }).click();
     await page.keyboard.down('s');
     const rejoined = await readPosition(page);
     await expect.poll(async () => (await readPosition(page)).y).toBeGreaterThan(rejoined.y + 0.2);

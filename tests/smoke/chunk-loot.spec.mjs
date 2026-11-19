@@ -263,6 +263,7 @@ test('a nearly full bag can reach the separate ammo pack without taking the heav
         await expect(
             page.locator(`#inventory-items button[data-item-id="${ammo.itemId}"]`),
         ).toContainText('×8');
+        await page.locator('#game').focus();
         await page.keyboard.press('r');
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
         await expect(
