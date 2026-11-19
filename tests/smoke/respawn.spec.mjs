@@ -53,6 +53,8 @@ test('death, explicit respawn in both tabs, return and pickup survive old comman
         await expect.poll(running.output).toContain('Local world ready');
         await page.goto(origin);
         await expect(page.locator('#death-screen')).toBeVisible();
+        await expect(page.locator('#held-item')).toHaveText('В руках: пусто');
+        await expect(page.locator('#held-ammo')).toBeHidden();
         await page.reload();
         await expect(page.locator('#death-screen')).toBeVisible();
         tab = await context.newPage();
@@ -82,6 +84,8 @@ test('death, explicit respawn in both tabs, return and pickup survive old comman
             await expect(current.locator('#health')).toHaveAttribute('value', '100');
             await expect(current.locator('#inventory')).toHaveText('Контейнер: предметов 0');
             await expect(current.locator('#player-name')).toHaveText('Имя: Вернувшийся');
+            await expect(current.locator('#held-item')).toHaveText('В руках: пусто');
+            await expect(current.locator('#held-ammo')).toBeHidden();
         }
         const read = () =>
             page.getByRole('status').evaluate(element => ({

@@ -120,16 +120,34 @@ h1 {
     cursor: none;
 }
 
-.stamina-hud {
+.playfield-hud {
     position: absolute;
-    top: 12px;
-    left: 12px;
+    inset: 12px auto 12px 12px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    max-width: calc(100% - 24px);
+    pointer-events: none;
+}
+
+.stamina-hud {
+    position: relative;
     z-index: 1;
     display: grid;
     gap: 6px;
+    min-height: 0;
+    max-width: 100%;
     padding: 8px 12px;
+    overflow: auto;
+    overscroll-behavior: contain;
     background: #0b100ed9;
-    pointer-events: none;
+}
+
+@media (max-height: 480px) {
+    .stamina-hud {
+        pointer-events: auto;
+    }
 }
 
 .world-hud {
@@ -189,6 +207,23 @@ h1 {
 .status-icon {
     color: #b4caa4;
     text-align: center;
+}
+
+.held-equipment {
+    position: relative;
+    z-index: 4;
+    flex: none;
+    max-width: 100%;
+    margin-top: auto;
+    padding: 6px 9px;
+    border: 1px solid #536344;
+    background: #0b100ef2;
+    font-size: 12px;
+    line-height: 1.4;
+}
+
+#held-ammo:not([hidden]) {
+    display: block;
 }
 
 #health {

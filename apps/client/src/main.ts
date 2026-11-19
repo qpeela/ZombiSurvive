@@ -32,6 +32,7 @@ import { BootScene } from './boot-scene';
 import { createCharacterHud } from './character-hud';
 import { createControlPanels } from './control-panels';
 import { createCorpseControls } from './corpse-controls';
+import { createEquipmentHud } from './equipment-hud';
 import { createFullscreenControls } from './fullscreen';
 import { createInventoryGrid } from './inventory-grid';
 import { createMovementInputController } from './movement-input';
@@ -73,6 +74,8 @@ const reloadButton = document.querySelector<HTMLButtonElement>('#pistol-reload')
 const reloadLabel = document.querySelector<HTMLElement>('#reload-label');
 const reloadProgress = document.querySelector<HTMLProgressElement>('#reload-progress');
 const ammoLabel = document.querySelector<HTMLElement>('#ammo-label');
+const heldItem = document.querySelector<HTMLElement>('#held-item');
+const heldAmmo = document.querySelector<HTMLElement>('#held-ammo');
 const weaponLabel = document.querySelector<HTMLElement>('#weapon-label');
 const reconnect = document.querySelector<HTMLButtonElement>('#reconnect');
 const stamina = document.querySelector<HTMLProgressElement>('#stamina');
@@ -128,6 +131,8 @@ if (
     !reloadProgress ||
     !weaponLabel ||
     !ammoLabel ||
+    !heldItem ||
+    !heldAmmo ||
     !container ||
     !status ||
     !reconnect ||
@@ -165,6 +170,7 @@ const characterHud = createCharacterHud({
     staminaLabel,
     loadLabel,
 });
+const equipmentHud = createEquipmentHud({ heldItem, ammunition: heldAmmo });
 const game = new Game({
     type: AUTO,
     parent: container,
@@ -202,7 +208,9 @@ const updateFirearm = (): void => {
     const isReloading = reloadTicks > 0;
     const rounds = pistol?.rounds ?? 0;
     const isFull = pistol !== null && rounds >= pistol.magazineCapacity;
-    const hasAmmo = inventoryItems.some(item => item.kind === 'ammo9mm' && item.quantity > 0);
+    const hasAmmo = inventoryItems.some(
+        item => item.kind === pistolSettings.ammoKind && item.quantity > 0,
+    );
 
     shotButton.disabled = !isAlive || !isPistol || rounds <= 0 || isReloading;
     reloadButton.disabled = !isAlive || !isPistol || isFull || !hasAmmo || isReloading;
@@ -451,6 +459,7 @@ const connection = createWorldConnection(
         health.value = 0;
         healthLabel.textContent = 'Здоровье: —';
         characterHud.reset();
+        equipmentHud.reset();
         ammoLabel.textContent = 'Патроны: —';
         receivedGroundItem = null;
         groundItem = null;
@@ -523,6 +532,7 @@ const connection = createWorldConnection(
         }
         updateBandage();
         hands = snapshot.hands;
+        equipmentHud.acceptEquipment(snapshot);
         const weightGrams = equipmentWeightGrams({ items: snapshot.items, hands });
         equipmentWeight.textContent = `Вес снаряжения: ${String(weightGrams)} г (сетка, руки и боезапас)`;
         updateFirearm();
@@ -553,6 +563,7 @@ const connection = createWorldConnection(
         lifeRevision = nextLife;
         health.dataset['lifeRevision'] = String(nextLife);
         lifeState = snapshot.lifeState;
+        equipmentHud.acceptLife(snapshot);
         const isAlive = lifeState === 'alive';
         scene.setAlive(isAlive);
         updateFlashlight();
