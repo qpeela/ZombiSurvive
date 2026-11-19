@@ -1,7 +1,6 @@
 import './style.css';
 
 import {
-    daylightPhases,
     itemDefinitions,
     itemDisplayName,
     itemWeightGrams,
@@ -9,7 +8,6 @@ import {
     movementSettings,
     pickupSettings,
     pistolSettings,
-    weatherPhases,
 } from '@zombi-survive/content';
 import {
     type Corpse,
@@ -41,6 +39,7 @@ import { MovementPrediction } from './movement-prediction';
 import { createPlayerProfileControls } from './player-profile';
 import { formatWorldTime } from './world-clock';
 import { createWorldConnection } from './world-connection';
+import { createWorldHud } from './world-hud';
 import { createWorldSession } from './world-session';
 
 const profileForm = document.querySelector<HTMLFormElement>('#player-profile');
@@ -51,6 +50,8 @@ const flashlightButton = document.querySelector<HTMLButtonElement>('#flashlight'
 const weatherLabel = document.querySelector<HTMLElement>('#weather-label');
 const daylightLabel = document.querySelector<HTMLElement>('#daylight-label');
 const worldTime = document.querySelector<HTMLElement>('#world-time');
+const worldSummary = document.querySelector<HTMLElement>('#world-hud summary');
+const worldClockStatus = document.querySelector<HTMLElement>('#world-clock-status');
 const playerName = document.querySelector<HTMLElement>('#player-name');
 const shell = document.querySelector<HTMLElement>('.game-shell');
 const controlScroll = document.querySelector<HTMLElement>('.control-scroll');
@@ -103,6 +104,8 @@ if (
     !profileMessage ||
     !playerName ||
     !worldTime ||
+    !worldSummary ||
+    !worldClockStatus ||
     !daylightLabel ||
     !weatherLabel ||
     !flashlightButton ||
@@ -343,6 +346,27 @@ const input = createMovementInputController(
         },
     },
 );
+const worldHud = createWorldHud({
+    summary: worldSummary,
+    time: worldTime,
+    daylight: daylightLabel,
+    weather: weatherLabel,
+    waiting: worldClockStatus,
+    onFocus: input.reset,
+});
+const updateWorldTime = (worldTimeMs?: number): void => {
+    const state =
+        worldTimeMs === undefined
+            ? null
+            : {
+                  worldTimeMs,
+                  phase: getDaylightPhase(worldTimeMs),
+                  weather: getWorldWeather(worldTimeMs),
+              };
+    scene.setDaylightPhase(state?.phase ?? null);
+    scene.setWeather(state?.weather ?? null, worldTimeMs ?? 0);
+    worldHud.setState(state);
+};
 const fullscreen = createFullscreenControls({
     container: shell,
     button: fullscreenButton,
@@ -390,24 +414,7 @@ const connection = createWorldConnection(
             const { snapshot } = state;
             lastMovement = snapshot;
             characterHud.setMovement(snapshot.player);
-            worldTime.textContent =
-                snapshot.worldTimeMs === undefined
-                    ? 'Время мира: —'
-                    : `Время мира: ${formatWorldTime(snapshot.worldTimeMs)}`;
-            if (snapshot.worldTimeMs === undefined) delete worldTime.dataset['worldMs'];
-            else worldTime.dataset['worldMs'] = String(snapshot.worldTimeMs);
-            const phase =
-                snapshot.worldTimeMs === undefined ? null : getDaylightPhase(snapshot.worldTimeMs);
-            scene.setDaylightPhase(phase);
-            daylightLabel.textContent =
-                phase === null ? 'Освещение: —' : `Освещение: ${daylightPhases[phase].label}`;
-            daylightLabel.dataset['phase'] = phase ?? 'unknown';
-            const weather =
-                snapshot.worldTimeMs === undefined ? null : getWorldWeather(snapshot.worldTimeMs);
-            scene.setWeather(weather, snapshot.worldTimeMs ?? 0);
-            weatherLabel.textContent =
-                weather === null ? 'Погода: —' : `Погода: ${weatherPhases[weather].label}`;
-            weatherLabel.dataset['weather'] = weather ?? 'unknown';
+            updateWorldTime(snapshot.worldTimeMs);
             prediction.accept(snapshot, performance.now());
             confirmedPosition = snapshot.player.position;
             updateFlashlight();
@@ -432,14 +439,7 @@ const connection = createWorldConnection(
             return;
         }
 
-        scene.setDaylightPhase(null);
-        scene.setWeather(null, 0);
-        weatherLabel.textContent = 'Погода: —';
-        delete weatherLabel.dataset['weather'];
-        daylightLabel.textContent = 'Освещение: —';
-        delete daylightLabel.dataset['phase'];
-        worldTime.textContent = 'Время мира: —';
-        delete worldTime.dataset['worldMs'];
+        updateWorldTime();
         profileUi.update(null);
         lifeState = null;
         scene.setAlive(false);
@@ -748,6 +748,7 @@ if (import.meta.hot) {
         gameResize.disconnect();
         fullscreen.dispose();
         controlPanels.dispose();
+        worldHud.dispose();
         input.dispose();
         profileUi.dispose();
         inventoryUi.dispose();

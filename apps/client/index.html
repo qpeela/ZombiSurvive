@@ -156,9 +156,21 @@
                 </div>
                 <div class="stamina-hud">
                     <span id="player-name">Имя: —</span>
-                    <span id="world-time">Время мира: —</span>
-                    <span id="daylight-label">Освещение: —</span>
-                    <span id="weather-label">Погода: —</span>
+                    <div id="world-hud" class="world-hud" role="group" aria-label="Условия мира">
+                        <details>
+                            <summary>Время и погода</summary>
+                            <p class="world-hud-help">
+                                Фаза суток влияет на дальность обзора. Туман дополнительно
+                                ограничивает обзор и дальность луча фонарика.
+                            </p>
+                        </details>
+                        <div class="world-hud-values">
+                            <span id="world-time">Время мира: —</span>
+                            <span id="daylight-label">Освещение: —</span>
+                            <span id="weather-label">Погода: —</span>
+                            <span id="world-clock-status">Ожидание часов хоста</span>
+                        </div>
+                    </div>
                     <button
                         id="flashlight"
                         class="flashlight-control"
