@@ -9,6 +9,7 @@ import { expect, test } from '@playwright/test';
 import { localWorldRoomId } from '@zombi-survive/protocol';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
+import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3126';
 const command = {
@@ -17,10 +18,10 @@ const command = {
     inventoryVersion: 2,
     itemId: 'starter-bandage',
 };
-const seed = (path, { health = 70, bleedingTicks = 100 } = {}) => {
+const seed = (path, { health = 70, bleedingTicks = 100, worldTimeMs } = {}) => {
     const store = new SoloWorldStore(path);
     const playerId = store.initialWorld.playerId;
-    store.savePosition({ xMeters: 8, yMeters: 12 });
+    store.savePosition({ xMeters: 8, yMeters: 12 }, worldTimeMs);
     store.saveCombat(
         { health, bleedingTicks, cooldownTicks: 0 },
         store.initialItemLocations.map(location =>
@@ -80,6 +81,69 @@ const observer = async () => {
         room.onMessage(type, () => {});
     return room;
 };
+
+test('night HUD shows bleeding and combat together, confirms bandaging and resets on disconnect', async ({
+    page,
+    context,
+}) => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-status-hud-'));
+    const path = join(directory, 'world.sqlite');
+    seed(path, { worldTimeMs: 14 * 3_600_000 });
+    const running = start(path);
+    try {
+        await expect.poll(running.output).toContain('Local world ready');
+        await open(page);
+        const canvas = page.locator('canvas');
+        const hud = page.getByRole('group', { name: 'Состояние персонажа' });
+        const bleeding = hud.locator('#bleeding-label');
+        const combat = hud.locator('#combat-status');
+        const idle = hud.locator('#combat-idle');
+        const stamina = hud.locator('#stamina-label');
+        const staminaMeter = hud.locator('#stamina');
+        const load = hud.locator('#load-label');
+        const status = page.getByRole('status');
+        const bandage = page.getByRole('button', { name: 'Использовать бинт', exact: true });
+        await expect(canvas).toHaveAttribute('data-daylight-phase', 'night');
+        await expect(hud).toBeInViewport();
+        await expect(hud.locator('.status-icon[aria-hidden="true"]')).toHaveCount(4);
+        await expect(idle).toHaveText('Вне боя');
+        await clickEquipmentAction(page, 'Экипировать дубинку');
+        await expect(page.locator('#melee-attack')).toBeEnabled();
+        await page.keyboard.press('f');
+        await expect(canvas).toHaveAttribute('data-weapon-attack-tick', /^\d+$/);
+        await expect(combat).toBeInViewport({ ratio: 1 });
+        await expect(bleeding).toHaveText('Кровотечение: есть');
+        await expect(bleeding).toBeInViewport({ ratio: 1 });
+        await expect(load).toHaveText(/^Нагрузка: \d+ г/);
+        await expect(stamina).toHaveText('Выносливость: 100%');
+        await expect(staminaMeter).toBeVisible();
+        await page.screenshot({ path: '.cache/t064-night-status.png' });
+        await bandage.click();
+        await expect(bleeding).toHaveText('Кровотечение: нет');
+        await expect(combat).toBeVisible();
+
+        await context.setOffline(true);
+        await expect(status).toHaveAttribute('data-status', 'disconnected');
+        await expect(bleeding).toHaveText('Кровотечение: —');
+        await expect(stamina).toHaveText('Выносливость: —');
+        await expect(staminaMeter).toBeHidden();
+        await expect(load).toHaveText('Нагрузка: —');
+        await expect(idle).toHaveText('Бой: —');
+        await expect(combat).toBeHidden();
+        await context.setOffline(false);
+        await page.getByRole('button', { name: 'Подключиться снова' }).click();
+        await expect(bleeding).toHaveText('Кровотечение: нет');
+        await expect(stamina).toHaveText('Выносливость: 100%');
+        await expect(staminaMeter).toBeVisible();
+        await expect(load).toHaveText(/^Нагрузка: \d+ г/);
+        await expect(combat).toBeHidden({ timeout: 15000 });
+        await expect(idle).toHaveText('Вне боя');
+        await expect(idle).toBeVisible();
+    } finally {
+        await stop(running);
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
 
 test('inventory bandage confirms in both tabs, survives reload/retry and SIGKILL after ack without respawning', async ({
     page,
