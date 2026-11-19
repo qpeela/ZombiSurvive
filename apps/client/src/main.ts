@@ -52,6 +52,7 @@ const daylightLabel = document.querySelector<HTMLElement>('#daylight-label');
 const worldTime = document.querySelector<HTMLElement>('#world-time');
 const playerName = document.querySelector<HTMLElement>('#player-name');
 const shell = document.querySelector<HTMLElement>('.game-shell');
+const controlScroll = document.querySelector<HTMLElement>('.control-scroll');
 const fullscreenButton = document.querySelector<HTMLButtonElement>('#fullscreen');
 const fullscreenMessage = document.querySelector<HTMLElement>('#fullscreen-message');
 const container = document.querySelector<HTMLElement>('#game');
@@ -100,6 +101,7 @@ if (
     !weatherLabel ||
     !flashlightButton ||
     !shell ||
+    !controlScroll ||
     !fullscreenButton ||
     !fullscreenMessage ||
     !weaponOptions ||
@@ -669,8 +671,18 @@ const onReload = (): void => {
 };
 
 reloadButton.addEventListener('click', onReload);
+const onPlayfieldPointerDown = (event: PointerEvent): void => {
+    if (document.activeElement === controlScroll && event.target instanceof HTMLCanvasElement) {
+        controlScroll.blur();
+    }
+};
 const onGameActionKey = (event: KeyboardEvent): void => {
     const target = event.target;
+
+    if (target === controlScroll) {
+        return;
+    }
+
     const isEditing =
         target instanceof HTMLElement &&
         (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
@@ -705,6 +717,7 @@ const onGameActionKey = (event: KeyboardEvent): void => {
     }
 };
 attack.addEventListener('click', onAttack);
+container.addEventListener('pointerdown', onPlayfieldPointerDown);
 window.addEventListener('keydown', onGameActionKey);
 flashlightButton.addEventListener('click', onFlashlight);
 const onRespawn = (): void => {
@@ -738,6 +751,7 @@ if (import.meta.hot) {
         attack.removeEventListener('click', onAttack);
         shotButton.removeEventListener('click', onShot);
         reloadButton.removeEventListener('click', onReload);
+        container.removeEventListener('pointerdown', onPlayfieldPointerDown);
         window.removeEventListener('keydown', onGameActionKey);
         flashlightButton.removeEventListener('click', onFlashlight);
         respawnButton.removeEventListener('click', onRespawn);

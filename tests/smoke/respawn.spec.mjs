@@ -72,7 +72,10 @@ test('death, explicit respawn in both tabs, return and pickup survive old comman
             'melee-action',
         ])
             observer.onMessage(type, () => {});
-        await page.getByRole('button', { name: 'Возродиться', exact: true }).dblclick();
+        const respawn = page.getByRole('button', { name: 'Возродиться', exact: true });
+        await expect(respawn).toBeInViewport();
+        await page.locator('#fullscreen').click({ trial: true });
+        await respawn.dblclick();
         for (const current of [page, tab]) {
             await expect(current.locator('#death-screen')).toBeHidden();
             await expect(current.locator('#health')).toHaveAttribute('data-life-revision', '1');

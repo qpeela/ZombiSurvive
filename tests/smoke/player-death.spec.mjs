@@ -192,7 +192,9 @@ test('bleeding death cancels held movement in both tabs and survives late comman
         await context.setOffline(true);
         await expect(page.getByRole('status')).toHaveAttribute('data-status', 'disconnected');
         await context.setOffline(false);
-        await page.getByRole('button', { name: 'Подключиться снова' }).click();
+        const reconnect = page.getByRole('button', { name: 'Подключиться снова' });
+        await expect(reconnect).toBeInViewport();
+        await reconnect.click();
         await assertDead(page);
         await page.screenshot({ path: '.cache/t032-player-death.png', fullPage: true });
         running.host.kill('SIGKILL');

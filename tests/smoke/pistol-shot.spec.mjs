@@ -119,7 +119,8 @@ test('RMB, Space and HUD each shoot once; typing and key repeat do not shoot, em
         await page.keyboard.press('Space');
         await waitCooldown(page);
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 0/8');
-        await canvas.click({ position: { x: 550, y: 270 } });
+        const bounds = await canvas.boundingBox();
+        await canvas.click({ position: { x: bounds.width * 0.55, y: bounds.height / 2 } });
         await expect(canvas).toHaveAttribute('data-target-visible', 'true');
         await expect
             .poll(async () => Number(await canvas.getAttribute('data-player-x')))

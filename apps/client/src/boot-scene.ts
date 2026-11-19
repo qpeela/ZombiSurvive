@@ -131,10 +131,20 @@ export class BootScene extends Scene {
             // HTML UI reflow can move the canvas without a window resize.
             this.game.scale.updateBounds();
         };
+        const onScaleResize = (): void => {
+            const pointer = this.input.activePointer;
+            const event = pointer.event;
+
+            if (this.input.manager.isOver && event instanceof MouseEvent) {
+                this.input.manager.transformPointer(pointer, event.pageX, event.pageY, false);
+                if (this.player !== null && this.isAlive) this.updateAim(pointer);
+            }
+        };
         this.game.canvas.addEventListener('mousemove', onPointerPosition, true);
         this.game.canvas.addEventListener('mousedown', onPointerPosition, true);
         this.game.canvas.addEventListener('contextmenu', onContextMenu);
         this.input.on('pointerdown', onPointerDown);
+        this.scale.on('resize', onScaleResize);
         this.itemMarker = this.add
             .container(0, 0, [
                 this.add.rectangle(0, 0, 18, 12, 0xe0d6bd).setStrokeStyle(2, 0x8f846b),
@@ -158,6 +168,7 @@ export class BootScene extends Scene {
         this.setPlayers(this.player, this.otherPlayers);
         this.events.once('shutdown', () => {
             this.input.off('pointerdown', onPointerDown);
+            this.scale.off('resize', onScaleResize);
             this.game.canvas.removeEventListener('mousemove', onPointerPosition, true);
             this.game.canvas.removeEventListener('mousedown', onPointerPosition, true);
             this.game.canvas.removeEventListener('contextmenu', onContextMenu);
@@ -543,6 +554,26 @@ export class BootScene extends Scene {
         this.destination = position;
     }
 
+    private updateAim(pointer: Input.Pointer): void {
+        const marker = this.marker;
+
+        if (marker === null) {
+            return;
+        }
+
+        const camera = this.cameras.main;
+        const x = pointer.x + camera.scrollX;
+        const y = pointer.y + camera.scrollY;
+        const angle = Math.atan2(y - marker.y, x - marker.x);
+        this.facingAngle = angle;
+        this.aim?.setPosition(marker.x, marker.y).setRotation(angle);
+        this.crosshair?.setPosition(pointer.x, pointer.y);
+        const canvas = this.game.canvas;
+        canvas.dataset['aimAngle'] = String(angle);
+        canvas.dataset['aimX'] = String((x - 480) / pixelsPerMeter);
+        canvas.dataset['aimY'] = String((y - 270) / pixelsPerMeter);
+    }
+
     override update(_time: number, deltaMs: number): void {
         this.onFrame();
         const camera = this.cameras.main;
@@ -571,16 +602,8 @@ export class BootScene extends Scene {
             delete canvas.dataset['targetY'];
         }
 
-        if (this.marker !== null && isAiming) {
-            const x = pointer.x + camera.scrollX;
-            const y = pointer.y + camera.scrollY;
-            const angle = Math.atan2(y - this.marker.y, x - this.marker.x);
-            this.facingAngle = angle;
-            this.aim?.setPosition(this.marker.x, this.marker.y).setRotation(angle);
-            this.crosshair?.setPosition(pointer.x, pointer.y);
-            canvas.dataset['aimAngle'] = String(angle);
-            canvas.dataset['aimX'] = String((x - 480) / pixelsPerMeter);
-            canvas.dataset['aimY'] = String((y - 270) / pixelsPerMeter);
+        if (isAiming) {
+            this.updateAim(pointer);
         }
 
         this.lighting?.draw({
