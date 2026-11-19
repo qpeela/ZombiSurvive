@@ -7,6 +7,7 @@ import {
 import type { InventoryCell, InventoryItem } from '@zombi-survive/domain';
 import { inventoryWeightGrams, placeInventoryItem } from '@zombi-survive/simulation';
 
+import { createInventoryContextMenu, type InventoryContextAction } from './inventory-context-menu';
 import { createInventoryDrag, readInventoryCell } from './inventory-drag';
 
 const describeItem = (item: InventoryItem): string => {
@@ -26,6 +27,9 @@ export const createInventoryGrid = ({
     itemSelectors,
     message,
     details,
+    panel,
+    contextMenu,
+    contextActions,
     onMove,
 }: {
     readonly grid: HTMLElement;
@@ -33,9 +37,13 @@ export const createInventoryGrid = ({
     readonly itemSelectors: HTMLElement;
     readonly message: HTMLElement;
     readonly details: HTMLElement;
+    readonly panel: HTMLElement;
+    readonly contextMenu: HTMLElement;
+    readonly contextActions: (item: InventoryItem) => readonly InventoryContextAction[];
     readonly onMove: (itemId: string, cell: InventoryCell) => void;
 }): {
     selectedItem: () => InventoryItem | null;
+    dismissContextMenu: () => boolean;
     update: (items: readonly InventoryItem[] | null, isEnabled?: boolean) => void;
     dispose: () => void;
 } => {
@@ -110,17 +118,50 @@ export const createInventoryGrid = ({
             button.setAttribute('aria-pressed', String(itemId === selectedId));
         }
     };
-    const select = (itemId: string): void => {
-        selectedId = selectedId === itemId ? null : itemId;
+    const setSelection = (itemId: string | null): void => {
+        selectedId = itemId;
         pendingCell = null;
         updateSelection();
 
         message.textContent = selectedId === null ? 'Перенос отменён.' : selectionHelp;
     };
+    const select = (itemId: string): void => {
+        setSelection(selectedId === itemId ? null : itemId);
+    };
+    const canPlace = (item: InventoryItem, cell: InventoryCell): boolean =>
+        isEnabled && items !== null && placeInventoryItem({ items, item, cell }) !== null;
+    const hasOtherPlacement = (item: InventoryItem): boolean =>
+        cells.some(button => {
+            const cell = readInventoryCell(button);
+            const isCurrentCell = cell.column === item.cell.column && cell.row === item.cell.row;
+
+            return !isCurrentCell && canPlace(item, cell);
+        });
+    const menu = createInventoryContextMenu({
+        panel,
+        element: contextMenu,
+        getItemId: itemIdAt,
+        getItem: itemId => (isEnabled ? items?.find(item => item.itemId === itemId) : undefined),
+        getActions: item => [
+            ...contextActions(item),
+            {
+                id: 'move',
+                label: 'Переместить',
+                unavailable: hasOtherPlacement(item) ? null : 'Нет свободной позиции для предмета.',
+                run: () => {
+                    setSelection(item.itemId);
+                },
+            },
+        ],
+    });
     const update = (next: readonly InventoryItem[] | null, enabled = true): void => {
         const state = JSON.stringify([next, enabled]);
 
-        if (state === lastState) return;
+        if (state === lastState) {
+            menu.refresh();
+
+            return;
+        }
 
         lastState = state;
         isEnabled = enabled;
@@ -136,6 +177,7 @@ export const createInventoryGrid = ({
         }
         const bandage = next?.find(item => item.kind === 'bandage');
         selector.disabled = bandage === undefined || !isEnabled;
+        selector.setAttribute('aria-haspopup', 'menu');
         if (bandage === undefined) delete selector.dataset['itemId'];
         else selector.dataset['itemId'] = bandage.itemId;
         if (next === null) message.textContent = 'Сетка недоступна.';
@@ -173,6 +215,7 @@ export const createInventoryGrid = ({
                     button = document.createElement('button');
                     button.type = 'button';
                     button.dataset['itemId'] = item.itemId;
+                    button.setAttribute('aria-haspopup', 'menu');
                     itemButtons.set(item.itemId, button);
                     itemSelectors.append(button);
                 }
@@ -216,14 +259,20 @@ export const createInventoryGrid = ({
                     : `${itemDefinitions[item.kind].name} · ${describeItem(item)}`,
             );
             button.dataset['occupied'] = String(item !== undefined);
-            if (item === undefined) delete button.dataset['itemId'];
-            else button.dataset['itemId'] = item.itemId;
             button.draggable = isEnabled && item !== undefined;
+            if (item === undefined) {
+                delete button.dataset['itemId'];
+                button.removeAttribute('aria-haspopup');
+            } else {
+                button.dataset['itemId'] = item.itemId;
+                button.setAttribute('aria-haspopup', 'menu');
+            }
         }
 
         if (!enabled) pointerTarget = null;
         updateDetails();
         drag.sync();
+        menu.refresh();
     };
     const onSelect = (): void => {
         if (!isEnabled) return;
@@ -243,8 +292,6 @@ export const createInventoryGrid = ({
 
         if (itemId !== undefined) select(itemId);
     };
-    const canPlace = (item: InventoryItem, cell: InventoryCell): boolean =>
-        isEnabled && items !== null && placeInventoryItem({ items, item, cell }) !== null;
     const requestMove = ({
         item,
         cell,
@@ -309,6 +356,7 @@ export const createInventoryGrid = ({
 
     return {
         selectedItem: () => items?.find(item => item.itemId === selectedId) ?? null,
+        dismissContextMenu: menu.dismiss,
         update,
         dispose: () => {
             selector.removeEventListener('click', onSelect);
@@ -321,6 +369,7 @@ export const createInventoryGrid = ({
                 surface.removeEventListener('focusout', onFocusChange);
             }
             drag.dispose();
+            menu.dispose();
             grid.replaceChildren();
             itemSelectors.replaceChildren();
             details.hidden = true;
