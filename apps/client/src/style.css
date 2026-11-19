@@ -132,6 +132,37 @@ h1 {
     pointer-events: none;
 }
 
+.world-hud {
+    width: min(16rem, 34vw);
+    background: #17221c;
+    font-size: 12px;
+    line-height: 1.4;
+    pointer-events: auto;
+}
+
+.world-hud summary {
+    padding: 4px 6px;
+    cursor: pointer;
+}
+
+.world-hud summary:focus-visible {
+    outline: 2px solid #d3e5aa;
+}
+
+.world-hud-values {
+    padding: 0 6px 4px;
+}
+
+.world-hud-values span:not([hidden]) {
+    display: inline-block;
+    margin-right: 6px;
+}
+
+.world-hud-help {
+    margin: 0;
+    padding: 0 6px 5px;
+}
+
 #stamina:not([hidden]) {
     display: block;
     width: min(180px, 100%);
