@@ -443,6 +443,12 @@ button:focus-visible {
     font-size: 12px;
 }
 
+.loot-row:focus-visible,
+.loot-group:focus-visible {
+    outline: 2px solid #d8e3c9;
+    outline-offset: 2px;
+}
+
 #display-name {
     width: 180px;
     max-width: 100%;

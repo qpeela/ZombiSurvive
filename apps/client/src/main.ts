@@ -348,6 +348,9 @@ const nearbyUi = createNearbyLoot({
     onPickup: itemId => {
         if (lifeState === 'alive') connection.pickUp(itemId);
     },
+    onHighlight: source => {
+        scene.setLootHighlight(source);
+    },
 });
 const updatePickup = (): void => {
     if (!hasPickupSnapshot || confirmedPosition === null) {

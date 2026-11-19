@@ -144,7 +144,9 @@ export const createControlPanels = ({
                     if (
                         focused !== null &&
                         region?.closest('[hidden]') === null &&
-                        (!focused.isConnected || focused.matches(':disabled'))
+                        (!focused.isConnected ||
+                            focused.matches(':disabled') ||
+                            focused.closest('[hidden]') !== null)
                     ) {
                         region.focus();
                     }

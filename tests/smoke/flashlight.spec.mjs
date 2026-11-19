@@ -7,6 +7,7 @@ import { expect, test } from '@playwright/test';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
 import { aimWorld } from '../fixtures/game-controls.mjs';
+import { openInventory } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3149';
 const start = path => {
@@ -72,13 +73,20 @@ test('night flashlight reveals loot and a distant zombie only in the aimed beam;
         await expect(canvas).toHaveAttribute('data-ground-item-visible', 'true');
         await expect(pickup).toBeVisible();
         await expect.poll(() => zombieVisible(page)).toBe(false);
-        await canvas.screenshot({ path: '.cache/t056-loot-beam.png' });
+        await openInventory(page);
+        const loot = page.locator('#inventory-panel #ground-row');
+        await loot.focus();
+        await expect(canvas).toHaveAttribute('data-loot-highlight', 'ground:starter-bandage');
+        await page.screenshot({ path: '.cache/t070-night-loot-outline.png' });
         await aimWorld({ page, position: { xMeters: 10, yMeters: -4 } });
         await expect(canvas).toHaveAttribute('data-ground-item-visible', 'false');
+        await expect(canvas).toHaveAttribute('data-loot-highlight', '');
+        await expect(loot).toBeHidden();
         await expect(pickup).toBeHidden();
         await aimWorld({ page, position: { xMeters: -8, yMeters: 0 } });
         await expect.poll(() => zombieVisible(page)).toBe(true);
         await canvas.screenshot({ path: '.cache/t056-zombie-beam.png' });
+        await page.locator('#game').focus();
         await page.keyboard.press('l');
         await expect(button).toHaveAttribute('aria-pressed', 'false');
         await expect.poll(() => zombieVisible(page)).toBe(false);
