@@ -14,6 +14,8 @@ import type {
 } from '@zombi-survive/domain';
 import { findInventorySpace } from '@zombi-survive/simulation';
 
+import type { LootSource } from './loot-highlight';
+
 export type CorpseLoot = Corpse & { readonly items: readonly Item[] };
 
 type LootRow = {
@@ -67,6 +69,7 @@ const createPickupButton = (): HTMLButtonElement => {
 const createRow = (): LootRow => {
     const element = document.createElement('div');
     element.className = 'loot-row';
+    element.setAttribute('role', 'group');
     const name = document.createElement('span');
     const button = createPickupButton();
     const reason = document.createElement('span');
@@ -101,6 +104,7 @@ export const createNearbyLoot = ({
     corpseList,
     canReach,
     onPickup,
+    onHighlight,
 }: {
     readonly panel: HTMLElement;
     readonly status: HTMLElement;
@@ -111,9 +115,49 @@ export const createNearbyLoot = ({
     readonly corpseList: HTMLElement;
     readonly canReach: (from: WorldPosition, to: WorldPosition) => boolean;
     readonly onPickup: (itemId: string) => void;
+    readonly onHighlight: (source: LootSource | null) => void;
 }): { update: (state: NearbyState | null) => void; dispose: () => void } => {
     const groups = new Map<string, CorpseGroup>();
     let groundButton = initialGroundButton;
+    groundRow.setAttribute('role', 'group');
+    groundRow.setAttribute('aria-describedby', groundReason.id);
+    let pointerTarget: EventTarget | null = null;
+    let isPointerPrimary = false;
+    const sourceAt = (target: EventTarget | null): LootSource | null => {
+        if (!(target instanceof Element) || !panel.contains(target)) return null;
+        if (target.closest('[hidden]') !== null) return null;
+
+        const isGroundRow = groundLabel.contains(target) || groundRow.contains(target);
+        if (isGroundRow) {
+            const id = groundButton.dataset['itemId'];
+
+            return id === undefined ? null : { kind: 'ground', id };
+        }
+
+        const corpse = target.closest<HTMLElement>('[data-corpse-id]');
+        const corpseId = corpse?.dataset['corpseId'];
+
+        return corpseId === undefined ? null : { kind: 'corpse', id: corpseId };
+    };
+    const updateHighlight = (focused: EventTarget | null = document.activeElement): void => {
+        if (pointerTarget instanceof Node && !panel.contains(pointerTarget)) pointerTarget = null;
+
+        const pointerSource = sourceAt(pointerTarget);
+        const focusedSource = sourceAt(focused);
+        const source = isPointerPrimary
+            ? (pointerSource ?? focusedSource)
+            : (focusedSource ?? pointerSource);
+        onHighlight(source);
+    };
+    const onPointerChange = (event: PointerEvent): void => {
+        pointerTarget = event.type === 'pointerover' ? event.target : event.relatedTarget;
+        isPointerPrimary = true;
+        updateHighlight();
+    };
+    const onFocusChange = (event: FocusEvent): void => {
+        isPointerPrimary = false;
+        updateHighlight(event.type === 'focusin' ? event.target : event.relatedTarget);
+    };
     const getReason = (state: NearbyState, target: WorldPosition, item: Item): string | null => {
         const { position, life, inventory } = state;
         if (life === null) return 'Ожидание данных персонажа…';
@@ -138,6 +182,10 @@ export const createNearbyLoot = ({
         if (itemId !== undefined) onPickup(itemId);
     };
     panel.addEventListener('click', onClick);
+    panel.addEventListener('pointerover', onPointerChange);
+    panel.addEventListener('pointerout', onPointerChange);
+    panel.addEventListener('focusin', onFocusChange);
+    panel.addEventListener('focusout', onFocusChange);
 
     return {
         update: state => {
@@ -166,7 +214,11 @@ export const createNearbyLoot = ({
                 );
                 const reason = getReason(state, position, ground);
                 const { columns, rows } = itemDefinitions[kind];
+                groundRow.tabIndex = reason === null ? -1 : 0;
+                groundRow.setAttribute('aria-label', `На земле: ${itemDisplayName(ground)}`);
                 if (groundButton.dataset['itemId'] !== ground.itemId) {
+                    if (document.activeElement === groundRow) panel.focus({ preventScroll: true });
+
                     const nextButton = createPickupButton();
                     nextButton.id = groundButton.id;
                     groundButton.replaceWith(nextButton);
@@ -186,7 +238,11 @@ export const createNearbyLoot = ({
                 groups.delete(id);
             }
 
-            if (state === null) return;
+            if (state === null) {
+                updateHighlight();
+
+                return;
+            }
 
             for (const corpse of corpses) {
                 let group = groups.get(corpse.corpseId);
@@ -196,7 +252,9 @@ export const createNearbyLoot = ({
                     corpseList.append(group.element);
                 }
 
-                group.empty.hidden = corpse.items.length > 0;
+                const isEmpty = corpse.items.length === 0;
+                group.empty.hidden = !isEmpty;
+                group.element.tabIndex = isEmpty ? 0 : -1;
                 const itemIds = new Set(corpse.items.map(item => item.itemId));
                 for (const [id, row] of group.rows) {
                     if (itemIds.has(id)) continue;
@@ -216,13 +274,21 @@ export const createNearbyLoot = ({
                     const reason = getReason(state, corpse.position, item);
                     setText(row.name, itemDisplayName(item));
                     setText(row.reason, reason ?? '');
+                    row.element.tabIndex = reason === null ? -1 : 0;
+                    row.element.setAttribute('aria-label', itemDisplayName(item));
                     setAction({ button: row.button, item, reason });
                 }
             }
+            updateHighlight();
         },
         dispose: () => {
             panel.removeEventListener('click', onClick);
+            panel.removeEventListener('pointerover', onPointerChange);
+            panel.removeEventListener('pointerout', onPointerChange);
+            panel.removeEventListener('focusin', onFocusChange);
+            panel.removeEventListener('focusout', onFocusChange);
             corpseList.replaceChildren();
+            onHighlight(null);
         },
     };
 };

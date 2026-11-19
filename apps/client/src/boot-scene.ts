@@ -14,6 +14,7 @@ import { GameObjects, type Input, Scene } from 'phaser';
 
 import { CharacterVisual } from './character-visual';
 import { drawHeldWeapon, heldWeaponGrip } from './held-weapon';
+import { isLootInViewport, type LootSource } from './loot-highlight';
 import { MeleeAnimation } from './melee-animation';
 import { meleeEffectDurationMs, MeleeFeedback } from './melee-feedback';
 import { shotEffectDurationMs, ShotFeedback } from './shot-feedback';
@@ -22,6 +23,10 @@ import { WorldTerrain } from './world-terrain';
 import { WorldWeatherVisual } from './world-weather';
 
 const pixelsPerMeter = 24;
+const lootOutlineSizes = {
+    ground: { left: -14, top: -10, width: 28, height: 20 },
+    corpse: { left: -27, top: -12, width: 47, height: 24 },
+} as const;
 
 export class BootScene extends Scene {
     private weather: WorldWeather | null = null;
@@ -56,6 +61,9 @@ export class BootScene extends Scene {
     private readonly corpseMarkers = new Map<string, GameObjects.Container>();
     private groundItem: GroundItem | null = null;
     private itemMarker: GameObjects.Container | null = null;
+    private lootOutline: GameObjects.Graphics | null = null;
+    private highlightedLoot: LootSource | null = null;
+    private lootOutlineKind: LootSource['kind'] | null = null;
     private grid: GameObjects.Graphics | null = null;
     private aim: GameObjects.Graphics | null = null;
     private crosshair: GameObjects.Graphics | null = null;
@@ -157,6 +165,8 @@ export class BootScene extends Scene {
                     .setOrigin(0.5),
             ])
             .setDepth(1);
+        this.lootOutline = this.add.graphics().setDepth(3).setVisible(false);
+        this.game.canvas.dataset['lootHighlight'] = '';
         this.setGroundItem(this.groundItem);
         this.setCorpses(this.corpses);
         this.setZombies(this.zombies);
@@ -198,6 +208,10 @@ export class BootScene extends Scene {
             this.game.canvas.dataset['weaponVisible'] = 'false';
             delete this.game.canvas.dataset['weapon'];
             this.itemMarker = null;
+            this.lootOutline = null;
+            this.lootOutlineKind = null;
+            this.highlightedLoot = null;
+            this.game.canvas.dataset['lootHighlight'] = '';
             this.otherMarkers.clear();
             this.zombieMarkers.clear();
             this.corpseMarkers.clear();
@@ -243,6 +257,45 @@ export class BootScene extends Scene {
         return Math.hypot(reached.xMeters - to.xMeters, reached.yMeters - to.yMeters) < 1e-8;
     }
 
+    setLootHighlight(source: LootSource | null): void {
+        this.highlightedLoot = source;
+    }
+
+    private updateLootHighlight(corpseIds: ReadonlySet<string>, isGroundVisible: boolean): void {
+        const outline = this.lootOutline;
+        if (outline === null) return;
+
+        const source = this.highlightedLoot;
+        let marker: GameObjects.Container | null = null;
+        if (source?.kind === 'ground' && isGroundVisible && this.groundItem?.itemId === source.id) {
+            marker = this.itemMarker;
+        } else if (source?.kind === 'corpse' && corpseIds.has(source.id)) {
+            marker = this.corpseMarkers.get(source.id) ?? null;
+        }
+
+        const target = marker;
+        const isInFrame = target !== null && isLootInViewport(target, this.cameras.main);
+        let label = '';
+        if (source !== null && isInFrame) {
+            const { kind, id } = source;
+            if (this.lootOutlineKind !== kind) {
+                const size = lootOutlineSizes[kind];
+                outline
+                    .clear()
+                    .lineStyle(2, 0xcde499)
+                    .strokeRoundedRect(size.left, size.top, size.width, size.height, 3);
+                this.lootOutlineKind = kind;
+            }
+
+            outline.setPosition(target.x, target.y);
+            label = `${kind}:${id}`;
+        }
+
+        outline.setVisible(label !== '');
+        const canvas = this.game.canvas;
+        if (canvas.dataset['lootHighlight'] !== label) canvas.dataset['lootHighlight'] = label;
+    }
+
     private updateVisibility(): void {
         const visibleZombies: string[] = [];
         for (const [id, marker] of this.zombieMarkers) {
@@ -269,10 +322,12 @@ export class BootScene extends Scene {
         canvas.dataset['visibleZombies'] = JSON.stringify(visibleZombies);
         canvas.dataset['groundItemVisible'] = String(isGroundVisible);
         const signature = JSON.stringify([isGroundVisible, ...corpseIds]);
-        if (signature === this.visibilitySignature) return;
+        if (signature !== this.visibilitySignature) {
+            this.visibilitySignature = signature;
+            this.onVisibilityChange();
+        }
 
-        this.visibilitySignature = signature;
-        this.onVisibilityChange();
+        this.updateLootHighlight(corpseIds, isGroundVisible);
     }
 
     setZombies(zombies: readonly ZombieState[]): void {
