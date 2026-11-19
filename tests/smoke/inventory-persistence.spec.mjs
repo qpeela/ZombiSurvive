@@ -47,6 +47,91 @@ const open = async page => {
 };
 const occupied = page => page.locator('#inventory-grid [data-column="2"][data-row="2"]');
 
+test('the inventory drag previews a two-cell item and saves only a valid drop across reload', async ({
+    page,
+}) => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-drag-'));
+    const path = join(directory, 'world.sqlite');
+    seed(path);
+    const running = start(path);
+    try {
+        await expect.poll(running.output).toContain('Local world ready');
+        await page.setViewportSize({ width: 1280, height: 900 });
+        await open(page);
+        await page.getByRole('button', { name: 'Подобрать бинт', exact: true }).click();
+        await openInventory(page);
+        const grid = page.locator('#inventory-grid');
+        const source = grid.getByRole('button', { name: 'Ячейка 1, 1', exact: true });
+        const edge = grid.getByRole('button', { name: 'Ячейка 4, 3', exact: true });
+        const occupiedCell = grid.getByRole('button', { name: 'Ячейка 1, 2', exact: true });
+        const target = occupied(page);
+        const footprint = grid.getByText('Бинт', { exact: true });
+        const preview = grid.locator('.inventory-drop-preview');
+        await expect(source).toHaveAttribute('data-item-id', initialGroundItem.itemId);
+        await expect(occupiedCell).toHaveAttribute('data-occupied', 'true');
+        await grid.scrollIntoViewIfNeeded();
+        await expect(grid).toBeInViewport({ ratio: 1 });
+        const footprintWidth = (await footprint.boundingBox()).width;
+        const centerOf = async cell => {
+            const box = await cell.boundingBox();
+            if (box === null) throw new Error('The drag needs a visible inventory cell.');
+
+            return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+        };
+        const dragOver = async destination => {
+            const start = await centerOf(source);
+            const end = await centerOf(destination);
+            await page.mouse.move(start.x, start.y);
+            await page.mouse.down();
+            // Begin the native drag inside the grabbed cell before crossing the grid.
+            await page.mouse.move(start.x + 12, start.y);
+            await page.mouse.move(end.x, end.y, { steps: 4 });
+            await page.mouse.move(end.x + 1, end.y);
+        };
+
+        await expect(footprint).toHaveCSS('grid-column-start', '1');
+        await dragOver(occupiedCell);
+        await expect(preview).toBeVisible();
+        await expect(preview).toHaveAttribute('data-allowed', 'false');
+        await page.mouse.up();
+        await expect(preview).toBeHidden();
+        await expect(footprint).toHaveCSS('grid-row-start', '1');
+
+        await dragOver(edge);
+        await expect(preview).toBeVisible();
+        await expect(preview).toHaveAttribute('data-allowed', 'false');
+        expect((await preview.boundingBox()).width).toBeCloseTo(footprintWidth, 0);
+        await page.mouse.up();
+        await expect(preview).toBeHidden();
+        await expect(footprint).toHaveCSS('grid-column-start', '1');
+
+        await dragOver(target);
+        await expect(preview).toHaveAttribute('data-allowed', 'true');
+        expect((await preview.boundingBox()).width).toBeCloseTo(footprintWidth, 0);
+        await expect(footprint).toHaveCSS('grid-column-start', '1');
+        await page.keyboard.press('Escape');
+        await page.mouse.up();
+        await expect(preview).toBeHidden();
+        await expect(footprint).toHaveCSS('grid-column-start', '1');
+
+        await dragOver(target);
+        await expect(preview).toBeVisible();
+        await page.screenshot({ path: '.cache/t068-inventory-drag.png' });
+        await page.mouse.up();
+        await expect(preview).toBeHidden();
+        await expect(footprint).toHaveCSS('grid-column-start', '3');
+        await expect(footprint).toHaveCSS('grid-row-start', '3');
+
+        await page.reload();
+        await openInventory(page);
+        await expect(footprint).toHaveCSS('grid-column-start', '3');
+        await expect(footprint).toHaveCSS('grid-row-start', '3');
+    } finally {
+        await stop(running);
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
+
 test('v2 migrates; inventory and hands survive tabs, reload and SIGKILL in a fresh browser', async ({
     page,
     context,
