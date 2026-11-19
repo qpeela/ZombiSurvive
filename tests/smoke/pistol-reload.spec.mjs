@@ -9,7 +9,7 @@ import { expect, test } from '@playwright/test';
 import { firearmVersion, localWorldRoomId, protocolVersion } from '@zombi-survive/protocol';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
-import { clickEquipmentAction, openEquipment } from '../fixtures/game-panels.mjs';
+import { clickEquipmentAction, openEquipment, openInventory } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3134';
 const start = path => {
@@ -101,6 +101,59 @@ const request = (type, itemId, weaponRevision = 0) => ({
     itemId,
     weaponRevision,
     ...(type === 'shoot-pistol' ? { aim: { x: 1, y: 0 } } : {}),
+});
+
+test('inventory details follow each instance on hover and focus and clear when equipped', async ({
+    page,
+    context,
+}) => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-item-details-'));
+    const path = join(directory, 'world.sqlite');
+    let running;
+    try {
+        seed(path, 0, 6, true);
+        running = start(path);
+        await expect.poll(running.output).toContain('Local world ready');
+        await page.setViewportSize({ width: 1280, height: 600 });
+        await page.goto(origin);
+        await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
+        await clickEquipmentAction(page, 'Убрать оружие в сетку');
+        await openInventory(page);
+        const inventory = page.locator('#inventory-panel');
+        const details = inventory.locator('#item-details');
+        const first = pack(page);
+        const second = inventory.locator(
+            '#inventory-items button[data-item-id="scatter-v1:pistol:west:ammo"]',
+        );
+        const pistol = inventory.getByRole('button', { name: /^Переместить: Пистолет/ });
+
+        await first.hover();
+        await expect(details.locator('strong')).toHaveText('Патроны 9 мм');
+        await expect(details).toContainText('72 г · 1 × 1 · Количество: 6');
+        await second.focus();
+        await expect(details).toContainText('24 г · 1 × 1 · Количество: 2');
+        await pistol.focus();
+        await expect(details.locator('strong')).toHaveText('Пистолет 9 мм');
+        await expect(details).toContainText('800 г · 2 × 1 · Магазин: 0/8');
+        await expect(details).toBeInViewport({ ratio: 1 });
+        await page.screenshot({ path: '.cache/t067-item-details.png' });
+        await page.locator('#toggle-inventory').hover();
+
+        const other = await context.newPage();
+        try {
+            await other.goto(origin);
+            await clickEquipmentAction(other, 'Экипировать пистолет');
+            await expect(page.locator('#held-item')).toHaveText('В руках: Пистолет 9 мм');
+            await expect(pistol).toHaveCount(0);
+            await expect(details).toBeHidden();
+            await expect(inventory).toBeFocused();
+        } finally {
+            await other.close();
+        }
+    } finally {
+        if (running !== undefined) await stop(running);
+        rmSync(directory, { recursive: true, force: true });
+    }
 });
 
 test('the persistent strip separates an empty magazine from reserve, changes weapon and clears on reconnect', async ({

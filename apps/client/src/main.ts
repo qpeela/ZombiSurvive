@@ -95,6 +95,7 @@ const pickup = document.querySelector<HTMLButtonElement>('#pickup');
 const inventoryGrid = document.querySelector<HTMLElement>('#inventory-grid');
 const inventorySelector = document.querySelector<HTMLButtonElement>('#inventory-select');
 const inventoryMessage = document.querySelector<HTMLElement>('#inventory-message');
+const itemDetails = document.querySelector<HTMLElement>('#item-details');
 const bandageButton = document.querySelector<HTMLButtonElement>('#use-bandage');
 const corpseItems = document.querySelector<HTMLElement>('#corpse-items');
 const respawnButton = document.querySelector<HTMLButtonElement>('#respawn');
@@ -153,6 +154,7 @@ if (
     !inventoryGrid ||
     !inventorySelector ||
     !inventoryMessage ||
+    !itemDetails ||
     !bandageButton ||
     !deathScreen ||
     !corpseItems ||
@@ -192,6 +194,7 @@ const inventoryUi = createInventoryGrid({
     itemSelectors,
     selector: inventorySelector,
     message: inventoryMessage,
+    details: itemDetails,
     onMove: (itemId, cell) => {
         if (lifeState === 'alive') connection.moveItem(itemId, cell);
     },
