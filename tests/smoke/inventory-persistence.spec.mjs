@@ -56,22 +56,37 @@ test('the inventory drag previews a two-cell item and saves only a valid drop ac
     const running = start(path);
     try {
         await expect.poll(running.output).toContain('Local world ready');
+        await page.setViewportSize({ width: 1280, height: 900 });
         await open(page);
         await page.getByRole('button', { name: 'Подобрать бинт', exact: true }).click();
         await openInventory(page);
         const grid = page.locator('#inventory-grid');
         const source = grid.getByRole('button', { name: 'Ячейка 1, 1', exact: true });
         const edge = grid.getByRole('button', { name: 'Ячейка 4, 3', exact: true });
-        const occupiedCell = grid.locator('[data-occupied="true"]').nth(2);
+        const occupiedCell = grid.getByRole('button', { name: 'Ячейка 1, 2', exact: true });
         const target = occupied(page);
         const footprint = grid.getByText('Бинт', { exact: true });
         const preview = grid.locator('.inventory-drop-preview');
+        await expect(source).toHaveAttribute('data-item-id', initialGroundItem.itemId);
+        await expect(occupiedCell).toHaveAttribute('data-occupied', 'true');
+        await grid.scrollIntoViewIfNeeded();
+        await expect(grid).toBeInViewport({ ratio: 1 });
         const footprintWidth = (await footprint.boundingBox()).width;
+        const centerOf = async cell => {
+            const box = await cell.boundingBox();
+            if (box === null) throw new Error('The drag needs a visible inventory cell.');
+
+            return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
+        };
         const dragOver = async destination => {
-            await source.hover();
+            const start = await centerOf(source);
+            const end = await centerOf(destination);
+            await page.mouse.move(start.x, start.y);
             await page.mouse.down();
-            await destination.hover();
-            await destination.hover({ position: { x: 5, y: 5 } });
+            // Begin the native drag inside the grabbed cell before crossing the grid.
+            await page.mouse.move(start.x + 12, start.y);
+            await page.mouse.move(end.x, end.y, { steps: 4 });
+            await page.mouse.move(end.x + 1, end.y);
         };
 
         await expect(footprint).toHaveCSS('grid-column-start', '1');
