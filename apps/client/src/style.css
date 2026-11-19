@@ -298,6 +298,7 @@ button:disabled {
 }
 
 #inventory-grid {
+    position: relative;
     display: grid;
     grid-template-columns: repeat(var(--inventory-columns), minmax(0, 48px));
     gap: 4px;
@@ -362,6 +363,19 @@ button:focus-visible {
 .item-details span {
     color: #c2d2b8;
     font-size: 12px;
+}
+
+.inventory-drop-preview:not([hidden]) {
+    position: absolute;
+    z-index: 3;
+    pointer-events: none;
+    border: 2px solid #cde499;
+    background: #96b75744;
+}
+
+.inventory-drop-preview[data-allowed='false'] {
+    border: 2px dashed #ff9b89;
+    background: #c75d4844;
 }
 
 #player-profile {

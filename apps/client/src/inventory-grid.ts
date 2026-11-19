@@ -7,6 +7,8 @@ import {
 import type { InventoryCell, InventoryItem } from '@zombi-survive/domain';
 import { inventoryWeightGrams, placeInventoryItem } from '@zombi-survive/simulation';
 
+import { createInventoryDrag, readInventoryCell } from './inventory-drag';
+
 const describeItem = (item: InventoryItem): string => {
     const { columns, rows } = itemDefinitions[item.kind];
     const details = [`${String(itemWeightGrams(item))} г`, `${String(columns)} × ${String(rows)}`];
@@ -197,8 +199,7 @@ export const createInventoryGrid = ({
 
         for (const button of cells) {
             button.disabled = next === null || !isEnabled;
-            const column = Number(button.dataset['column']);
-            const row = Number(button.dataset['row']);
+            const { column, row } = readInventoryCell(button);
             const item = next?.find(candidate => {
                 const size = itemDefinitions[candidate.kind];
                 const isColumn =
@@ -217,10 +218,12 @@ export const createInventoryGrid = ({
             button.dataset['occupied'] = String(item !== undefined);
             if (item === undefined) delete button.dataset['itemId'];
             else button.dataset['itemId'] = item.itemId;
+            button.draggable = isEnabled && item !== undefined;
         }
 
         if (!enabled) pointerTarget = null;
         updateDetails();
+        drag.sync();
     };
     const onSelect = (): void => {
         if (!isEnabled) return;
@@ -240,21 +243,19 @@ export const createInventoryGrid = ({
 
         if (itemId !== undefined) select(itemId);
     };
-    const onCellClick = (event: MouseEvent): void => {
-        if (!isEnabled) return;
-
-        const target = event.target;
-        const item = items?.find(candidate => candidate.itemId === selectedId);
-
-        if (item === undefined || !(target instanceof HTMLButtonElement)) return;
-
-        const cell = {
-            column: Number(target.dataset['column']),
-            row: Number(target.dataset['row']),
-        };
-
-        if (placeInventoryItem({ items: items ?? [], item, cell }) === null) {
-            message.textContent = 'Недостаточно места для предмета.';
+    const canPlace = (item: InventoryItem, cell: InventoryCell): boolean =>
+        isEnabled && items !== null && placeInventoryItem({ items, item, cell }) !== null;
+    const requestMove = ({
+        item,
+        cell,
+        isKeyboard,
+    }: {
+        readonly item: InventoryItem;
+        readonly cell: InventoryCell;
+        readonly isKeyboard: boolean;
+    }): void => {
+        if (!canPlace(item, cell)) {
+            if (isKeyboard) message.textContent = 'Недостаточно места для предмета.';
 
             return;
         }
@@ -262,15 +263,39 @@ export const createInventoryGrid = ({
         const isSameCell = cell.column === item.cell.column && cell.row === item.cell.row;
 
         if (isSameCell) {
-            message.textContent = 'Предмет уже в этой ячейке.';
+            if (isKeyboard) message.textContent = 'Предмет уже в этой ячейке.';
 
             return;
         }
 
-        message.textContent = 'Ожидание подтверждения сервера…';
-        pendingCell = cell;
+        if (isKeyboard) {
+            message.textContent = 'Ожидание подтверждения сервера…';
+            pendingCell = cell;
+        }
+
         onMove(item.itemId, cell);
     };
+    const onCellClick = (event: MouseEvent): void => {
+        if (!isEnabled) return;
+
+        const target = event.target;
+        const item = items?.find(candidate => candidate.itemId === selectedId);
+        if (item === undefined || !(target instanceof HTMLButtonElement)) return;
+
+        requestMove({ item, cell: readInventoryCell(target), isKeyboard: true });
+    };
+    const drag = createInventoryDrag({
+        grid,
+        itemAt: button => {
+            const itemId = itemIdAt(button);
+
+            return items?.find(item => item.itemId === itemId);
+        },
+        canPlace,
+        onMove: (item, cell) => {
+            requestMove({ item, cell, isKeyboard: false });
+        },
+    });
     selector.addEventListener('click', onSelect);
     itemSelectors.addEventListener('click', onItemSelect);
     grid.addEventListener('click', onCellClick);
@@ -295,6 +320,7 @@ export const createInventoryGrid = ({
                 surface.removeEventListener('focusin', onFocusChange);
                 surface.removeEventListener('focusout', onFocusChange);
             }
+            drag.dispose();
             grid.replaceChildren();
             itemSelectors.replaceChildren();
             details.hidden = true;
