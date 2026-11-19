@@ -78,8 +78,21 @@ test('night flashlight reveals loot and a distant zombie only in the aimed beam;
         await loot.focus();
         await expect(canvas).toHaveAttribute('data-loot-highlight', 'ground:starter-bandage');
         await page.screenshot({ path: '.cache/t070-night-loot-outline.png' });
+        await canvas.evaluate(element => {
+            const beamLoss = new globalThis.MutationObserver(() => {
+                if (element.dataset.groundItemVisible !== 'false') return;
+
+                element.dataset.outlineAtBeamLoss = element.dataset.lootHighlight;
+                beamLoss.disconnect();
+            });
+            beamLoss.observe(element, {
+                attributes: true,
+                attributeFilter: ['data-ground-item-visible'],
+            });
+        });
         await aimWorld({ page, position: { xMeters: 10, yMeters: -4 } });
         await expect(canvas).toHaveAttribute('data-ground-item-visible', 'false');
+        await expect(canvas).toHaveAttribute('data-outline-at-beam-loss', '');
         await expect(canvas).toHaveAttribute('data-loot-highlight', '');
         await expect(loot).toBeHidden();
         await expect(pickup).toBeHidden();

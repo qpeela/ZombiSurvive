@@ -217,6 +217,8 @@ export const createNearbyLoot = ({
                 groundRow.tabIndex = reason === null ? -1 : 0;
                 groundRow.setAttribute('aria-label', `На земле: ${itemDisplayName(ground)}`);
                 if (groundButton.dataset['itemId'] !== ground.itemId) {
+                    if (document.activeElement === groundRow) panel.focus({ preventScroll: true });
+
                     const nextButton = createPickupButton();
                     nextButton.id = groundButton.id;
                     groundButton.replaceWith(nextButton);

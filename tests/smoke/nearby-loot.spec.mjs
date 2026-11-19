@@ -240,6 +240,16 @@ test('loot outline follows the selected source and clears out of loot range or b
             }
         };
 
+        await moveFromSecondSession({ xMeters: -4, yMeters: -3 });
+        await expect(ground.locator('button')).toHaveAttribute('data-item-id', 'pistol-v1:0:0');
+        await expect(ground).toBeVisible();
+        await expect(nearby).toBeFocused();
+        await expect(canvas).toHaveAttribute('data-loot-highlight', '');
+
+        await moveFromSecondSession(startPosition);
+        await expect(ground.locator('button')).toHaveAttribute('data-item-id', 'starter-bandage');
+        await ground.focus();
+        await expect(canvas).toHaveAttribute('data-loot-highlight', groundOutline);
         await moveFromSecondSession({ xMeters: 2, yMeters: -12 });
         await expect(ground).toBeHidden();
         await expect(nearby).toBeFocused();
