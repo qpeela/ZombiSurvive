@@ -385,6 +385,35 @@ button:focus-visible {
     gap: 8px;
 }
 
+#nearby-panel {
+    margin-top: 8px;
+}
+
+.loot-group {
+    margin-top: 8px;
+    padding-top: 6px;
+    border-top: 1px solid #536344;
+}
+
+.loot-group h3 {
+    margin: 0;
+    font-size: 13px;
+}
+
+.loot-row:not([hidden]) {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 8px;
+    margin: 4px 0;
+}
+
+.loot-reason:not(:empty) {
+    flex-basis: 100%;
+    color: #e8c49c;
+    font-size: 12px;
+}
+
 #display-name {
     width: 180px;
     max-width: 100%;

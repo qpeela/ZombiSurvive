@@ -55,7 +55,7 @@ test('opening panels releases held movement; Tab, clicks and attack keys stay in
         await page.keyboard.press('Space');
         await expect(selector).toHaveAttribute('aria-pressed', 'true');
         await page.keyboard.press('f');
-        await inventory.getByRole('heading').click();
+        await inventory.getByRole('heading', { name: 'Инвентарь', exact: true }).click();
         await expect(canvas).toHaveAttribute('data-target-visible', 'false');
         await waitTicks(4);
         expect(await position()).toBe(stopped);

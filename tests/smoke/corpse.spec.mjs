@@ -53,8 +53,8 @@ test('living receiver sees a restored body in another chunk and can pick up its 
         await page.goto(origin);
         await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
         const button = page
-            .locator('#corpse-items button')
-            .filter({ hasText: 'Забрать с тела: Нож' });
+            .locator('#corpse-items')
+            .getByRole('button', { name: 'Взять: Нож', exact: true });
         await expect(button).toBeEnabled();
         await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 0');
         await button.click();

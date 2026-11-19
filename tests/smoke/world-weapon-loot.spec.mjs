@@ -97,9 +97,7 @@ test('world weapon refuses an overweight pickup, then survives pickup, exact-ins
         await open(tab);
         room = await connect();
         await expect(page.locator('#ground-item')).toContainText('Нож');
-        await expect(
-            page.getByRole('button', { name: 'Подобрать нож', exact: true }),
-        ).toBeDisabled();
+        await expect(page.getByRole('button', { name: 'Взять: Нож', exact: true })).toBeDisabled();
         await page.screenshot({ path: '.cache/t028-world-loot.png', fullPage: true });
         const before = await room.request(initialStateRequest);
         room.send('pickup-item', { type: 'pickup-item', protocolVersion: 5, itemId: loot.itemId });
@@ -110,7 +108,7 @@ test('world weapon refuses an overweight pickup, then survives pickup, exact-ins
         await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 5');
         await clickEquipmentAction(page, 'Экипировать топор');
         await expect(page.locator('#weapon-label')).toHaveText('Оружие: топор');
-        await page.getByRole('button', { name: 'Подобрать нож', exact: true }).click();
+        await page.getByRole('button', { name: 'Взять: Нож', exact: true }).click();
         for (const view of [page, tab]) {
             await expect(view.locator('#ground-item')).toHaveText(remainingGround);
             await expect(view.locator('#inventory')).toHaveText('Контейнер: предметов 5');

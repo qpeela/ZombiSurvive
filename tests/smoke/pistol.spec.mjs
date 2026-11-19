@@ -51,7 +51,7 @@ test('a partial pistol magazine survives ground pickup, hands, inventory, tabs, 
     try {
         await expect.poll(running.output).toContain('Local world ready');
         await page.goto(origin);
-        await page.getByRole('button', { name: 'Подобрать пистолет 9 мм', exact: true }).click();
+        await page.getByRole('button', { name: 'Взять: Пистолет 9 мм', exact: true }).click();
         await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 1');
         await expect(page.locator('#equipment-weight')).toContainText('836 г');
         await clickEquipmentAction(page, 'Экипировать пистолет');

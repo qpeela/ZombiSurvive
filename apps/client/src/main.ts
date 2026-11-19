@@ -2,15 +2,11 @@ import './style.css';
 
 import {
     itemDefinitions,
-    itemDisplayName,
-    itemWeightGrams,
     meleeWeapons,
     movementSettings,
-    pickupSettings,
     pistolSettings,
 } from '@zombi-survive/content';
 import {
-    type Corpse,
     type GroundItem,
     type InventoryItem,
     isMeleeWeaponId,
@@ -31,12 +27,12 @@ import { AUTO, Game, Scale } from 'phaser';
 import { BootScene } from './boot-scene';
 import { createCharacterHud } from './character-hud';
 import { createControlPanels } from './control-panels';
-import { createCorpseControls } from './corpse-controls';
 import { createEquipmentHud } from './equipment-hud';
 import { createFullscreenControls } from './fullscreen';
 import { createInventoryGrid } from './inventory-grid';
 import { createMovementInputController } from './movement-input';
 import { MovementPrediction } from './movement-prediction';
+import { type CorpseLoot, createNearbyLoot } from './nearby-loot';
 import { createPlayerProfileControls } from './player-profile';
 import { formatWorldTime } from './world-clock';
 import { createWorldConnection } from './world-connection';
@@ -88,6 +84,10 @@ const combatIdle = document.querySelector<HTMLElement>('#combat-idle');
 const loadLabel = document.querySelector<HTMLElement>('#load-label');
 const movementLabel = document.querySelector<HTMLElement>('#movement-label');
 const groundLabel = document.querySelector<HTMLElement>('#ground-item');
+const nearbyPanel = document.querySelector<HTMLElement>('#nearby-panel');
+const nearbyStatus = document.querySelector<HTMLElement>('#nearby-state');
+const groundRow = document.querySelector<HTMLElement>('#ground-row');
+const groundReason = document.querySelector<HTMLElement>('#ground-reason');
 const inventory = document.querySelector<HTMLElement>('#inventory');
 const restockLabel = document.querySelector<HTMLElement>('#restock-label');
 const equipmentWeight = document.querySelector<HTMLElement>('#equipment-weight');
@@ -147,6 +147,10 @@ if (
     !movementLabel ||
     !loadLabel ||
     !groundLabel ||
+    !nearbyPanel ||
+    !nearbyStatus ||
+    !groundRow ||
+    !groundReason ||
     !inventory ||
     !equipmentWeight ||
     !restockLabel ||
@@ -265,7 +269,7 @@ const profileUi = createPlayerProfileControls({
 const prediction = new MovementPrediction();
 let lifeRevision: number | null = null;
 let lastMovement: MovementSnapshot | null = null;
-let groundItem: GroundItem | null = null;
+let hasPickupSnapshot = false;
 let receivedGroundItem: GroundItem | null = null;
 let confirmedPosition: WorldPosition | null = null;
 let isFlashlightOn = false;
@@ -284,57 +288,38 @@ const onFlashlight = (): void => {
     isFlashlightOn = !isFlashlightOn;
     updateFlashlight();
 };
-let corpses: readonly (Corpse & { readonly items: readonly Item[] })[] = [];
-const corpseUi = createCorpseControls(corpseItems, itemId => {
-    connection.pickUp(itemId);
+let corpses: readonly CorpseLoot[] = [];
+const nearbyUi = createNearbyLoot({
+    panel: nearbyPanel,
+    status: nearbyStatus,
+    groundLabel,
+    groundRow,
+    groundButton: pickup,
+    groundReason,
+    corpseList: corpseItems,
+    canReach: (from, to) => scene.canReachLoot(from, to),
+    onPickup: itemId => {
+        if (lifeState === 'alive') connection.pickUp(itemId);
+    },
 });
 const updatePickup = (): void => {
-    groundItem =
-        receivedGroundItem !== null && scene.canSee(receivedGroundItem.position)
-            ? receivedGroundItem
-            : null;
-    pickup.hidden = receivedGroundItem !== null && groundItem === null;
-    groundLabel.textContent =
-        groundItem === null
-            ? 'На земле: пусто'
-            : `На земле: ${itemDisplayName(groundItem)} · ${String(groundItem.position.xMeters)}, ${String(groundItem.position.yMeters)} м`;
-    pickup.textContent =
-        groundItem === null
-            ? 'Подобрать предмет'
-            : `Подобрать ${itemDisplayName(groundItem).toLocaleLowerCase('ru-RU')}`;
-
-    corpseUi.update({
-        corpses: corpses.filter(corpse => scene.canSee(corpse.position)),
-        position: confirmedPosition,
-        items: inventoryItems,
-        isAlive: lifeState === 'alive',
-    });
-    const distance =
-        groundItem === null || confirmedPosition === null
-            ? Infinity
-            : Math.hypot(
-                  groundItem.position.xMeters - confirmedPosition.xMeters,
-                  groundItem.position.yMeters - confirmedPosition.yMeters,
-              );
-    const hasSpace =
-        groundItem !== null &&
-        findInventorySpace({ items: inventoryItems, item: groundItem }) !== null;
-    pickup.disabled = lifeState !== 'alive' || distance > pickupSettings.rangeMeters || !hasSpace;
-
-    if (groundItem === null) {
-        pickup.title = 'Поблизости нет предметов.';
+    if (!hasPickupSnapshot || confirmedPosition === null) {
+        nearbyUi.update(null);
 
         return;
     }
 
-    const definition = itemDefinitions[groundItem.kind];
-    const details = `${itemDisplayName(groundItem)} · ${String(definition.columns)} × ${String(definition.rows)} · ${String(itemWeightGrams(groundItem))} г`;
-    pickup.title = hasSpace
-        ? details
-        : `${details} · Недостаточно места или превышена масса контейнера.`;
-};
-scene.onVisibilityChange = () => {
-    if (confirmedPosition !== null) updatePickup();
+    const ground =
+        receivedGroundItem !== null && scene.canSee(receivedGroundItem.position)
+            ? receivedGroundItem
+            : null;
+    nearbyUi.update({
+        ground,
+        corpses: corpses.filter(corpse => scene.canSee(corpse.position)),
+        position: confirmedPosition,
+        inventory: inventoryItems,
+        life: lifeState,
+    });
 };
 const messages = {
     connecting: 'Подключение к локальному миру…',
@@ -388,15 +373,27 @@ const fullscreen = createFullscreenControls({
         game.scale.refresh();
     },
 });
+const nearbyAnchor = document.createComment('nearby panel position');
+nearbyPanel.before(nearbyAnchor);
 const controlPanels = createControlPanels({
     shell,
     playfield: container,
     panels: [
-        { element: inventoryPanel, button: inventoryToggle, shortcut: 'KeyI' },
+        {
+            element: inventoryPanel,
+            button: inventoryToggle,
+            shortcut: 'KeyI',
+            onVisibilityChange: isOpen => {
+                if (isOpen) inventoryPanel.append(nearbyPanel);
+                else nearbyAnchor.after(nearbyPanel);
+            },
+        },
         { element: equipmentPanel, button: equipmentToggle, shortcut: 'KeyE' },
     ],
+    protectedRegions: [nearbyPanel],
     resetInput: input.reset,
 });
+scene.onVisibilityChange = controlPanels.preserveFocus(updatePickup);
 const gameResize = new ResizeObserver(() => {
     game.scale.getParentBounds();
     game.scale.refresh();
@@ -464,17 +461,13 @@ const connection = createWorldConnection(
         characterHud.reset();
         equipmentHud.reset();
         ammoLabel.textContent = 'Патроны: —';
+        hasPickupSnapshot = false;
         receivedGroundItem = null;
-        groundItem = null;
-        pickup.hidden = false;
-        pickup.textContent = 'Подобрать предмет';
         corpses = [];
-        corpseUi.update({ corpses, position: null, items: [], isAlive: false });
+        nearbyUi.update(null);
         scene.setCorpses([]);
         confirmedPosition = null;
         updateFlashlight();
-        pickup.disabled = true;
-        groundLabel.textContent = 'На земле: —';
         inventory.textContent = 'Контейнер: —';
         equipmentWeight.textContent = 'Вес снаряжения: —';
         restockLabel.textContent = 'Пополнение рядом: —';
@@ -517,6 +510,7 @@ const connection = createWorldConnection(
         prediction.recordSent(command, performance.now());
     },
     controlPanels.preserveFocus(snapshot => {
+        hasPickupSnapshot = true;
         corpses = snapshot.corpses ?? [];
         scene.setCorpses(corpses);
         receivedGroundItem = snapshot.groundItem;
@@ -664,11 +658,6 @@ const onPageShow = (event: PageTransitionEvent): void => {
         onConnect();
     }
 };
-const onPickup = (): void => {
-    if (lifeState === 'alive' && groundItem !== null) {
-        connection.pickUp(groundItem.itemId);
-    }
-};
 const onUnequip = (): void => {
     if (lifeState === 'alive' && hands !== null)
         connection.sendMelee({ type: 'unequip-weapon', itemId: hands.itemId });
@@ -748,7 +737,6 @@ const onRespawn = (): void => {
     if (lifeState === 'dead') connection.respawn();
 };
 respawnButton.addEventListener('click', onRespawn);
-pickup.addEventListener('click', onPickup);
 reconnect.addEventListener('click', onConnect);
 window.addEventListener('pagehide', onPageHide);
 window.addEventListener('pageshow', onPageShow);
@@ -766,7 +754,8 @@ if (import.meta.hot) {
         input.dispose();
         profileUi.dispose();
         inventoryUi.dispose();
-        corpseUi.dispose();
+        nearbyUi.dispose();
+        nearbyAnchor.remove();
         connection.dispose();
         for (const { button, onEquip } of equipmentButtons) {
             button.removeEventListener('click', onEquip);
@@ -781,7 +770,6 @@ if (import.meta.hot) {
         window.removeEventListener('keydown', onGameActionKey);
         flashlightButton.removeEventListener('click', onFlashlight);
         respawnButton.removeEventListener('click', onRespawn);
-        pickup.removeEventListener('click', onPickup);
         reconnect.removeEventListener('click', onConnect);
         window.removeEventListener('pagehide', onPageHide);
         window.removeEventListener('pageshow', onPageShow);

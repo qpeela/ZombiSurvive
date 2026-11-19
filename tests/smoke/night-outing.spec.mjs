@@ -100,7 +100,7 @@ test('depart at dusk, find the medical bandage by torch at night, survive combat
         }
         await movePlayerTo({ page, position: medicalOutpost.entrance });
         await expect(canvas).toHaveAttribute('data-daylight-phase', 'night', { timeout: 25000 });
-        const pickup = page.getByRole('button', { name: 'Подобрать бинт', exact: true });
+        const pickup = page.getByRole('button', { name: 'Взять: Бинт', exact: true });
         await expect(pickup).toBeHidden();
         await expect(canvas).toHaveAttribute('data-ground-item-visible', 'false');
         await page.locator('#flashlight').click();

@@ -2,6 +2,7 @@ type ControlPanel = {
     readonly element: HTMLElement;
     readonly button: HTMLButtonElement;
     readonly shortcut: string;
+    readonly onVisibilityChange?: (isOpen: boolean) => void;
 };
 
 type OpenPanel = {
@@ -9,24 +10,33 @@ type OpenPanel = {
     readonly opener: HTMLElement;
 };
 
-type PreserveFocus = <Value>(update: (value: Value) => void) => (value: Value) => void;
+type PreserveFocus = <Args extends unknown[]>(
+    update: (...args: Args) => void,
+) => (...args: Args) => void;
 
 export const createControlPanels = ({
     shell,
     playfield,
     panels,
+    protectedRegions = [],
     resetInput,
 }: {
     readonly shell: HTMLElement;
     readonly playfield: HTMLElement;
     readonly panels: readonly ControlPanel[];
+    readonly protectedRegions?: readonly HTMLElement[];
     readonly resetInput: () => void;
 }): { preserveFocus: PreserveFocus; dispose: () => void } => {
     const openPanels: OpenPanel[] = [];
     const panelContaining = (target: EventTarget | null): ControlPanel | undefined =>
         target instanceof Node ? panels.find(({ element }) => element.contains(target)) : undefined;
+    const regionContaining = (target: EventTarget | null): HTMLElement | undefined =>
+        target instanceof Node
+            ? (protectedRegions.find(element => element.contains(target)) ??
+              panelContaining(target)?.element)
+            : undefined;
     const ownsInput = (target: EventTarget | null): boolean =>
-        panelContaining(target) !== undefined || panels.some(({ button }) => button === target);
+        regionContaining(target) !== undefined || panels.some(({ button }) => button === target);
 
     const close = (index: number, focus?: HTMLElement | 'keep'): void => {
         const entry = openPanels[index];
@@ -36,6 +46,7 @@ export const createControlPanels = ({
         openPanels.splice(index, 1);
         entry.panel.element.hidden = true;
         entry.panel.button.setAttribute('aria-expanded', 'false');
+        entry.panel.onVisibilityChange?.(false);
         if (focus === 'keep' && !hadFocus) return;
 
         const opener = focus instanceof HTMLElement ? focus : entry.opener;
@@ -63,6 +74,7 @@ export const createControlPanels = ({
         openPanels.push({ panel, opener });
         panel.element.hidden = false;
         panel.button.setAttribute('aria-expanded', 'true');
+        panel.onVisibilityChange?.(true);
         panel.element.focus();
     };
 
@@ -119,21 +131,23 @@ export const createControlPanels = ({
     shell.addEventListener('focusin', onFocusIn);
 
     return {
-        preserveFocus: update => value => {
-            const focused = document.activeElement;
-            const panel = panelContaining(focused);
-            try {
-                update(value);
-            } finally {
-                if (
-                    focused !== null &&
-                    panel?.element.hidden === false &&
-                    (!focused.isConnected || focused.matches(':disabled'))
-                ) {
-                    panel.element.focus();
+        preserveFocus:
+            update =>
+            (...args) => {
+                const focused = document.activeElement;
+                const region = regionContaining(focused);
+                try {
+                    update(...args);
+                } finally {
+                    if (
+                        focused !== null &&
+                        region?.closest('[hidden]') === null &&
+                        (!focused.isConnected || focused.matches(':disabled'))
+                    ) {
+                        region.focus();
+                    }
                 }
-            }
-        },
+            },
         dispose: () => {
             document.removeEventListener('keydown', onShortcut, true);
             shell.removeEventListener('keydown', onUiKey);
@@ -143,6 +157,7 @@ export const createControlPanels = ({
             for (const { panel } of openPanels) {
                 panel.element.hidden = true;
                 panel.button.setAttribute('aria-expanded', 'false');
+                panel.onVisibilityChange?.(false);
             }
         },
     };

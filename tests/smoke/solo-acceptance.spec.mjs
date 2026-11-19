@@ -116,7 +116,7 @@ test('complete solo cycle uses real UI, retains one life and finite items across
         const canvas = page.locator('canvas');
         await expect(canvas).toHaveAttribute('data-weapon', 'axe');
         await movePlayerTo({ page, position: { xMeters: 2, yMeters: 2 } });
-        await page.getByRole('button', { name: 'Подобрать бинт', exact: true }).click();
+        await page.getByRole('button', { name: 'Взять: Бинт', exact: true }).click();
         await activateStartingZombie(page);
         await expect.poll(() => health(page), { timeout: 10000 }).toBeLessThan(100);
         await expect(page.locator('#bleeding-label')).toContainText('есть');
@@ -140,10 +140,10 @@ test('complete solo cycle uses real UI, retains one life and finite items across
         expect(await health(page)).toBeLessThanOrEqual(woundedHealth);
         await page.screenshot({ path: '.cache/t040-bandaged.png', fullPage: true });
         await movePlayerTo({ page, position: { xMeters: -10, yMeters: -6 } });
-        await page.getByRole('button', { name: 'Подобрать пистолет 9 мм', exact: true }).click();
+        await page.getByRole('button', { name: 'Взять: Пистолет 9 мм', exact: true }).click();
         await clickEquipmentAction(page, 'Экипировать пистолет');
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
-        await page.getByRole('button', { name: 'Подобрать патроны 9 мм ×8', exact: true }).click();
+        await page.getByRole('button', { name: 'Взять: Патроны 9 мм ×8', exact: true }).click();
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
         await expect(page.locator('#held-item')).toHaveText('В руках: Пистолет 9 мм');
         await expect(page.locator('#held-ammo')).toHaveText('Магазин: 8/8 · Запас: 8');

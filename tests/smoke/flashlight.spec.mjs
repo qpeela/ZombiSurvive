@@ -63,7 +63,7 @@ test('night flashlight reveals loot and a distant zombie only in the aimed beam;
         await open(page);
         const canvas = page.locator('canvas');
         const button = page.locator('#flashlight');
-        const pickup = page.getByRole('button', { name: 'Подобрать бинт', exact: true });
+        const pickup = page.getByRole('button', { name: 'Взять: Бинт', exact: true });
         await expect(canvas).toHaveAttribute('data-ground-item-visible', 'false');
         await expect.poll(() => zombieVisible(page)).toBe(false);
         await button.click();

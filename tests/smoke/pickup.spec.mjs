@@ -53,7 +53,7 @@ test('pickup and grid moves are server-confirmed, reject invalid placement and s
         await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
         await expect(page.locator('#ground-item')).toContainText('Бинт');
         await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 4');
-        await expect(page.getByRole('button', { name: 'Подобрать бинт' })).toBeDisabled();
+        await expect(page.getByRole('button', { name: 'Взять: Бинт' })).toBeDisabled();
         const client = new Client(origin, { headers: { Origin: origin } });
         room = await client.joinById(localWorldRoomId);
         room.onMessage('pickup-state', () => {});
@@ -79,7 +79,7 @@ test('pickup and grid moves are server-confirmed, reject invalid placement and s
         await expect.poll(async () => (await read(page)).x).toBeCloseTo(2, 1);
         await expect.poll(async () => (await read(page)).y).toBeCloseTo(2, 1);
         await expect(page.locator('canvas')).toHaveAttribute('data-target-visible', 'false');
-        await expect(page.getByRole('button', { name: 'Подобрать бинт' })).toBeEnabled();
+        await expect(page.getByRole('button', { name: 'Взять: Бинт' })).toBeEnabled();
         await page.screenshot({ path: '.cache/t015-ground-item.png', fullPage: true });
         const invalidAt = await room.request(initialStateRequest);
         for (const value of [
@@ -92,10 +92,10 @@ test('pickup and grid moves are server-confirmed, reject invalid placement and s
             .poll(async () => (await room.request(initialStateRequest)).tick)
             .toBeGreaterThan(invalidAt.tick + 2);
         expect((await room.request(pickupStateRequest)).groundItem).toEqual(initialGroundItem);
-        await page.getByRole('button', { name: 'Подобрать бинт' }).click();
+        await page.getByRole('button', { name: 'Взять: Бинт' }).click();
         await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 5');
         await expect(page.locator('#ground-item')).toHaveText('На земле: пусто');
-        await expect(page.getByRole('button', { name: 'Подобрать предмет' })).toBeDisabled();
+        await expect(page.locator('#pickup')).toBeHidden();
         const pickedAt = await room.request(initialStateRequest);
         for (let count = 0; count < 3; count++) room.send('pickup-item', command);
         await expect
@@ -172,7 +172,7 @@ test('pickup and grid moves are server-confirmed, reject invalid placement and s
         await expect(selector).toBeDisabled();
         await expect(grid.locator('[data-occupied="true"]')).toHaveCount(0);
         await expect(grid.locator('button:enabled')).toHaveCount(0);
-        await expect(page.getByRole('button', { name: 'Подобрать предмет' })).toBeDisabled();
+        await expect(page.locator('#pickup')).toBeHidden();
         await context.setOffline(false);
         await page.getByRole('button', { name: 'Подключиться снова' }).click();
         await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 5');
