@@ -145,6 +145,8 @@ test('complete solo cycle uses real UI, retains one life and finite items across
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
         await page.getByRole('button', { name: 'Подобрать патроны 9 мм ×8', exact: true }).click();
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
+        await expect(page.locator('#held-item')).toHaveText('В руках: Пистолет 9 мм');
+        await expect(page.locator('#held-ammo')).toHaveText('Магазин: 8/8 · Запас: 8');
         const targetId = await canvas.evaluate(
             canvas =>
                 JSON.parse(canvas.dataset.zombies ?? '[]').find(
@@ -182,6 +184,8 @@ test('complete solo cycle uses real UI, retains one life and finite items across
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
         await expect(inventoryAmmo(page)).toContainText('×4');
         await expect(page.locator('#death-screen')).toBeVisible({ timeout: 35000 });
+        await expect(page.locator('#held-item')).toHaveText('В руках: пусто');
+        await expect(page.locator('#held-ammo')).toBeHidden();
         await page.screenshot({ path: '.cache/t040-death.png', fullPage: true });
         await stop(running);
         const dead = readSave({ path, offsetMs });
@@ -197,12 +201,16 @@ test('complete solo cycle uses real UI, retains one life and finite items across
         await expect(page.locator('#health')).toHaveAttribute('value', '100');
         await expect(page.locator('#health')).toHaveAttribute('data-life-revision', '1');
         await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 0');
+        await expect(page.locator('#held-item')).toHaveText('В руках: пусто');
+        await expect(page.locator('#held-ammo')).toBeHidden();
         await movePlayerTo({ page, position: corpsePosition });
         await page.locator(`#corpse-items button[data-item-id="${gunId}"]`).click();
         await clickEquipmentAction(page, 'Экипировать пистолет');
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
         await page.locator(`#corpse-items button[data-item-id="${ammoId}"]`).click();
         await assertRecovered(page);
+        await expect(page.locator('#held-item')).toHaveText('В руках: Пистолет 9 мм');
+        await expect(page.locator('#held-ammo')).toHaveText('Магазин: 8/8 · Запас: 4');
         await page.screenshot({ path: '.cache/t040-return.png', fullPage: true });
         await canvas.scrollIntoViewIfNeeded();
         await page.keyboard.down('Shift');

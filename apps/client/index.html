@@ -154,59 +154,77 @@
                     </p>
                     <button id="respawn" type="button" disabled>Возродиться</button>
                 </div>
-                <div class="stamina-hud">
-                    <span id="player-name">Имя: —</span>
-                    <div id="world-hud" class="world-hud" role="group" aria-label="Условия мира">
-                        <details>
-                            <summary>Время и погода</summary>
-                            <p class="world-hud-help">
-                                Фаза суток влияет на дальность обзора. Туман дополнительно
-                                ограничивает обзор и дальность луча фонарика.
-                            </p>
-                        </details>
-                        <div class="world-hud-values">
-                            <span id="world-time">Время мира: —</span>
-                            <span id="daylight-label">Освещение: —</span>
-                            <span id="weather-label">Погода: —</span>
-                            <span id="world-clock-status">Ожидание часов хоста</span>
-                        </div>
-                    </div>
-                    <button
-                        id="flashlight"
-                        class="flashlight-control"
-                        type="button"
-                        aria-pressed="false"
-                        disabled
-                    >
-                        Фонарик: выкл. (L)
-                    </button>
-                    <label id="health-label" for="health">Здоровье: —</label>
-                    <progress id="health" max="100" value="0"></progress>
-                    <div class="character-status" role="group" aria-label="Состояние персонажа">
-                        <div class="status-chip">
-                            <span class="status-icon" aria-hidden="true">◆</span>
-                            <span id="bleeding-label" aria-live="polite">Кровотечение: —</span>
-                        </div>
-                        <div class="status-chip">
-                            <span class="status-icon" aria-hidden="true">ϟ</span>
-                            <div>
-                                <label id="stamina-label" for="stamina">Выносливость: —</label>
-                                <progress id="stamina" max="1" value="0" hidden></progress>
+                <div class="playfield-hud">
+                    <div class="stamina-hud">
+                        <span id="player-name">Имя: —</span>
+                        <div
+                            id="world-hud"
+                            class="world-hud"
+                            role="group"
+                            aria-label="Условия мира"
+                        >
+                            <details>
+                                <summary>Время и погода</summary>
+                                <p class="world-hud-help">
+                                    Фаза суток влияет на дальность обзора. Туман дополнительно
+                                    ограничивает обзор и дальность луча фонарика.
+                                </p>
+                            </details>
+                            <div class="world-hud-values">
+                                <span id="world-time">Время мира: —</span>
+                                <span id="daylight-label">Освещение: —</span>
+                                <span id="weather-label">Погода: —</span>
+                                <span id="world-clock-status">Ожидание часов хоста</span>
                             </div>
                         </div>
-                        <div class="status-chip">
-                            <span class="status-icon" aria-hidden="true">▣</span>
-                            <span id="load-label">Нагрузка: —</span>
+                        <button
+                            id="flashlight"
+                            class="flashlight-control"
+                            type="button"
+                            aria-pressed="false"
+                            disabled
+                        >
+                            Фонарик: выкл. (L)
+                        </button>
+                        <label id="health-label" for="health">Здоровье: —</label>
+                        <progress id="health" max="100" value="0"></progress>
+                        <div class="character-status" role="group" aria-label="Состояние персонажа">
+                            <div class="status-chip">
+                                <span class="status-icon" aria-hidden="true">◆</span>
+                                <span id="bleeding-label" aria-live="polite">Кровотечение: —</span>
+                            </div>
+                            <div class="status-chip">
+                                <span class="status-icon" aria-hidden="true">ϟ</span>
+                                <div>
+                                    <label id="stamina-label" for="stamina">Выносливость: —</label>
+                                    <progress id="stamina" max="1" value="0" hidden></progress>
+                                </div>
+                            </div>
+                            <div class="status-chip">
+                                <span class="status-icon" aria-hidden="true">▣</span>
+                                <span id="load-label">Нагрузка: —</span>
+                            </div>
+                            <div class="status-chip">
+                                <span class="status-icon" aria-hidden="true">!</span>
+                                <span aria-live="polite">
+                                    <span id="combat-idle">Бой: —</span>
+                                    <strong id="combat-status" hidden>В бою</strong>
+                                </span>
+                            </div>
                         </div>
-                        <div class="status-chip">
-                            <span class="status-icon" aria-hidden="true">!</span>
-                            <span aria-live="polite">
-                                <span id="combat-idle">Бой: —</span>
-                                <strong id="combat-status" hidden>В бою</strong>
-                            </span>
-                        </div>
+                        <span id="movement-label">Режим: —</span>
                     </div>
-                    <span id="movement-label">Режим: —</span>
+                    <div
+                        id="held-equipment"
+                        class="held-equipment"
+                        role="group"
+                        aria-label="Экипировка в руках"
+                        aria-live="polite"
+                        aria-atomic="true"
+                    >
+                        <span id="held-item">В руках: —</span>
+                        <span id="held-ammo" hidden></span>
+                    </div>
                 </div>
             </section>
         </main>

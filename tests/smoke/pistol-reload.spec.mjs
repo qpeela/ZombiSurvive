@@ -31,32 +31,45 @@ const start = path => {
 const stop = async (running, signal = 'SIGTERM') => {
     if (running.host.exitCode === null && running.host.signalCode === null)
         running.host.kill(signal);
-    await running.exited;
+    const kill = setTimeout(() => running.host.kill('SIGKILL'), 4000);
+    try {
+        await running.exited;
+    } finally {
+        clearTimeout(kill);
+    }
 };
-const seed = (path, rounds = 3, quantity = 8) => {
+const seed = (path, rounds = 3, quantity = 8, hasExtraReserve = false) => {
     const store = new SoloWorldStore(path);
     const playerId = store.initialWorld.playerId;
     let itemId;
-    store.saveItemLocations(
-        store.initialItemLocations.map(location => {
-            if (location.item.itemId === 'pistol-v1:0:0') {
-                itemId = location.item.itemId;
-                return {
-                    type: 'hands',
-                    playerId,
-                    item: { itemId, kind: 'pistol', rounds, magazineCapacity: 8 },
-                };
-            }
-            if (location.item.itemId === 'ammo9mm-v1:0:0')
-                return {
-                    type: 'container',
-                    playerId,
-                    item: { itemId: location.item.itemId, kind: 'ammo9mm', quantity },
-                    cell: { column: 0, row: 0 },
-                };
-            return location;
-        }),
-    );
+    const locations = store.initialItemLocations.map(location => {
+        if (location.item.itemId === 'pistol-v1:0:0') {
+            itemId = location.item.itemId;
+            return {
+                type: 'hands',
+                playerId,
+                item: { itemId, kind: 'pistol', rounds, magazineCapacity: 8 },
+            };
+        }
+        if (location.item.itemId === 'ammo9mm-v1:0:0')
+            return {
+                type: 'container',
+                playerId,
+                item: { itemId: location.item.itemId, kind: 'ammo9mm', quantity },
+                cell: { column: 0, row: 0 },
+            };
+        if (hasExtraReserve && location.item.itemId === 'scatter-v1:pistol:west:ammo')
+            return {
+                type: 'container',
+                playerId,
+                item: { itemId: location.item.itemId, kind: 'ammo9mm', quantity: 2 },
+                cell: { column: 1, row: 0 },
+            };
+        if (hasExtraReserve && location.item.itemId === `${playerId}:axe`)
+            return { type: 'expired', item: location.item };
+        return location;
+    });
+    store.saveItemLocations(locations);
     store.savePosition({ xMeters: 8, yMeters: 12 });
     store.close();
     return itemId;
@@ -90,6 +103,59 @@ const request = (type, itemId, weaponRevision = 0) => ({
     ...(type === 'shoot-pistol' ? { aim: { x: 1, y: 0 } } : {}),
 });
 
+test('the persistent strip separates an empty magazine from reserve, changes weapon and clears on reconnect', async ({
+    page,
+    context,
+}) => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-held-hud-'));
+    const path = join(directory, 'world.sqlite');
+    let running;
+    try {
+        seed(path, 0, 6, true);
+        running = start(path);
+        await expect.poll(running.output).toContain('Local world ready');
+        await page.goto(origin);
+        const equipment = page.getByRole('group', { name: 'Экипировка в руках' });
+        const weapon = equipment.locator('#held-item');
+        const ammo = equipment.locator('#held-ammo');
+        const panel = page.locator('#equipment-panel');
+        await expect(panel).toBeHidden();
+        await expect(weapon).toHaveText('В руках: Пистолет 9 мм');
+        await expect(ammo).toHaveText('Магазин: 0/8 · Запас: 8');
+        await expect(ammo).toBeInViewport({ ratio: 1 });
+        await page.screenshot({ path: '.cache/t066-empty-magazine.png' });
+
+        const viewport = page.viewportSize();
+        await page.setViewportSize({ width: 400, height: 300 });
+        await page.locator('#world-hud summary').click();
+        await expect(ammo).toBeInViewport({ ratio: 1 });
+        const topHud = await page.locator('.stamina-hud').boundingBox();
+        const bottomHud = await equipment.boundingBox();
+        expect(topHud.y + topHud.height).toBeLessThanOrEqual(bottomHud.y);
+        await page.screenshot({ path: '.cache/t066-compact.png' });
+        await page.locator('#world-hud summary').click();
+        await page.setViewportSize(viewport);
+        await context.setOffline(true);
+        await expect(weapon).toHaveText('В руках: —');
+        await expect(ammo).toBeHidden();
+        await context.setOffline(false);
+        await page.getByRole('button', { name: 'Подключиться снова' }).click();
+        await expect(weapon).toHaveText('В руках: Пистолет 9 мм');
+        await expect(ammo).toHaveText('Магазин: 0/8 · Запас: 8');
+        await expect(ammo).toBeVisible();
+        await clickEquipmentAction(page, 'Экипировать лом');
+        await expect(weapon).toHaveText('В руках: Лом');
+        await expect(ammo).toBeHidden();
+        await expect(page.locator('#unequip-weapon')).toBeEnabled();
+        await clickEquipmentAction(page, 'Убрать оружие в сетку');
+        await expect(weapon).toHaveText('В руках: пусто');
+        await expect(ammo).toBeHidden();
+    } finally {
+        if (running !== undefined) await stop(running);
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
+
 test('R and HUD reload share progress across tabs, block shots, retain pack quantity and cancel on weapon replacement', async ({
     page,
     context,
@@ -105,6 +171,7 @@ test('R and HUD reload share progress across tabs, block shots, retain pack quan
         await expect.poll(running.output).toContain('Local world ready');
         await page.goto(origin);
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 3/8');
+        await expect(page.locator('#held-ammo')).toHaveText('Магазин: 3/8 · Запас: 8');
         await expect(pack(page)).toContainText('×8');
         await expect(pack(page)).toContainText('96 г');
         tab = await context.newPage();
@@ -123,11 +190,14 @@ test('R and HUD reload share progress across tabs, block shots, retain pack quan
         await page.screenshot({ path: '.cache/t038-reloading.png', fullPage: true });
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
         await expect(tab.locator('#ammo-label')).toHaveText('Патроны: 8/8');
+        await expect(page.locator('#held-ammo')).toHaveText('Магазин: 8/8 · Запас: 3');
+        await expect(tab.locator('#held-ammo')).toHaveText('Магазин: 8/8 · Запас: 3');
         await expect(pack(page)).toContainText('×3');
         await expect(pack(page)).toContainText('36 г');
         await expect(page.locator('#pistol-reload')).toBeDisabled();
         await page.locator('#pistol-shot').click();
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 7/8');
+        await expect(page.locator('#held-ammo')).toHaveText('Магазин: 7/8 · Запас: 3');
         await openEquipment(page);
         await page.locator('#pistol-reload').click();
         await expect(page.locator('#reload-progress')).toBeVisible();
@@ -187,6 +257,8 @@ test('SIGKILL during progress cancels without spending; a short pack then fills 
         await expect(page.locator('#reload-progress')).toBeHidden();
         await page.keyboard.press('r');
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 3/8');
+        await expect(page.locator('#held-ammo')).toHaveText('Магазин: 3/8 · Запас: 0');
+        await expect(page.locator('#held-ammo')).toBeVisible();
         await expect(pack(page)).toHaveCount(0);
         await expect(page.locator('#pistol-reload')).toBeDisabled();
         await page.screenshot({ path: '.cache/t038-partial-pack.png', fullPage: true });

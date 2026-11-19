@@ -150,18 +150,23 @@ test('held equip requests cannot change the rendered weapon before server confir
         });
         await open(page, running);
         const canvas = page.locator('canvas');
+        const heldItem = page.locator('#held-item');
         isHeld = true;
         await clickEquipmentAction(page, 'Экипировать топор');
         await waitTicks(page);
         await expect(canvas).toHaveAttribute('data-weapon-visible', 'false');
+        await expect(heldItem).toHaveText('В руках: пусто');
         release();
         await expect(canvas).toHaveAttribute('data-weapon', 'axe');
+        await expect(heldItem).toHaveText('В руках: Топор');
         isHeld = true;
         await clickEquipmentAction(page, 'Экипировать нож');
         await waitTicks(page);
         await expect(canvas).toHaveAttribute('data-weapon', 'axe');
+        await expect(heldItem).toHaveText('В руках: Топор');
         release();
         await expect(canvas).toHaveAttribute('data-weapon', 'knife');
+        await expect(heldItem).toHaveText('В руках: Нож');
     } finally {
         release();
         await page.close();
