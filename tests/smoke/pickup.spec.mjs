@@ -6,6 +6,8 @@ import { expect, test } from '@playwright/test';
 import { initialGroundItem } from '@zombi-survive/content';
 import { initialStateRequest, localWorldRoomId, pickupStateRequest } from '@zombi-survive/protocol';
 
+import { openInventory } from '../fixtures/game-panels.mjs';
+
 const origin = 'http://127.0.0.1:3111';
 const read = page =>
     page.getByRole('status').evaluate(element => ({
@@ -104,6 +106,7 @@ test('pickup and grid moves are server-confirmed, reject invalid placement and s
         expect(state.items.filter(item => item.kind === 'bandage')).toEqual([
             { itemId: initialGroundItem.itemId, kind: 'bandage', cell: { column: 0, row: 0 } },
         ]);
+        await openInventory(page);
         const grid = page.locator('#inventory-grid');
         const selector = page.getByRole('button', { name: 'Переместить бинт' });
         await expect(grid.locator('[data-occupied="true"]')).toHaveCount(6);

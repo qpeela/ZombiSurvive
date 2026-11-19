@@ -52,6 +52,27 @@ body {
     gap: 6px;
 }
 
+.panel-toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.panel-toggles button[aria-expanded='true'] {
+    background: #536344;
+    border-color: #d8e3c9;
+}
+
+.game-panel h2 {
+    margin: 0;
+    font-size: 15px;
+}
+
+.game-panel:focus-visible {
+    outline: 2px solid #d8e3c9;
+    outline-offset: -2px;
+}
+
 .control-scroll {
     flex: 1;
     min-height: 0;
@@ -150,6 +171,10 @@ h1 {
     padding: 8px;
     border: 1px solid #394a3c;
     background: #17221c;
+}
+
+.game-panel {
+    margin-block: 0 8px;
 }
 
 .pickup-panel > p {

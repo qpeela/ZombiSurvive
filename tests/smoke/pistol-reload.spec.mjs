@@ -9,6 +9,7 @@ import { expect, test } from '@playwright/test';
 import { firearmVersion, localWorldRoomId, protocolVersion } from '@zombi-survive/protocol';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
+import { clickEquipmentAction, openEquipment } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3134';
 const start = path => {
@@ -127,12 +128,13 @@ test('R and HUD reload share progress across tabs, block shots, retain pack quan
         await expect(page.locator('#pistol-reload')).toBeDisabled();
         await page.locator('#pistol-shot').click();
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 7/8');
+        await openEquipment(page);
         await page.locator('#pistol-reload').click();
         await expect(page.locator('#reload-progress')).toBeVisible();
-        await page.getByRole('button', { name: 'Экипировать топор', exact: true }).click();
+        await clickEquipmentAction(page, 'Экипировать топор');
         await expect(page.locator('#weapon-label')).toHaveText('Оружие: топор');
         await expect(page.locator('#reload-progress')).toBeHidden();
-        await page.getByRole('button', { name: 'Экипировать пистолет', exact: true }).click();
+        await clickEquipmentAction(page, 'Экипировать пистолет');
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 7/8');
         await expect(pack(page)).toContainText('×3');
         await page.locator('#pistol-reload').click();

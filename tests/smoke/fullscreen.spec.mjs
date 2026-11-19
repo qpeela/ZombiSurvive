@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 
+import { openInventory } from '../fixtures/game-panels.mjs';
 import { isolatedHostOrigin, test } from '../fixtures/isolated-host.mjs';
 
 test.use({ baseURL: isolatedHostOrigin });
@@ -153,8 +154,11 @@ test('fullscreen includes HTML UI, preserves pointer coordinates and exits with 
         .poll(() => page.evaluate(() => globalThis.document.fullscreenElement?.className))
         .toBe('game-shell');
     await expect(page.locator('#health')).toBeInViewport();
+    await openInventory(page);
     await page.locator('#inventory-grid').scrollIntoViewIfNeeded();
     await expect(page.locator('#inventory-grid')).toBeInViewport();
+    await page.locator('#toggle-inventory').click();
+    await expect(page.locator('#inventory-panel')).toBeHidden();
     await page.locator('#melee-attack').scrollIntoViewIfNeeded();
     await expect(page.locator('#melee-attack')).toBeInViewport();
     await assertPointer(page);

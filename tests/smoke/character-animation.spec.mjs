@@ -4,6 +4,7 @@ import { once } from 'node:events';
 import { expect, test } from '@playwright/test';
 
 import { activateStartingZombie, distanceToStartingZombie } from '../fixtures/game-controls.mjs';
+import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
 
 const character = page =>
     page.locator('canvas').evaluate(canvas => JSON.parse(canvas.dataset.playerCharacter ?? 'null'));
@@ -63,7 +64,7 @@ test('articulated figures walk, crouch, run, hold weapons and shuffle; removal a
         await expect.poll(async () => (await character(page))?.kind).toBe('player');
         await settle(page);
         await canvas.screenshot({ path: '.cache/t041-idle.png' });
-        await page.getByRole('button', { name: 'Экипировать топор', exact: true }).click();
+        await clickEquipmentAction(page, 'Экипировать топор');
         await expect(canvas).toHaveAttribute('data-weapon', 'axe');
         await canvas.scrollIntoViewIfNeeded();
         const box = await canvas.boundingBox();

@@ -1,0 +1,19 @@
+import { expect } from '@playwright/test';
+
+const openPanel = async (page, panel) => {
+    const toggle = page.locator(`#toggle-${panel}`);
+    if ((await toggle.getAttribute('aria-expanded')) === 'false') await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(page.locator(`#${panel}-panel`)).toBeVisible();
+};
+
+export const openInventory = page => openPanel(page, 'inventory');
+export const openEquipment = page => openPanel(page, 'equipment');
+
+export const clickEquipmentAction = async (page, name) => {
+    await openEquipment(page);
+    await page.locator('#equipment-panel').getByRole('button', { name, exact: true }).click();
+    await page.locator('#toggle-equipment').click();
+    await expect(page.locator('#equipment-panel')).toBeHidden();
+    await page.locator('#game').focus();
+};

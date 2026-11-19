@@ -16,12 +16,71 @@
                         На весь экран
                     </button>
                     <span id="fullscreen-message" aria-live="polite"></span>
+                    <div class="panel-toggles" aria-label="Игровые панели" role="group">
+                        <button
+                            id="toggle-inventory"
+                            type="button"
+                            aria-controls="inventory-panel"
+                            aria-expanded="false"
+                            aria-keyshortcuts="I"
+                        >
+                            Инвентарь (I)
+                        </button>
+                        <button
+                            id="toggle-equipment"
+                            type="button"
+                            aria-controls="equipment-panel"
+                            aria-expanded="false"
+                            aria-keyshortcuts="E"
+                        >
+                            Экипировка (E)
+                        </button>
+                    </div>
                 </div>
                 <section
                     class="control-scroll"
                     aria-label="Настройки и игровые действия"
                     tabindex="0"
                 >
+                    <section
+                        id="inventory-panel"
+                        class="pickup-panel game-panel"
+                        aria-labelledby="inventory-heading"
+                        tabindex="-1"
+                        hidden
+                    >
+                        <h2 id="inventory-heading">Инвентарь</h2>
+                        <p id="inventory">Контейнер: —</p>
+                        <p id="equipment-weight">Вес снаряжения: —</p>
+                        <button id="inventory-select" type="button" aria-pressed="false" disabled>
+                            Переместить бинт · 2 × 1 · 100 г
+                        </button>
+                        <div id="inventory-items" aria-label="Перенос предметов"></div>
+                        <div id="inventory-grid" aria-label="Сетка инвентаря 4 × 3"></div>
+                        <p id="inventory-message" aria-live="polite">Сетка недоступна.</p>
+                        <p class="caption">
+                            Чтобы экипировать конкретный экземпляр, выберите его в сетке и откройте
+                            экипировку. В одиночной игре вещи сохраняются после перезапуска хоста.
+                        </p>
+                    </section>
+                    <section
+                        id="equipment-panel"
+                        class="pickup-panel game-panel"
+                        aria-labelledby="equipment-heading"
+                        tabindex="-1"
+                        hidden
+                    >
+                        <h2 id="equipment-heading">Экипировка</h2>
+                        <div id="weapon-options" aria-label="Выбор оружия"></div>
+                        <button id="unequip-weapon" type="button" disabled>
+                            Убрать оружие в сетку
+                        </button>
+                        <p id="weapon-stats">Характеристики: —</p>
+                        <p class="caption">
+                            Каждый предмет занимает ячейку сетки или единственный слот рук. Для
+                            снятия оружия нужно свободное место в сетке.
+                        </p>
+                    </section>
                     <header>
                         <h1>ZombiSurvive</h1>
                         <p class="game-version">Версия __GAME_VERSION__</p>
@@ -36,35 +95,20 @@
                         <button id="save-name" type="submit" disabled>Сохранить имя</button>
                         <span id="profile-message" aria-live="polite"></span>
                     </form>
-                    <section class="pickup-panel" aria-label="Предметы и контейнер">
+                    <section class="pickup-panel" aria-label="Предметы рядом и лечение">
                         <p id="ground-item">На земле: —</p>
                         <button id="pickup" type="button" disabled>Подобрать бинт</button>
                         <div id="corpse-items" aria-label="Вещи в телах"></div>
-                        <p id="inventory">Контейнер: —</p>
                         <p id="restock-label">Пополнение рядом: —</p>
-                        <p id="equipment-weight">Вес снаряжения: —</p>
                         <button id="use-bandage" type="button" disabled>Использовать бинт</button>
-                        <button id="inventory-select" type="button" aria-pressed="false" disabled>
-                            Переместить бинт · 2 × 1 · 100 г
-                        </button>
-                        <div id="inventory-items" aria-label="Перенос предметов"></div>
-                        <div id="inventory-grid" aria-label="Сетка инвентаря 4 × 3"></div>
-                        <p id="inventory-message" aria-live="polite">Сетка недоступна.</p>
                         <p class="caption">
-                            Подойдите к предмету на 1,5 м. Для экипировки выберите экземпляр в сетке
-                            и нажмите кнопку нужного оружия. В одиночной игре вещи сохраняются после
-                            перезапуска хоста. Бинт из контейнера останавливает кровотечение, но не
-                            восстанавливает HP.
+                            Подойдите к предмету на 1,5 м. Бинт из контейнера останавливает
+                            кровотечение, но не восстанавливает HP.
                         </p>
                     </section>
                     <section class="pickup-panel" aria-label="Ближний бой">
                         <p id="weapon-label">Оружие: —</p>
                         <p id="ammo-label">Патроны: —</p>
-                        <div id="weapon-options" aria-label="Выбор оружия"></div>
-                        <button id="unequip-weapon" type="button" disabled>
-                            Убрать оружие в сетку
-                        </button>
-                        <p id="weapon-stats">Характеристики: —</p>
                         <p id="reload-label">Перезарядка: нет</p>
                         <progress
                             id="reload-progress"
@@ -81,9 +125,7 @@
                         <p class="caption">
                             Дубинка — универсальная, нож — быстрый, лом — дальнобойный, топор —
                             мощный. F — удар по ближайшему доступному зомби. Смена оружия сохраняет
-                            паузу предыдущего удара. Каждый предмет занимает ячейку сетки или
-                            единственный слот рук. Экипировка сохраняется после перезапуска хоста;
-                            для снятия нужно свободное место в сетке.
+                            паузу предыдущего удара. Экипировка сохраняется после перезапуска хоста.
                         </p>
                     </section>
                     <p class="caption">
@@ -102,7 +144,7 @@
                     </p>
                 </section>
             </aside>
-            <section id="game" aria-label="Игровое поле">
+            <section id="game" aria-label="Игровое поле" tabindex="0">
                 <div id="death-screen" role="alert" hidden>
                     <h2>Вы погибли</h2>
                     <p>Действия персонажа недоступны.</p>

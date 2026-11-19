@@ -10,6 +10,7 @@ import { initialGroundItem } from '@zombi-survive/content';
 import { initialStateRequest, localWorldRoomId, pickupStateRequest } from '@zombi-survive/protocol';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
+import { clickEquipmentAction, openEquipment, openInventory } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3121';
 const start = path => {
@@ -78,18 +79,28 @@ test('v2 migrates; inventory and hands survive tabs, reload and SIGKILL in a fre
             await expect(view.locator('#inventory')).toHaveText('Контейнер: предметов 5');
             await expect(view.locator('#ground-item')).toHaveText('На земле: пусто');
         }
+        await openInventory(page);
+        const axeSelector = page.getByRole('button', { name: /^Переместить: Топор/i });
+        await axeSelector.click();
+        await page.keyboard.press('e');
+        await expect(page.locator('#equipment-panel')).toBeFocused();
+        await openInventory(tab);
         await tab
             .getByRole('button', { name: 'Переместить бинт · 2 × 1 · 100 г', exact: true })
             .click();
         await tab.getByRole('button', { name: 'Ячейка 3, 3', exact: true }).click();
         await expect(occupied(tab)).toHaveAttribute('data-occupied', 'true');
         await expect(occupied(page)).toHaveAttribute('data-occupied', 'true');
+        await expect(axeSelector).toHaveAttribute('aria-pressed', 'true');
+        await page.keyboard.press('Escape');
+        await expect(axeSelector).toBeFocused();
         await page.reload();
         await expect(occupied(page)).toHaveAttribute('data-occupied', 'true');
-        await page.getByRole('button', { name: 'Экипировать топор', exact: true }).click();
+        await clickEquipmentAction(page, 'Экипировать топор');
         for (const view of [page, tab]) {
             await expect(view.locator('#weapon-label')).toHaveText('Оружие: топор');
             await expect(view.locator('#inventory')).toHaveText('Контейнер: предметов 4');
+            await openEquipment(view);
             await expect(
                 view.getByRole('button', { name: 'Экипировать топор', exact: true }),
             ).toBeDisabled();
@@ -142,7 +153,7 @@ test('v2 migrates; inventory and hands survive tabs, reload and SIGKILL in a fre
         await expect(restored.locator('#weapon-label')).toHaveText('Оружие: топор');
         await expect(restored.locator('#inventory')).toHaveText('Контейнер: предметов 4');
         await expect(restored.locator('#inventory-grid [data-occupied="true"]')).toHaveCount(5);
-        await restored.getByRole('button', { name: 'Убрать оружие в сетку', exact: true }).click();
+        await clickEquipmentAction(restored, 'Убрать оружие в сетку');
         await expect(restored.locator('#weapon-label')).toHaveText('Оружие: в руках пусто');
         await expect(restored.locator('#inventory')).toHaveText('Контейнер: предметов 5');
         await expect(restored.locator('#ground-item')).toHaveText('На земле: пусто');

@@ -4,6 +4,8 @@ import { once } from 'node:events';
 import { expect, test } from '@playwright/test';
 import { combatSettings } from '@zombi-survive/content';
 
+import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
+
 const origin = 'http://127.0.0.1:3132';
 
 test('accepted swings show combat, extend it, and quiet steps clear the HUD', async ({ page }) => {
@@ -26,7 +28,7 @@ test('accepted swings show combat, extend it, and quiet steps clear the HUD', as
         const indicator = page.locator('#combat-status');
         const attack = page.getByRole('button', { name: 'Ударить (F)' });
         await expect(indicator).toBeHidden();
-        await page.getByRole('button', { name: 'Экипировать дубинку' }).click();
+        await clickEquipmentAction(page, 'Экипировать дубинку');
         await expect(attack).toBeEnabled();
         await attack.click();
         await expect(indicator).toBeVisible();

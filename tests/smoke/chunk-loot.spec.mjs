@@ -12,6 +12,7 @@ import { generateChunkLoot } from '@zombi-survive/worldgen';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
 import { clickWorld, movePlayerTo } from '../fixtures/game-controls.mjs';
+import { clickEquipmentAction, openInventory } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3137';
 const lootFor = (chunkX, chunkY) =>
@@ -83,7 +84,7 @@ test('walking into a new northern chunk discovers weapon and ammo once; pickup, 
     try {
         await expect.poll(running.output).toContain('Local world ready');
         await page.goto(origin);
-        await page.getByRole('button', { name: 'Экипировать топор', exact: true }).click();
+        await clickEquipmentAction(page, 'Экипировать топор');
         await page.locator('canvas').scrollIntoViewIfNeeded();
         await page.keyboard.down('Shift');
         await page.keyboard.down('w');
@@ -117,10 +118,9 @@ test('walking into a new northern chunk discovers weapon and ammo once; pickup, 
         await expect(
             page.locator(`#inventory-items button[data-item-id="${ammo.itemId}"]`),
         ).toContainText('×8');
+        await openInventory(page);
         await page.locator(`#inventory-items button[data-item-id="${weapon.itemId}"]`).click();
-        await page
-            .getByRole('button', { name: meleeWeapons[weapon.kind].equipLabel, exact: true })
-            .click();
+        await clickEquipmentAction(page, meleeWeapons[weapon.kind].equipLabel);
         await expect(page.locator('canvas')).toHaveAttribute('data-weapon', weapon.kind);
         await stop(running, 'SIGKILL');
         let saved = new SoloWorldStore(path);
@@ -180,7 +180,7 @@ test('a new chunk pistol uses its scattered pack for a real reload and keeps the
         await expect.poll(running.output).toContain('Local world ready');
         await page.goto(origin);
         await page.getByRole('button', { name: 'Подобрать пистолет 9 мм', exact: true }).click();
-        await page.getByRole('button', { name: 'Экипировать пистолет', exact: true }).click();
+        await clickEquipmentAction(page, 'Экипировать пистолет');
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
         await waitForIdleCamera(page);
         await movePlayerTo({ page, position: ammo.position });

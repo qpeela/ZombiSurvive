@@ -4,6 +4,8 @@ import { once } from 'node:events';
 import { expect, test } from '@playwright/test';
 import { meleeWeapons } from '@zombi-survive/content';
 
+import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
+
 test('server-confirmed swings animate all weapons; refusal, switching and reconnect cannot replay them', async ({
     page,
     context,
@@ -36,7 +38,7 @@ test('server-confirmed swings animate all weapons; refusal, switching and reconn
             ['crowbar', 'лом'],
             ['axe', 'топор'],
         ]) {
-            await page.getByRole('button', { name: `Экипировать ${label}`, exact: true }).click();
+            await clickEquipmentAction(page, `Экипировать ${label}`);
             await expect(canvas).toHaveAttribute('data-weapon', weapon);
             await page.getByRole('button', { name: 'Ударить (F)', exact: true }).click();
             await expect
@@ -64,7 +66,7 @@ test('server-confirmed swings animate all weapons; refusal, switching and reconn
         const swingTick = await canvas.getAttribute('data-weapon-attack-tick');
         for (let index = 0; index < 5; index++) await page.keyboard.press('f');
         await expect(canvas).toHaveAttribute('data-weapon-attack-tick', swingTick);
-        await page.getByRole('button', { name: 'Экипировать нож', exact: true }).click();
+        await clickEquipmentAction(page, 'Экипировать нож');
         await expect(canvas).toHaveAttribute('data-weapon', 'knife');
         await expect(canvas).toHaveAttribute('data-weapon-animation', 'idle');
         await page.keyboard.press('f');
