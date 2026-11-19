@@ -10,6 +10,7 @@ import {
     type GroundItem,
     type InventoryItem,
     isMeleeWeaponId,
+    isWeaponId,
     type Item,
     type PlayerLifeState,
     type PlayerMovementState,
@@ -29,6 +30,7 @@ import { createCharacterHud } from './character-hud';
 import { createControlPanels } from './control-panels';
 import { createEquipmentHud } from './equipment-hud';
 import { createFullscreenControls } from './fullscreen';
+import type { InventoryContextAction } from './inventory-context-menu';
 import { createInventoryGrid } from './inventory-grid';
 import { createMovementInputController } from './movement-input';
 import { MovementPrediction } from './movement-prediction';
@@ -96,6 +98,7 @@ const inventoryGrid = document.querySelector<HTMLElement>('#inventory-grid');
 const inventorySelector = document.querySelector<HTMLButtonElement>('#inventory-select');
 const inventoryMessage = document.querySelector<HTMLElement>('#inventory-message');
 const itemDetails = document.querySelector<HTMLElement>('#item-details');
+const inventoryContext = document.querySelector<HTMLElement>('#inventory-context');
 const bandageButton = document.querySelector<HTMLButtonElement>('#use-bandage');
 const corpseItems = document.querySelector<HTMLElement>('#corpse-items');
 const respawnButton = document.querySelector<HTMLButtonElement>('#respawn');
@@ -159,6 +162,7 @@ if (
     !inventorySelector ||
     !inventoryMessage ||
     !itemDetails ||
+    !inventoryContext ||
     !bandageButton ||
     !deathScreen ||
     !corpseItems ||
@@ -193,20 +197,63 @@ const game = new Game({
     scene: [scene],
 });
 
+let inventoryItems: readonly InventoryItem[] = [];
+let hands: Item | null = null;
+let isBleeding = false;
+let lifeState: PlayerLifeState | null = null;
+const equipInventoryItem = (itemId: string): void => {
+    if (lifeState === 'alive') connection.sendMelee({ type: 'equip-weapon', itemId });
+};
+const useInventoryBandage = (itemId: string): void => {
+    if (lifeState === 'alive' && isBleeding) connection.useBandage(itemId);
+};
+const getContextActions = (item: InventoryItem): readonly InventoryContextAction[] => {
+    const { itemId, kind } = item;
+    if (isWeaponId(kind)) {
+        const remaining = inventoryItems.filter(candidate => candidate.itemId !== itemId);
+        const hasSpace =
+            hands === null || findInventorySpace({ items: remaining, item: hands }) !== null;
+
+        return [
+            {
+                id: 'equip',
+                label: 'Взять в руки',
+                unavailable: hasSpace ? null : 'Освободите место для оружия из рук.',
+                run: () => {
+                    equipInventoryItem(itemId);
+                },
+            },
+        ];
+    }
+
+    if (kind === 'bandage') {
+        return [
+            {
+                id: 'bandage',
+                label: 'Перевязаться',
+                unavailable: isBleeding ? null : 'Кровотечения нет.',
+                run: () => {
+                    useInventoryBandage(itemId);
+                },
+            },
+        ];
+    }
+
+    return [];
+};
 const inventoryUi = createInventoryGrid({
     grid: inventoryGrid,
     itemSelectors,
     selector: inventorySelector,
     message: inventoryMessage,
     details: itemDetails,
+    panel: inventoryPanel,
+    contextMenu: inventoryContext,
+    contextActions: getContextActions,
     onMove: (itemId, cell) => {
         if (lifeState === 'alive') connection.moveItem(itemId, cell);
     },
 });
-let inventoryItems: readonly InventoryItem[] = [];
-let hands: Item | null = null;
-let isBleeding = false;
-let lifeState: PlayerLifeState | null = null;
 let reloadTicks = 0;
 const updateFirearm = (): void => {
     const isAlive = lifeState === 'alive';
@@ -251,7 +298,7 @@ const equipmentButtons = Object.values(weaponDefinitions).map(weapon => {
                 ? selected
                 : inventoryItems.find(candidate => candidate.kind === weapon.id);
 
-        if (item !== undefined) connection.sendMelee({ type: 'equip-weapon', itemId: item.itemId });
+        if (item !== undefined) equipInventoryItem(item.itemId);
     };
     button.addEventListener('click', onEquip);
     weaponOptions.append(button);
@@ -387,6 +434,7 @@ const controlPanels = createControlPanels({
                 if (isOpen) inventoryPanel.append(nearbyPanel);
                 else nearbyAnchor.after(nearbyPanel);
             },
+            onEscape: inventoryUi.dismissContextMenu,
         },
         { element: equipmentPanel, button: equipmentToggle, shortcut: 'KeyE' },
     ],
@@ -577,11 +625,11 @@ const connection = createWorldConnection(
             for (const { button } of equipmentButtons) button.disabled = true;
         }
 
+        isBleeding = snapshot.bleedingTicks > 0;
         inventoryUi.update(inventoryItems, isAlive);
         updatePickup();
         attack.disabled = attack.disabled || snapshot.health <= 0;
         updateFirearm();
-        isBleeding = snapshot.bleedingTicks > 0;
         characterHud.setHealth({ isBleeding, combatTicks: isAlive ? snapshot.combatTicks : 0 });
         health.max = snapshot.maxHealth;
         health.value = snapshot.health;
@@ -665,7 +713,7 @@ const onUnequip = (): void => {
 const onUseBandage = (): void => {
     const bandage = inventoryItems.find(item => item.kind === 'bandage');
 
-    if (!bandageButton.disabled && bandage !== undefined) connection.useBandage(bandage.itemId);
+    if (!bandageButton.disabled && bandage !== undefined) useInventoryBandage(bandage.itemId);
 };
 bandageButton.addEventListener('click', onUseBandage);
 unequip.addEventListener('click', onUnequip);

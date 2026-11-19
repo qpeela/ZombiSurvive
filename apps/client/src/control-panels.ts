@@ -3,6 +3,7 @@ type ControlPanel = {
     readonly button: HTMLButtonElement;
     readonly shortcut: string;
     readonly onVisibilityChange?: (isOpen: boolean) => void;
+    readonly onEscape?: () => boolean;
 };
 
 type OpenPanel = {
@@ -84,7 +85,8 @@ export const createControlPanels = ({
         if (event.key === 'Escape' && openPanels.length > 0) {
             event.preventDefault();
             event.stopPropagation();
-            if (!event.repeat) close(openPanels.length - 1);
+            const topPanel = openPanels.at(-1)?.panel;
+            if (!event.repeat && topPanel?.onEscape?.() !== true) close(openPanels.length - 1);
 
             return;
         }

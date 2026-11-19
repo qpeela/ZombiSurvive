@@ -344,7 +344,8 @@ button:focus-visible {
     background: transparent;
 }
 
-.item-details:not([hidden]) {
+.item-details:not([hidden]),
+.inventory-context:not([hidden]) {
     position: absolute;
     inset-block-start: 0;
     inset-inline-end: calc(100% + 8px);
@@ -357,6 +358,9 @@ button:focus-visible {
     border-inline-start: 2px solid #a1b477;
     background: #101a14;
     overflow-wrap: anywhere;
+}
+
+.item-details {
     pointer-events: none;
 }
 
@@ -376,6 +380,31 @@ button:focus-visible {
 .inventory-drop-preview[data-allowed='false'] {
     border: 2px dashed #ff9b89;
     background: #c75d4844;
+}
+
+#inventory-panel:has(.inventory-context:not([hidden])) .item-details {
+    visibility: hidden;
+}
+
+.inventory-context [role='menu'] {
+    display: grid;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.inventory-context [role='none'] {
+    display: grid;
+    gap: 2px;
+}
+
+.inventory-context [aria-disabled='true'] {
+    opacity: 0.6;
+    cursor: default;
+}
+
+.inventory-context span {
+    color: #e8c49c;
+    font-size: 12px;
 }
 
 #player-profile {

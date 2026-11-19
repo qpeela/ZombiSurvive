@@ -6,7 +6,12 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { Client } from '@colyseus/sdk';
 import { expect, test } from '@playwright/test';
-import { firearmVersion, localWorldRoomId, protocolVersion } from '@zombi-survive/protocol';
+import {
+    firearmVersion,
+    localWorldRoomId,
+    meleeVersion,
+    protocolVersion,
+} from '@zombi-survive/protocol';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
 import { clickEquipmentAction, openEquipment, openInventory } from '../fixtures/game-panels.mjs';
@@ -75,6 +80,57 @@ const seed = (path, rounds = 3, quantity = 8, hasExtraReserve = false) => {
     return itemId;
 };
 const pack = page => page.locator('#inventory-items button[data-item-id="ammo9mm-v1:0:0"]');
+const firstPistolId = 'pistol-v1:0:0';
+const secondPistolId = 'scatter-v1:pistol:west';
+const seedContextInventory = (path, { bleedingTicks = 0, isPacked = false } = {}) => {
+    const store = new SoloWorldStore(path);
+    const { playerId } = store.initialWorld;
+    const locations = store.initialItemLocations.map(location => {
+        const { item } = location;
+        if (item.itemId === 'starter-bandage')
+            return {
+                type: 'container',
+                playerId,
+                item: { itemId: item.itemId, kind: 'bandage' },
+                cell: { column: 0, row: isPacked ? 0 : 2 },
+            };
+        if (item.itemId === firstPistolId || item.itemId === secondPistolId) {
+            const isFirst = item.itemId === firstPistolId;
+            const normalCell = { column: isFirst ? 0 : 2, row: 0 };
+            const packedCell = isFirst ? { column: 2, row: 0 } : { column: 1, row: 1 };
+
+            return {
+                type: 'container',
+                playerId,
+                item: {
+                    itemId: item.itemId,
+                    kind: 'pistol',
+                    magazineCapacity: 8,
+                    rounds: isFirst ? 1 : 5,
+                },
+                cell: isPacked ? packedCell : normalCell,
+            };
+        }
+
+        const packIds = ['ammo9mm-v1:0:0', 'scatter-v1:pistol:west:ammo'];
+        const packIndex = packIds.indexOf(item.itemId);
+        if (isPacked && item.kind === 'ammo9mm' && packIndex >= 0) {
+            return {
+                type: 'container',
+                playerId,
+                item: { itemId: item.itemId, kind: item.kind, quantity: 1 },
+                cell: { column: packIndex + 1, row: 2 },
+            };
+        }
+
+        return location.type === 'container' ? { type: 'expired', item } : location;
+    });
+    store.saveCombat({ health: 70, cooldownTicks: 0, bleedingTicks }, locations, {
+        xMeters: 8,
+        yMeters: 12,
+    });
+    store.close();
+};
 const connect = async () => {
     const room = await new Client(origin, { headers: { Origin: origin } }).joinById(
         localWorldRoomId,
@@ -101,6 +157,104 @@ const request = (type, itemId, weaponRevision = 0) => ({
     itemId,
     weaponRevision,
     ...(type === 'shoot-pistol' ? { aim: { x: 1, y: 0 } } : {}),
+});
+
+test('item context actions use the exact pistol, support the context key and dismiss on removal or Escape', async ({
+    page,
+}) => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-item-context-'));
+    const path = join(directory, 'world.sqlite');
+    let running;
+    let room;
+    try {
+        seedContextInventory(path);
+        running = start(path);
+        await expect.poll(running.output).toContain('Local world ready');
+        await page.goto(origin);
+        await openInventory(page);
+        const inventory = page.locator('#inventory-panel');
+        const cell = name => inventory.getByRole('button', { name, exact: true });
+        const menu = inventory.getByRole('menu');
+        const equip = menu.getByRole('menuitem', { name: 'Взять в руки', exact: true });
+        const first = cell('Ячейка 1, 1');
+        const second = cell('Ячейка 3, 1');
+
+        await expect(second).toHaveAttribute('data-item-id', secondPistolId);
+        await second.click({ button: 'right' });
+        await expect(menu).toHaveAccessibleName('Пистолет 9 мм · ячейка 3, 1');
+        await expect(equip).toBeFocused();
+        await page.keyboard.press('ArrowDown');
+        await expect(menu.getByRole('menuitem', { name: 'Переместить' })).toBeFocused();
+        await page.keyboard.press('ArrowUp');
+        await expect(equip).toBeFocused();
+        await page.screenshot({ path: '.cache/t071-item-context.png' });
+        await equip.click();
+        await expect(page.locator('#held-ammo')).toHaveText('Магазин: 5/8 · Запас: 0');
+
+        await first.focus();
+        await page.keyboard.press('Shift+F10');
+        await expect(menu).toHaveAccessibleName('Пистолет 9 мм · ячейка 1, 1');
+        await page.keyboard.press('Escape');
+        await expect(menu).toBeHidden();
+        await expect(inventory).toBeVisible();
+        await expect(first).toBeFocused();
+        await page.keyboard.press('Shift+F10');
+        await expect(menu).toBeVisible();
+        room = await connect();
+        room.onMessage('pickup-state', () => {});
+        room.send('equip-weapon', {
+            type: 'equip-weapon',
+            protocolVersion,
+            meleeVersion,
+            itemId: firstPistolId,
+        });
+        await expect(page.locator('#held-ammo')).toHaveText('Магазин: 1/8 · Запас: 0');
+        await expect(menu).toBeHidden();
+        await expect(inventory).toBeFocused();
+
+        await cell('Ячейка 1, 3').click({ button: 'right' });
+        const bandage = menu.getByRole('menuitem', { name: 'Перевязаться', exact: true });
+        await expect(bandage).toBeDisabled();
+        await expect(bandage).toHaveAccessibleDescription('Кровотечения нет.');
+        await page.keyboard.press('Enter');
+        await expect(menu).toBeVisible();
+        await expect(cell('Ячейка 1, 3')).toHaveAttribute('data-item-id', 'starter-bandage');
+    } finally {
+        room?.connection.close();
+        if (running !== undefined) await stop(running);
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
+
+test('the bandage context action consumes the item after the host stops bleeding', async ({
+    page,
+}) => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-context-bandage-'));
+    const path = join(directory, 'world.sqlite');
+    let running;
+    try {
+        seedContextInventory(path, { bleedingTicks: 100, isPacked: true });
+        running = start(path);
+        await expect.poll(running.output).toContain('Local world ready');
+        await page.goto(origin);
+        const bleeding = page.locator('#bleeding-label');
+        await expect(bleeding).toHaveAttribute('data-bleeding', 'true');
+        await openInventory(page);
+        const cell = page.getByRole('button', { name: 'Ячейка 1, 1', exact: true });
+        await expect(cell).toHaveAttribute('data-item-id', 'starter-bandage');
+        await cell.click({ button: 'right' });
+        const move = page.getByRole('menuitem', { name: 'Переместить', exact: true });
+        await expect(move).toBeDisabled();
+        await expect(move).toHaveAccessibleDescription('Нет свободной позиции для предмета.');
+        const bandage = page.getByRole('menuitem', { name: 'Перевязаться', exact: true });
+        await expect(bandage).toBeEnabled();
+        await bandage.click();
+        await expect(bleeding).toHaveAttribute('data-bleeding', 'false');
+        await expect(cell).toHaveAttribute('data-occupied', 'false');
+    } finally {
+        if (running !== undefined) await stop(running);
+        rmSync(directory, { recursive: true, force: true });
+    }
 });
 
 test('inventory details follow each instance on hover and focus and clear when equipped', async ({
