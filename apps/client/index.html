@@ -8,73 +8,100 @@
     </head>
     <body>
         <main class="game-shell">
-            <header>
-                <p class="eyebrow">Выживание начинается здесь</p>
-                <h1>ZombiSurvive</h1>
-                <p class="game-version">Версия __GAME_VERSION__</p>
-                <p class="description">
-                    WASD — движение · Shift — спринт · Ctrl — скрытность · Левый клик — идти к точке
-                    · Мышь — прицел. WASD отменяет выбранную точку.
-                </p>
-            </header>
-            <div class="fullscreen-controls">
-                <button id="fullscreen" type="button" aria-pressed="false">На весь экран</button>
-                <form id="player-profile" novalidate>
-                    <label for="display-name">Имя игрока</label>
-                    <input id="display-name" name="displayName" autocomplete="off" disabled />
-                    <button id="save-name" type="submit" disabled>Сохранить имя</button>
-                    <span id="profile-message" aria-live="polite"></span>
-                </form>
-                <span id="fullscreen-message" aria-live="polite"></span>
-            </div>
-            <p id="connection-status" role="status">Подключение к локальному миру…</p>
-            <button id="reconnect" type="button" disabled>Подключиться снова</button>
-            <section class="pickup-panel" aria-label="Предметы и контейнер">
-                <p id="ground-item">На земле: —</p>
-                <button id="pickup" type="button" disabled>Подобрать бинт</button>
-                <div id="corpse-items" aria-label="Вещи в телах"></div>
-                <p id="inventory">Контейнер: —</p>
-                <p id="restock-label">Пополнение рядом: —</p>
-                <p id="equipment-weight">Вес снаряжения: —</p>
-                <button id="use-bandage" type="button" disabled>Использовать бинт</button>
-                <button id="inventory-select" type="button" aria-pressed="false" disabled>
-                    Переместить бинт · 2 × 1 · 100 г
-                </button>
-                <div id="inventory-items" aria-label="Перенос предметов"></div>
-                <div id="inventory-grid" aria-label="Сетка инвентаря 4 × 3"></div>
-                <p id="inventory-message" aria-live="polite">Сетка недоступна.</p>
-                <p class="caption">
-                    Подойдите к предмету на 1,5 м. Для экипировки выберите экземпляр в сетке и
-                    нажмите кнопку нужного оружия. В одиночной игре вещи сохраняются после
-                    перезапуска хоста. Бинт из контейнера останавливает кровотечение, но не
-                    восстанавливает HP.
-                </p>
-            </section>
-            <section class="pickup-panel" aria-label="Ближний бой">
-                <p id="weapon-label">Оружие: —</p>
-                <p id="ammo-label">Патроны: —</p>
-                <div id="weapon-options" aria-label="Выбор оружия"></div>
-                <button id="unequip-weapon" type="button" disabled>Убрать оружие в сетку</button>
-                <p id="weapon-stats">Характеристики: —</p>
-                <p id="reload-label">Перезарядка: нет</p>
-                <progress
-                    id="reload-progress"
-                    max="40"
-                    value="0"
-                    aria-label="Перезарядка"
-                    hidden
-                ></progress>
-                <button id="pistol-reload" type="button" disabled>Перезарядить (R)</button>
-                <button id="pistol-shot" type="button" disabled>Выстрелить (ПКМ / пробел)</button>
-                <button id="melee-attack" type="button" disabled>Ударить (F)</button>
-                <p class="caption">
-                    Дубинка — универсальная, нож — быстрый, лом — дальнобойный, топор — мощный. F —
-                    удар по ближайшему доступному зомби. Смена оружия сохраняет паузу предыдущего
-                    удара. Каждый предмет занимает ячейку сетки или единственный слот рук.
-                    Экипировка сохраняется после перезапуска хоста; для снятия нужно свободное место
-                    в сетке.
-                </p>
-            </section>
+            <aside class="game-controls" aria-label="Управление игрой">
+                <div class="connection-panel">
+                    <p id="connection-status" role="status">Подключение к локальному миру…</p>
+                    <button id="reconnect" type="button" disabled>Подключиться снова</button>
+                    <button id="fullscreen" type="button" aria-pressed="false">
+                        На весь экран
+                    </button>
+                    <span id="fullscreen-message" aria-live="polite"></span>
+                </div>
+                <section
+                    class="control-scroll"
+                    aria-label="Настройки и игровые действия"
+                    tabindex="0"
+                >
+                    <header>
+                        <h1>ZombiSurvive</h1>
+                        <p class="game-version">Версия __GAME_VERSION__</p>
+                        <p class="description">
+                            WASD — движение · Shift — спринт · Ctrl — скрытность · Левый клик — идти
+                            к точке · Мышь — прицел. WASD отменяет выбранную точку.
+                        </p>
+                    </header>
+                    <form id="player-profile" novalidate>
+                        <label for="display-name">Имя игрока</label>
+                        <input id="display-name" name="displayName" autocomplete="off" disabled />
+                        <button id="save-name" type="submit" disabled>Сохранить имя</button>
+                        <span id="profile-message" aria-live="polite"></span>
+                    </form>
+                    <section class="pickup-panel" aria-label="Предметы и контейнер">
+                        <p id="ground-item">На земле: —</p>
+                        <button id="pickup" type="button" disabled>Подобрать бинт</button>
+                        <div id="corpse-items" aria-label="Вещи в телах"></div>
+                        <p id="inventory">Контейнер: —</p>
+                        <p id="restock-label">Пополнение рядом: —</p>
+                        <p id="equipment-weight">Вес снаряжения: —</p>
+                        <button id="use-bandage" type="button" disabled>Использовать бинт</button>
+                        <button id="inventory-select" type="button" aria-pressed="false" disabled>
+                            Переместить бинт · 2 × 1 · 100 г
+                        </button>
+                        <div id="inventory-items" aria-label="Перенос предметов"></div>
+                        <div id="inventory-grid" aria-label="Сетка инвентаря 4 × 3"></div>
+                        <p id="inventory-message" aria-live="polite">Сетка недоступна.</p>
+                        <p class="caption">
+                            Подойдите к предмету на 1,5 м. Для экипировки выберите экземпляр в сетке
+                            и нажмите кнопку нужного оружия. В одиночной игре вещи сохраняются после
+                            перезапуска хоста. Бинт из контейнера останавливает кровотечение, но не
+                            восстанавливает HP.
+                        </p>
+                    </section>
+                    <section class="pickup-panel" aria-label="Ближний бой">
+                        <p id="weapon-label">Оружие: —</p>
+                        <p id="ammo-label">Патроны: —</p>
+                        <div id="weapon-options" aria-label="Выбор оружия"></div>
+                        <button id="unequip-weapon" type="button" disabled>
+                            Убрать оружие в сетку
+                        </button>
+                        <p id="weapon-stats">Характеристики: —</p>
+                        <p id="reload-label">Перезарядка: нет</p>
+                        <progress
+                            id="reload-progress"
+                            max="40"
+                            value="0"
+                            aria-label="Перезарядка"
+                            hidden
+                        ></progress>
+                        <button id="pistol-reload" type="button" disabled>Перезарядить (R)</button>
+                        <button id="pistol-shot" type="button" disabled>
+                            Выстрелить (ПКМ / пробел)
+                        </button>
+                        <button id="melee-attack" type="button" disabled>Ударить (F)</button>
+                        <p class="caption">
+                            Дубинка — универсальная, нож — быстрый, лом — дальнобойный, топор —
+                            мощный. F — удар по ближайшему доступному зомби. Смена оружия сохраняет
+                            паузу предыдущего удара. Каждый предмет занимает ячейку сетки или
+                            единственный слот рук. Экипировка сохраняется после перезапуска хоста;
+                            для снятия нужно свободное место в сетке.
+                        </p>
+                    </section>
+                    <p class="caption">
+                        Клетка: 1 метр · Серые блоки непроходимы. Обходите их WASD или
+                        промежуточными кликами.
+                    </p>
+                    <p class="caption">
+                        Исследуйте мир: соседние участки загружаются при движении, дальние
+                        освобождаются.
+                    </p>
+                    <p class="caption">
+                        В каждом участке карты — девять зомби. Зомби бьёт вблизи раз в секунду.
+                        Здоровье сохраняется после перезапуска хоста. При 0 HP персонаж погибает и
+                        больше не может двигаться или использовать вещи. Нажмите «Возродиться»,
+                        чтобы начать новую жизнь и вернуться к телу.
+                    </p>
+                </section>
+            </aside>
             <section id="game" aria-label="Игровое поле">
                 <div id="death-screen" role="alert" hidden>
                     <h2>Вы погибли</h2>
@@ -109,19 +136,6 @@
                     <span id="movement-label">Режим: —</span>
                 </div>
             </section>
-            <p class="caption">
-                Клетка: 1 метр · Серые блоки непроходимы. Обходите их WASD или промежуточными
-                кликами.
-            </p>
-            <p class="caption">
-                Исследуйте мир: соседние участки загружаются при движении, дальние освобождаются.
-            </p>
-            <p class="caption">
-                В каждом участке карты — девять зомби. Зомби бьёт вблизи раз в секунду. Здоровье
-                сохраняется после перезапуска хоста. При 0 HP персонаж погибает и больше не может
-                двигаться или использовать вещи. Нажмите «Возродиться», чтобы начать новую жизнь и
-                вернуться к телу.
-            </p>
         </main>
         <script type="module" src="/src/main.ts"></script>
     </body>

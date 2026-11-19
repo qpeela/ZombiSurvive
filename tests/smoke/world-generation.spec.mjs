@@ -176,7 +176,9 @@ test('crossing two seams releases distant chunks and reload restores the same co
         // The central y=-10 corridor avoids ruins and rocks throughout every chunk.
         // The camera can settle a few pixels between reading it and the real pointer click.
         // This waypoint only clears the corridor; exact seam and collider checks stay strict.
-        await arrive(page, 115, -10, 0.3);
+        await arrive(page, 108, -10, 0.3);
+        await arrive(page, 115, -10);
+        await arrive(page, 122, -10);
         await arrive(page, 128, -10);
         await arrive(page, 128, 0);
         await expect(canvas).toHaveAttribute('data-visible-world-chunk-count', '1');

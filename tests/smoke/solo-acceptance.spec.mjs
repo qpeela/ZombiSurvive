@@ -105,6 +105,7 @@ test('complete solo cycle uses real UI, retains one life and finite items across
         await expect
             .poll(() => page.evaluate(() => globalThis.document.fullscreenElement?.className))
             .toBe('game-shell');
+        await page.locator('#inventory-grid').scrollIntoViewIfNeeded();
         await expect(page.locator('#inventory-grid')).toBeInViewport();
         await page.getByRole('button', { name: 'Выйти из полного экрана' }).click();
         await page.setViewportSize({ width: 1280, height: 900 });

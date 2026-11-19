@@ -70,6 +70,9 @@ test('four world-clock phases visibly tint the same site, agree across tabs and 
             await open(page, phase);
             await open(second, phase);
             await page.locator('canvas').screenshot({ path: `.cache/t054-${phase}.png` });
+            if (phase === 'night' || phase === 'day') {
+                await page.screenshot({ path: `.cache/t062-${phase}.png` });
+            }
             await stop(running);
             await expect(page.locator('#daylight-label')).toHaveText('Освещение: —');
             await expect(page.locator('canvas')).toHaveAttribute('data-daylight-phase', 'unknown');

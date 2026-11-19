@@ -18,9 +18,13 @@ const origin = 'http://127.0.0.1:3154';
 const route = [
     { xMeters: 4, yMeters: 0 },
     { xMeters: 4, yMeters: 10 },
+    { xMeters: 11, yMeters: 10 },
     { xMeters: 18, yMeters: 10 },
+    { xMeters: 25, yMeters: 10 },
     { xMeters: 32, yMeters: 10 },
+    { xMeters: 39, yMeters: 10 },
     { xMeters: 46, yMeters: 10 },
+    { xMeters: 53, yMeters: 10 },
     { xMeters: 60, yMeters: 10 },
     { xMeters: 68, yMeters: 10 },
 ];

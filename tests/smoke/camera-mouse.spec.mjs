@@ -96,7 +96,14 @@ test('new clicks replace destinations; keyboard, blur and disconnect cancel mous
 }) => {
     await open(page);
     const start = await position(page);
-    await pointer(page, 0.9, 0.5, true);
+    const targetRight = async () => {
+        await pointer(page, 0.74, 0.5, true);
+        await expect(page.locator('canvas')).toHaveAttribute('data-target-visible', 'true');
+
+        return (await view(page)).targetX;
+    };
+
+    await pointer(page, 0.75, 0.5, true);
     await expect.poll(async () => (await position(page)).x).toBeGreaterThan(start.x + 0.4);
     await pointer(page, 0.35, 0.65, true);
     await expect(page.locator('canvas')).toHaveAttribute('data-target-visible', 'true');
@@ -105,27 +112,24 @@ test('new clicks replace destinations; keyboard, blur and disconnect cancel mous
     await expect.poll(async () => (await position(page)).x).toBeCloseTo(target.targetX, 7);
     await expect(page.locator('canvas')).toHaveAttribute('data-target-visible', 'false');
     await stopped(page);
-    await pointer(page, 0.85, 0.5, true);
-    await expect(page.locator('canvas')).toHaveAttribute('data-target-visible', 'true');
+    const keyboardTarget = await targetRight();
     await page.keyboard.down('w');
     await expect(page.locator('canvas')).toHaveAttribute('data-target-visible', 'false');
     await page.keyboard.up('w');
-    await stopped(page);
-    await pointer(page, 0.85, 0.5, true);
-    await expect(page.locator('canvas')).toHaveAttribute('data-target-visible', 'true');
+    expect((await stopped(page)).x).toBeLessThan(keyboardTarget);
+    const blurTarget = await targetRight();
     await page.evaluate(() => globalThis.dispatchEvent(new Event('blur')));
     await expect(page.locator('canvas')).toHaveAttribute('data-target-visible', 'false');
-    await stopped(page);
-    await pointer(page, 0.85, 0.5, true);
-    await expect(page.locator('canvas')).toHaveAttribute('data-target-visible', 'true');
+    expect((await stopped(page)).x).toBeLessThan(blurTarget);
+    const disconnectTarget = await targetRight();
     await context.setOffline(true);
     await expect(page.getByRole('status')).toHaveAttribute('data-status', 'disconnected');
     await expect(page.locator('canvas')).toHaveAttribute('data-target-visible', 'false');
     await context.setOffline(false);
     await page.getByRole('button', { name: 'Подключиться снова' }).click();
     await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
-    await stopped(page);
-    const beforeUiClick = await position(page);
+    const beforeUiClick = await stopped(page);
+    expect(beforeUiClick.x).toBeLessThan(disconnectTarget);
     await page.getByRole('heading').click();
     expect(await stopped(page)).toMatchObject({ x: beforeUiClick.x, y: beforeUiClick.y });
     await page.locator('canvas').scrollIntoViewIfNeeded();
