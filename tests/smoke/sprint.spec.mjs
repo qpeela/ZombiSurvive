@@ -50,7 +50,7 @@ test('Shift sprints, exhausts, recovers, and supports clicks and reload in the h
         await expect(page.locator('#load-label')).toHaveText(
             'Нагрузка: 1900 г · Расход спринта: ×1,95',
         );
-        await page.getByRole('heading').click();
+        await page.getByRole('heading', { name: 'ZombiSurvive', exact: true }).click();
         await page.keyboard.down('Shift');
         await page.keyboard.down('w');
         await expect.poll(async () => (await state(page)).stamina).toBeLessThan(0.99);

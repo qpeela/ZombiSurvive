@@ -63,7 +63,7 @@ test('visible walls block WASD and clicks; sliding and manual waypoints lead aro
             maxXMeters: 5.5,
             maxYMeters: 3,
         });
-        await page.getByRole('heading').click();
+        await page.getByRole('heading', { name: 'ZombiSurvive', exact: true }).click();
         await page.keyboard.down('d');
         await assertBlocked(page);
         await page.keyboard.down('s');

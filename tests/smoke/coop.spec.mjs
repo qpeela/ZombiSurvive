@@ -149,7 +149,7 @@ test('two browsers have distinct characters, see each other and retain identity 
         await expect(first.page.getByRole('status')).toHaveAttribute('data-player-count', '2');
         await expect(second.page.getByRole('status')).toHaveAttribute('data-player-count', '2');
         await first.page.bringToFront();
-        await first.page.getByRole('heading').click();
+        await first.page.getByRole('heading', { name: 'ZombiSurvive', exact: true }).click();
         await first.page.keyboard.down('d');
         await expect.poll(async () => (await readPlayer(first.page)).x).toBeGreaterThan(a.x + 0.2);
         await first.page.keyboard.up('d');
@@ -164,7 +164,7 @@ test('two browsers have distinct characters, see each other and retain identity 
         expect((await readPlayer(second.page)).x).toBe(b.x);
         expect((await readPlayer(second.page)).y).toBe(b.y);
         await second.page.bringToFront();
-        await second.page.getByRole('heading').click();
+        await second.page.getByRole('heading', { name: 'ZombiSurvive', exact: true }).click();
         await second.page.keyboard.down('s');
         await expect.poll(async () => (await readPlayer(second.page)).y).toBeGreaterThan(b.y + 0.2);
         await second.page.keyboard.up('s');

@@ -97,7 +97,7 @@ test('name validation, safe text, focus, tabs, retry and host restart retain the
         expect((await state(page)).y).toBe(initial.y);
         await expect(page.getByRole('status')).toHaveAttribute('data-sneaking', 'false');
         // A held movement key is cancelled as soon as the field receives focus.
-        await page.getByRole('heading').click();
+        await page.getByRole('heading', { name: 'ZombiSurvive', exact: true }).click();
         await page.keyboard.down('w');
         await expect.poll(async () => (await state(page)).y).toBeLessThan(initial.y - 0.2);
         await input.focus();

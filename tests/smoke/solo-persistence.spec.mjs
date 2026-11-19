@@ -92,7 +92,7 @@ test('solo acceptance: travel, retry and restart restore terrain and working col
         await expect.poll(running.output).toContain('Local world ready');
         await connect(page, 3109);
         const initial = await read(page);
-        await page.getByRole('heading').click();
+        await page.getByRole('heading', { name: 'ZombiSurvive', exact: true }).click();
         await page.keyboard.down('w');
         try {
             // Stop before the neighbouring ruins, then go around their south wall.
@@ -172,7 +172,7 @@ test('solo acceptance: travel, retry and restart restore terrain and working col
         const wall = savedTerrain.obstacles.find(obstacle => obstacle.id === 'v1:0:-1:east-wall');
         expect(wall).toBeDefined();
         const boundary = wall.minXMeters - collisionSettings.playerHalfSizeMeters;
-        await restoredPage.getByRole('heading').click();
+        await restoredPage.getByRole('heading', { name: 'ZombiSurvive', exact: true }).click();
         await restoredPage.keyboard.down('d');
         try {
             await expect.poll(async () => (await read(restoredPage)).x).toBe(boundary);

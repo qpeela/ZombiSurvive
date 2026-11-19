@@ -47,7 +47,7 @@ test('camera follows beyond the initial grid and mouse aim uses world coordinate
 }) => {
     await open(page);
     const start = await position(page);
-    await page.getByRole('heading').click();
+    await page.getByRole('heading', { name: 'ZombiSurvive', exact: true }).click();
     await page.keyboard.down('w');
     await expect
         .poll(async () => (await position(page)).y, { timeout: 8000 })
@@ -130,7 +130,7 @@ test('new clicks replace destinations; keyboard, blur and disconnect cancel mous
     await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
     const beforeUiClick = await stopped(page);
     expect(beforeUiClick.x).toBeLessThan(disconnectTarget);
-    await page.getByRole('heading').click();
+    await page.getByRole('heading', { name: 'ZombiSurvive', exact: true }).click();
     expect(await stopped(page)).toMatchObject({ x: beforeUiClick.x, y: beforeUiClick.y });
     await page.locator('canvas').scrollIntoViewIfNeeded();
     await pointer(page, 0.72, 0.35, true);
