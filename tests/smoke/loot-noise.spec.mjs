@@ -191,11 +191,11 @@ test('extra map pistol and ammo can be picked up; same-kind swaps preserve separ
         await expect.poll(running.output).toContain('Local world ready');
         await page.goto(origin);
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 7/8');
-        await page.getByRole('button', { name: 'Подобрать пистолет 9 мм', exact: true }).click();
+        await page.getByRole('button', { name: 'Взять: Пистолет 9 мм', exact: true }).click();
         await select(extraId);
         await equip();
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
-        await page.getByRole('button', { name: 'Подобрать патроны 9 мм ×8', exact: true }).click();
+        await page.getByRole('button', { name: 'Взять: Патроны 9 мм ×8', exact: true }).click();
         await select(gunId);
         await equip();
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 7/8');

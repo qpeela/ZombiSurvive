@@ -73,7 +73,7 @@ const open = async page => {
     await page.goto(origin);
     await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
 };
-const ammoButton = page => page.getByRole('button', { name: /^Подобрать патроны 9 мм/ });
+const ammoButton = page => page.getByRole('button', { name: /^Взять: Патроны 9 мм/ });
 
 test('partial ground stock stays occupied; collecting its last pack saves one deadline across reload and restart', async ({
     page,
@@ -88,8 +88,8 @@ test('partial ground stock stays occupied; collecting its last pack saves one de
         await expect.poll(running.output).toContain('Local world ready');
         await open(page);
         await expect(page.locator('#restock-label')).toHaveText('Пополнение рядом: —');
-        await page.getByRole('button', { name: 'Подобрать пистолет 9 мм', exact: true }).click();
-        await expect(ammoButton(page)).toContainText('×3');
+        await page.getByRole('button', { name: 'Взять: Пистолет 9 мм', exact: true }).click();
+        await expect(ammoButton(page)).toHaveAccessibleName('Взять: Патроны 9 мм ×3');
         await expect(page.locator('#restock-label')).toHaveAttribute(
             'data-point-id',
             pistol.itemId,
@@ -104,7 +104,7 @@ test('partial ground stock stays occupied; collecting its last pack saves one de
         running = start(path);
         await expect.poll(running.output).toContain('Local world ready');
         await open(page);
-        await expect(ammoButton(page)).toContainText('×3');
+        await expect(ammoButton(page)).toHaveAccessibleName('Взять: Патроны 9 мм ×3');
         await expect(page.locator('#restock-label')).not.toHaveAttribute(
             'data-point-id',
             ammo.itemId,
@@ -229,7 +229,9 @@ test('a due ammo point supplies one new pack while the previously carried pack s
         await expect.poll(running.output).toContain('Local world ready');
         await open(page);
         await expect(ammoButton(page)).toBeHidden();
-        await expect(ammoButton(page)).toContainText('×8', { timeout: 10_000 });
+        await expect(ammoButton(page)).toHaveAccessibleName('Взять: Патроны 9 мм ×8', {
+            timeout: 10_000,
+        });
         await ammoButton(page).click();
         await expect(ammoButton(page)).toBeHidden();
         await expect(page.locator('#equipment-weight')).toContainText('132 г');

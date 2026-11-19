@@ -58,7 +58,7 @@ test('the inventory drag previews a two-cell item and saves only a valid drop ac
         await expect.poll(running.output).toContain('Local world ready');
         await page.setViewportSize({ width: 1280, height: 900 });
         await open(page);
-        await page.getByRole('button', { name: 'Подобрать бинт', exact: true }).click();
+        await page.getByRole('button', { name: 'Взять: Бинт', exact: true }).click();
         await openInventory(page);
         const grid = page.locator('#inventory-grid');
         const source = grid.getByRole('button', { name: 'Ячейка 1, 1', exact: true });
@@ -156,10 +156,8 @@ test('v2 migrates; inventory and hands survive tabs, reload and SIGKILL in a fre
         await open(page);
         tab = await context.newPage();
         await open(tab);
-        await expect(
-            page.getByRole('button', { name: 'Подобрать бинт', exact: true }),
-        ).toBeEnabled();
-        await page.getByRole('button', { name: 'Подобрать бинт', exact: true }).click();
+        await expect(page.getByRole('button', { name: 'Взять: Бинт', exact: true })).toBeEnabled();
+        await page.getByRole('button', { name: 'Взять: Бинт', exact: true }).click();
         for (const view of [page, tab]) {
             await expect(view.locator('#inventory')).toHaveText('Контейнер: предметов 5');
             await expect(view.locator('#ground-item')).toHaveText('На земле: пусто');

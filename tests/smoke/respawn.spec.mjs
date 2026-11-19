@@ -124,8 +124,8 @@ test('death, explicit respawn in both tabs, return and pickup survive old comman
         await expect.poll(async () => (await read()).x).toBeGreaterThan(0.7);
         await page.keyboard.up('d');
         const knife = page
-            .locator('#corpse-items button')
-            .filter({ hasText: 'Забрать с тела: Нож' });
+            .locator('#corpse-items')
+            .getByRole('button', { name: 'Взять: Нож', exact: true });
         await expect(knife).toBeEnabled();
         await knife.click();
         await expect(knife).toHaveCount(0);

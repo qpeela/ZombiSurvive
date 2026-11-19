@@ -486,7 +486,7 @@ test('world ammo pickup preserves a partial quantity through inventory and reloa
         await page.goto(origin);
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 0/8');
         await expect(page.locator('#pistol-reload')).toBeDisabled();
-        await page.getByRole('button', { name: 'Подобрать патроны 9 мм ×3', exact: true }).click();
+        await page.getByRole('button', { name: 'Взять: Патроны 9 мм ×3', exact: true }).click();
         await expect(pack(page)).toContainText('×3');
         await expect(pack(page)).toContainText('36 г');
         await page.screenshot({ path: '.cache/t038-ammo-loot.png', fullPage: true });

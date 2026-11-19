@@ -96,15 +96,26 @@
                         <button id="save-name" type="submit" disabled>Сохранить имя</button>
                         <span id="profile-message" aria-live="polite"></span>
                     </form>
-                    <section class="pickup-panel" aria-label="Предметы рядом и лечение">
+                    <section
+                        id="nearby-panel"
+                        class="pickup-panel game-panel"
+                        aria-labelledby="nearby-heading"
+                        tabindex="-1"
+                    >
+                        <h2 id="nearby-heading">Рядом</h2>
+                        <p id="nearby-state" aria-live="polite">Ожидание данных от хоста…</p>
                         <p id="ground-item">На земле: —</p>
-                        <button id="pickup" type="button" disabled>Подобрать бинт</button>
+                        <div id="ground-row" class="loot-row" hidden>
+                            <button id="pickup" type="button" disabled>Взять</button>
+                            <span id="ground-reason" class="loot-reason"></span>
+                        </div>
                         <div id="corpse-items" aria-label="Вещи в телах"></div>
                         <p id="restock-label">Пополнение рядом: —</p>
+                    </section>
+                    <section class="pickup-panel" aria-label="Лечение">
                         <button id="use-bandage" type="button" disabled>Использовать бинт</button>
                         <p class="caption">
-                            Подойдите к предмету на 1,5 м. Бинт из контейнера останавливает
-                            кровотечение, но не восстанавливает HP.
+                            Бинт из контейнера останавливает кровотечение, но не восстанавливает HP.
                         </p>
                     </section>
                     <section class="pickup-panel" aria-label="Ближний бой">

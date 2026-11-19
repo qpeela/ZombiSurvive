@@ -109,12 +109,12 @@ test('walking into a new northern chunk discovers weapon and ammo once; pickup, 
             await waitForIdleCamera(page);
             await movePlayerTo({ page, position });
         }
-        await expect(page.locator('#pickup')).toHaveText('Подобрать дубинка');
+        await expect(page.locator('#pickup')).toHaveAccessibleName('Взять: Дубинка');
         await page.screenshot({ path: '.cache/t039a-chunk-discovery.png', fullPage: true });
         await page.locator('#pickup').click();
         await waitForIdleCamera(page);
         await movePlayerTo({ page, position: ammo.position });
-        await page.getByRole('button', { name: 'Подобрать патроны 9 мм ×8', exact: true }).click();
+        await page.getByRole('button', { name: 'Взять: Патроны 9 мм ×8', exact: true }).click();
         await expect(
             page.locator(`#inventory-items button[data-item-id="${ammo.itemId}"]`),
         ).toContainText('×8');
@@ -179,12 +179,12 @@ test('a new chunk pistol uses its scattered pack for a real reload and keeps the
     try {
         await expect.poll(running.output).toContain('Local world ready');
         await page.goto(origin);
-        await page.getByRole('button', { name: 'Подобрать пистолет 9 мм', exact: true }).click();
+        await page.getByRole('button', { name: 'Взять: Пистолет 9 мм', exact: true }).click();
         await clickEquipmentAction(page, 'Экипировать пистолет');
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
         await waitForIdleCamera(page);
         await movePlayerTo({ page, position: ammo.position });
-        await page.getByRole('button', { name: 'Подобрать патроны 9 мм ×8', exact: true }).click();
+        await page.getByRole('button', { name: 'Взять: Патроны 9 мм ×8', exact: true }).click();
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
         await clickWorld({
             page,
@@ -259,10 +259,11 @@ test('a nearly full bag can reach the separate ammo pack without taking the heav
         await expect.poll(running.output).toContain('Local world ready');
         await page.goto(origin);
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 7/8');
-        await page.getByRole('button', { name: 'Подобрать патроны 9 мм ×8', exact: true }).click();
+        await page.getByRole('button', { name: 'Взять: Патроны 9 мм ×8', exact: true }).click();
         await expect(
             page.locator(`#inventory-items button[data-item-id="${ammo.itemId}"]`),
         ).toContainText('×8');
+        await page.locator('#game').focus();
         await page.keyboard.press('r');
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
         await expect(

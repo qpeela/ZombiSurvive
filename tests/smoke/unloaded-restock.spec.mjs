@@ -95,8 +95,8 @@ test('a registered distant chunk restocks with zero clients and returns one pack
         running = start(path);
         await expect.poll(running.output).toContain('Local world ready');
         await page.goto(origin);
-        const pickup = page.getByRole('button', { name: /^Подобрать патроны 9 мм/ });
-        await expect(pickup).toContainText('×8');
+        const pickup = page.getByRole('button', { name: /^Взять: Патроны 9 мм/ });
+        await expect(pickup).toHaveAccessibleName('Взять: Патроны 9 мм ×8');
         await pickup.click();
         await expect(page.locator('#equipment-weight')).toContainText('132 г');
         await page.reload();

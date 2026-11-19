@@ -40,7 +40,7 @@ const zombieVisible = page =>
         .evaluate(canvas =>
             JSON.parse(canvas.dataset.visibleZombies ?? '[]').includes('slow-zombie-1'),
         );
-const bandage = page => page.getByRole('button', { name: 'Подобрать бинт', exact: true });
+const bandage = page => page.getByRole('button', { name: 'Взять: Бинт', exact: true });
 
 test('the same distant zombie and bandage are visible by day, hidden at night with their hints, and the item reappears on approach', async ({
     page,

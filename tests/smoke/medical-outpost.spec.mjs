@@ -75,7 +75,7 @@ test('the player recognizes the outpost, enters through the existing southern ga
         await open(page);
         await page.locator('canvas').screenshot({ path: '.cache/t060-outpost-route.png' });
         await enter(page);
-        const pickup = page.getByRole('button', { name: 'Подобрать бинт', exact: true });
+        const pickup = page.getByRole('button', { name: 'Взять: Бинт', exact: true });
         await expect(pickup).toBeEnabled();
         await page.locator('canvas').screenshot({ path: '.cache/t060-outpost-inside.png' });
         await pickup.click();
@@ -160,7 +160,7 @@ test('the empty host replenishes one medical bandage after multiple missed perio
         await enter(page);
         // The first bandage fills the 2 kg bag; holding the axe makes room for the replacement.
         await clickEquipmentAction(page, 'Экипировать топор');
-        const pickup = page.getByRole('button', { name: 'Подобрать бинт', exact: true });
+        const pickup = page.getByRole('button', { name: 'Взять: Бинт', exact: true });
         await expect(pickup).toBeEnabled();
         await pickup.click();
         await expect(page.locator('#equipment-weight')).toContainText('2100');
@@ -175,9 +175,7 @@ test('the empty host replenishes one medical bandage after multiple missed perio
         await page.reload();
         await expect(secondBandage).toContainText('ячейка 1, 3');
         await expect(page.locator('#equipment-weight')).toContainText('2100');
-        await expect(
-            page.getByRole('button', { name: 'Подобрать бинт', exact: true }),
-        ).toBeHidden();
+        await expect(page.getByRole('button', { name: 'Взять: Бинт', exact: true })).toBeHidden();
     } finally {
         await stop(running);
         rmSync(directory, { recursive: true, force: true });

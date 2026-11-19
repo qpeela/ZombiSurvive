@@ -9,7 +9,7 @@ import {
     type ZombieState,
 } from '@zombi-survive/domain';
 import type { MeleeAction, ShotAction, ShotAim } from '@zombi-survive/protocol';
-import { isPositionVisible } from '@zombi-survive/simulation';
+import { isPositionVisible, resolveMovement } from '@zombi-survive/simulation';
 import { GameObjects, type Input, Scene } from 'phaser';
 
 import { CharacterVisual } from './character-visual';
@@ -233,6 +233,14 @@ export class BootScene extends Scene {
                 ? { flashlight: { angleRadians: this.facingAngle } }
                 : {}),
         });
+    }
+
+    canReachLoot(from: WorldPosition, to: WorldPosition): boolean {
+        if (this.terrain === null) return false;
+
+        const reached = resolveMovement(from, to, this.terrain.obstacles);
+
+        return Math.hypot(reached.xMeters - to.xMeters, reached.yMeters - to.yMeters) < 1e-8;
     }
 
     private updateVisibility(): void {

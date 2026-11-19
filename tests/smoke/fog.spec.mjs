@@ -108,9 +108,7 @@ test('at the same night hour fog shortens the beam: a nearby bandage remains lit
         await page.locator('canvas').screenshot({ path: '.cache/t059-fog-night.png' });
         await page.locator('#flashlight').click();
         await expect(canvas).toHaveAttribute('data-ground-item-visible', 'false');
-        await expect(
-            page.getByRole('button', { name: 'Подобрать бинт', exact: true }),
-        ).toBeHidden();
+        await expect(page.getByRole('button', { name: 'Взять: Бинт', exact: true })).toBeHidden();
         await stop(running);
         await expect(canvas).toHaveAttribute('data-weather', 'unknown');
         await expect(canvas).toHaveAttribute('data-daylight-phase', 'unknown');
