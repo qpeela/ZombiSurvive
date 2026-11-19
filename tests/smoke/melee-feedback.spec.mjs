@@ -4,6 +4,7 @@ import { once } from 'node:events';
 import { expect, test } from '@playwright/test';
 
 import { activateStartingZombie, distanceToStartingZombie } from '../fixtures/game-controls.mjs';
+import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
 
 const effects = page =>
     page.locator('canvas').evaluate(canvas => JSON.parse(canvas.dataset.meleeEffects ?? '[]'));
@@ -33,7 +34,7 @@ test('confirmed miss, damage and kill are distinct, expire and clear on disconne
         await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
         const canvas = page.locator('canvas');
         const attack = page.getByRole('button', { name: 'Ударить (F)', exact: true });
-        await page.getByRole('button', { name: 'Экипировать дубинку', exact: true }).click();
+        await clickEquipmentAction(page, 'Экипировать дубинку');
         await expect(canvas).toHaveAttribute('data-weapon', 'club');
         await attack.click();
         await expect

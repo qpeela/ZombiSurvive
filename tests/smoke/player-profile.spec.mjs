@@ -8,6 +8,8 @@ import { Client } from '@colyseus/sdk';
 import { expect, test } from '@playwright/test';
 import { localWorldRoomId } from '@zombi-survive/protocol';
 
+import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
+
 const origin = 'http://127.0.0.1:3116';
 const start = path => {
     const host = spawn(process.execPath, ['apps/server/dist/main.js'], {
@@ -81,7 +83,7 @@ test('name validation, safe text, focus, tabs, retry and host restart retain the
         await save.click();
         await expect(label).toHaveText('Имя: Иван Петров');
         await expect(page.locator('#profile-message')).toHaveText('Имя сохранено у хоста.');
-        await page.getByRole('button', { name: 'Экипировать дубинку' }).click();
+        await clickEquipmentAction(page, 'Экипировать дубинку');
         await expect(page.locator('#weapon-label')).toHaveText('Оружие: дубинка');
         // Text-entry physical keys must never send movement or attack commands.
         await input.focus();

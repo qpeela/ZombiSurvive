@@ -47,7 +47,7 @@ export const createFullscreenControls = (options: {
         const isExitKey = event.key === 'Escape';
         const isFullscreen = document.fullscreenElement === container;
 
-        if (isExitKey && isFullscreen) {
+        if (isExitKey && isFullscreen && !event.repeat) {
             onClick();
         }
     };

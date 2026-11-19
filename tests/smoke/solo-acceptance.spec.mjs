@@ -8,6 +8,7 @@ import { expect, test } from '@playwright/test';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
 import { activateStartingZombie, clickWorld, movePlayerTo } from '../fixtures/game-controls.mjs';
+import { clickEquipmentAction, openInventory } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3136';
 const gunId = 'pistol-v1:0:0';
@@ -105,11 +106,13 @@ test('complete solo cycle uses real UI, retains one life and finite items across
         await expect
             .poll(() => page.evaluate(() => globalThis.document.fullscreenElement?.className))
             .toBe('game-shell');
+        await openInventory(page);
         await page.locator('#inventory-grid').scrollIntoViewIfNeeded();
         await expect(page.locator('#inventory-grid')).toBeInViewport();
+        await page.locator('#toggle-inventory').click();
         await page.getByRole('button', { name: 'Выйти из полного экрана' }).click();
         await page.setViewportSize({ width: 1280, height: 900 });
-        await page.getByRole('button', { name: 'Экипировать топор', exact: true }).click();
+        await clickEquipmentAction(page, 'Экипировать топор');
         const canvas = page.locator('canvas');
         await expect(canvas).toHaveAttribute('data-weapon', 'axe');
         await movePlayerTo({ page, position: { xMeters: 2, yMeters: 2 } });
@@ -138,7 +141,7 @@ test('complete solo cycle uses real UI, retains one life and finite items across
         await page.screenshot({ path: '.cache/t040-bandaged.png', fullPage: true });
         await movePlayerTo({ page, position: { xMeters: -10, yMeters: -6 } });
         await page.getByRole('button', { name: 'Подобрать пистолет 9 мм', exact: true }).click();
-        await page.getByRole('button', { name: 'Экипировать пистолет', exact: true }).click();
+        await clickEquipmentAction(page, 'Экипировать пистолет');
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
         await page.getByRole('button', { name: 'Подобрать патроны 9 мм ×8', exact: true }).click();
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
@@ -196,7 +199,7 @@ test('complete solo cycle uses real UI, retains one life and finite items across
         await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 0');
         await movePlayerTo({ page, position: corpsePosition });
         await page.locator(`#corpse-items button[data-item-id="${gunId}"]`).click();
-        await page.getByRole('button', { name: 'Экипировать пистолет', exact: true }).click();
+        await clickEquipmentAction(page, 'Экипировать пистолет');
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
         await page.locator(`#corpse-items button[data-item-id="${ammoId}"]`).click();
         await assertRecovered(page);

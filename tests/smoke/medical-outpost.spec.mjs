@@ -14,6 +14,7 @@ import { generateChunkLoot } from '@zombi-survive/worldgen';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
 import { movePlayerTo } from '../fixtures/game-controls.mjs';
+import { clickEquipmentAction, openInventory } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3152';
 const start = path => {
@@ -158,12 +159,13 @@ test('the empty host replenishes one medical bandage after multiple missed perio
         await open(page);
         await enter(page);
         // The first bandage fills the 2 kg bag; holding the axe makes room for the replacement.
-        await page.getByRole('button', { name: 'Экипировать топор', exact: true }).click();
+        await clickEquipmentAction(page, 'Экипировать топор');
         const pickup = page.getByRole('button', { name: 'Подобрать бинт', exact: true });
         await expect(pickup).toBeEnabled();
         await pickup.click();
         await expect(page.locator('#equipment-weight')).toContainText('2100');
         // Two bandages must remain individually selectable, just like duplicate weapons.
+        await openInventory(page);
         const secondBandage = page.locator(
             `#inventory-items button[data-item-id="${fresh[0].item.itemId}"]`,
         );

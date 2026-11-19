@@ -32,6 +32,7 @@ import {
 import { AUTO, Game, Scale } from 'phaser';
 
 import { BootScene } from './boot-scene';
+import { createControlPanels } from './control-panels';
 import { createCorpseControls } from './corpse-controls';
 import { createFullscreenControls } from './fullscreen';
 import { createInventoryGrid } from './inventory-grid';
@@ -53,6 +54,10 @@ const worldTime = document.querySelector<HTMLElement>('#world-time');
 const playerName = document.querySelector<HTMLElement>('#player-name');
 const shell = document.querySelector<HTMLElement>('.game-shell');
 const controlScroll = document.querySelector<HTMLElement>('.control-scroll');
+const inventoryPanel = document.querySelector<HTMLElement>('#inventory-panel');
+const equipmentPanel = document.querySelector<HTMLElement>('#equipment-panel');
+const inventoryToggle = document.querySelector<HTMLButtonElement>('#toggle-inventory');
+const equipmentToggle = document.querySelector<HTMLButtonElement>('#toggle-equipment');
 const fullscreenButton = document.querySelector<HTMLButtonElement>('#fullscreen');
 const fullscreenMessage = document.querySelector<HTMLElement>('#fullscreen-message');
 const container = document.querySelector<HTMLElement>('#game');
@@ -102,6 +107,10 @@ if (
     !flashlightButton ||
     !shell ||
     !controlScroll ||
+    !inventoryPanel ||
+    !equipmentPanel ||
+    !inventoryToggle ||
+    !equipmentToggle ||
     !fullscreenButton ||
     !fullscreenMessage ||
     !weaponOptions ||
@@ -334,6 +343,15 @@ const fullscreen = createFullscreenControls({
         game.scale.refresh();
     },
 });
+const controlPanels = createControlPanels({
+    shell,
+    playfield: container,
+    panels: [
+        { element: inventoryPanel, button: inventoryToggle, shortcut: 'KeyI' },
+        { element: equipmentPanel, button: equipmentToggle, shortcut: 'KeyE' },
+    ],
+    resetInput: input.reset,
+});
 const gameResize = new ResizeObserver(() => {
     game.scale.getParentBounds();
     game.scale.refresh();
@@ -364,7 +382,7 @@ scene.onFrame = () => {
 };
 const connection = createWorldConnection(
     window.location.origin,
-    state => {
+    controlPanels.preserveFocus(state => {
         status.dataset['status'] = state.status;
         reconnect.disabled = state.status === 'connecting' || state.status === 'connected';
         input.setEnabled(state.status === 'connected' && lifeState === 'alive');
@@ -485,11 +503,11 @@ const connection = createWorldConnection(
         delete status.dataset['playerCount'];
         scene.setPlayers(null, []);
         status.textContent = messages[state.status];
-    },
+    }),
     command => {
         prediction.recordSent(command, performance.now());
     },
-    snapshot => {
+    controlPanels.preserveFocus(snapshot => {
         corpses = snapshot.corpses ?? [];
         scene.setCorpses(corpses);
         receivedGroundItem = snapshot.groundItem;
@@ -523,11 +541,11 @@ const connection = createWorldConnection(
             : 'Недостаточно места в сетке';
         inventoryUi.update(snapshot.items, lifeState === 'alive');
         updatePickup();
-    },
+    }),
     snapshot => {
         scene.setZombies(snapshot.zombies);
     },
-    snapshot => {
+    controlPanels.preserveFocus(snapshot => {
         const nextLife = snapshot.lifeRevision ?? 0;
         if (lifeRevision !== null && nextLife !== lifeRevision) {
             input.reset();
@@ -567,8 +585,8 @@ const connection = createWorldConnection(
         health.value = snapshot.health;
         updateBandage();
         healthLabel.textContent = `Здоровье: ${String(snapshot.health)} / ${String(snapshot.maxHealth)}`;
-    },
-    snapshot => {
+    }),
+    controlPanels.preserveFocus(snapshot => {
         scene.setWeapon(lifeState === 'alive' ? snapshot.weapon : null);
         const isEquipped = isMeleeWeaponId(snapshot.weapon);
         for (const { weapon, button } of equipmentButtons) {
@@ -586,7 +604,7 @@ const connection = createWorldConnection(
             definition === null
                 ? 'Экипируйте оружие из сетки.'
                 : `Урон: ${String(definition.damage)} · Дальность: ${formatNumber(definition.rangeMeters)} м · Пауза: ${formatNumber(definition.cooldownTicks / movementSettings.ticksPerSecond)} с`;
-    },
+    }),
     snapshot => {
         profileUi.update(snapshot);
     },
@@ -672,9 +690,7 @@ const onReload = (): void => {
 
 reloadButton.addEventListener('click', onReload);
 const onPlayfieldPointerDown = (event: PointerEvent): void => {
-    if (document.activeElement === controlScroll && event.target instanceof HTMLCanvasElement) {
-        controlScroll.blur();
-    }
+    if (event.target instanceof HTMLCanvasElement) container.focus({ preventScroll: true });
 };
 const onGameActionKey = (event: KeyboardEvent): void => {
     const target = event.target;
@@ -737,6 +753,7 @@ if (import.meta.hot) {
         session.cancel();
         gameResize.disconnect();
         fullscreen.dispose();
+        controlPanels.dispose();
         input.dispose();
         profileUi.dispose();
         inventoryUi.dispose();

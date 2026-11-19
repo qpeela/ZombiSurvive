@@ -4,6 +4,7 @@ import { once } from 'node:events';
 import { expect, test } from '@playwright/test';
 
 import { activateStartingZombie, distanceToStartingZombie } from '../fixtures/game-controls.mjs';
+import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3114';
 const zombies = page =>
@@ -35,7 +36,7 @@ test('equip club, kill with three swings, reconnect and meet zombies in a new ma
         const attack = page.getByRole('button', { name: 'Ударить (F)' });
         await expect(status).toHaveAttribute('data-status', 'connected');
         await expect(attack).toBeDisabled();
-        await page.getByRole('button', { name: 'Экипировать дубинку' }).click();
+        await clickEquipmentAction(page, 'Экипировать дубинку');
         await expect(page.locator('#weapon-label')).toHaveText('Оружие: дубинка');
         await activateStartingZombie(page);
         // Wait for authoritative reach rather than a guessed wall-clock pursuit delay.

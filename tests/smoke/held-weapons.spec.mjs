@@ -2,6 +2,8 @@ import { spawn } from 'node:child_process';
 
 import { expect, test } from '@playwright/test';
 
+import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
+
 const start = port => {
     const origin = `http://127.0.0.1:${String(port)}`;
     const host = spawn(process.execPath, ['tests/fixtures/solo-host.mjs'], {
@@ -75,7 +77,7 @@ test('four visible weapons follow predicted player and aim through resize, disco
             ['axe', 'топор'],
         ];
         for (const [weapon, label] of weapons) {
-            await page.getByRole('button', { name: `Экипировать ${label}`, exact: true }).click();
+            await clickEquipmentAction(page, `Экипировать ${label}`);
             await expect(canvas).toHaveAttribute('data-weapon', weapon);
             await expect(canvas).toHaveAttribute('data-weapon-visible', 'true');
             await aim(page, 0.7, 0.5);
@@ -149,13 +151,13 @@ test('held equip requests cannot change the rendered weapon before server confir
         await open(page, running);
         const canvas = page.locator('canvas');
         isHeld = true;
-        await page.getByRole('button', { name: 'Экипировать топор' }).click();
+        await clickEquipmentAction(page, 'Экипировать топор');
         await waitTicks(page);
         await expect(canvas).toHaveAttribute('data-weapon-visible', 'false');
         release();
         await expect(canvas).toHaveAttribute('data-weapon', 'axe');
         isHeld = true;
-        await page.getByRole('button', { name: 'Экипировать нож' }).click();
+        await clickEquipmentAction(page, 'Экипировать нож');
         await waitTicks(page);
         await expect(canvas).toHaveAttribute('data-weapon', 'axe');
         release();

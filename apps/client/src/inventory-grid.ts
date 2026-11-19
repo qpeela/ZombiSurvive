@@ -26,10 +26,13 @@ export const createInventoryGrid = ({
 } => {
     let items: readonly InventoryItem[] | null = null;
     let selectedId: string | null = null;
+    let pendingCell: InventoryCell | null = null;
     let lastState = '';
     let isEnabled = false;
     const cells: HTMLButtonElement[] = [];
     const footprints: HTMLElement[] = [];
+    const itemButtons = new Map<string, HTMLButtonElement>();
+    const selectionHelp = 'Выберите верхнюю левую ячейку или экипируйте выбранное оружие.';
     grid.style.setProperty('--inventory-columns', String(inventorySettings.columns));
 
     for (let row = 0; row < inventorySettings.rows; row++) {
@@ -47,8 +50,7 @@ export const createInventoryGrid = ({
         }
     }
 
-    const select = (itemId: string): void => {
-        selectedId = selectedId === itemId ? null : itemId;
+    const updateSelection = (): void => {
         selector.setAttribute(
             'aria-pressed',
             String(
@@ -57,14 +59,16 @@ export const createInventoryGrid = ({
             ),
         );
 
-        for (const button of itemSelectors.querySelectorAll('button')) {
-            button.setAttribute('aria-pressed', String(button.dataset['itemId'] === selectedId));
+        for (const [itemId, button] of itemButtons) {
+            button.setAttribute('aria-pressed', String(itemId === selectedId));
         }
+    };
+    const select = (itemId: string): void => {
+        selectedId = selectedId === itemId ? null : itemId;
+        pendingCell = null;
+        updateSelection();
 
-        message.textContent =
-            selectedId === null
-                ? 'Перенос отменён.'
-                : 'Выберите верхнюю левую ячейку или экипируйте выбранное оружие.';
+        message.textContent = selectedId === null ? 'Перенос отменён.' : selectionHelp;
     };
     const update = (next: readonly InventoryItem[] | null, enabled = true): void => {
         const state = JSON.stringify([next, enabled]);
@@ -74,18 +78,25 @@ export const createInventoryGrid = ({
         lastState = state;
         isEnabled = enabled;
         items = next;
-        selectedId = null;
-        selector.setAttribute('aria-pressed', 'false');
+        const selection = next?.find(item => item.itemId === selectedId);
+        const moveConfirmed =
+            pendingCell !== null &&
+            selection?.cell.column === pendingCell.column &&
+            selection.cell.row === pendingCell.row;
+        if (!enabled || selection === undefined || moveConfirmed) {
+            selectedId = null;
+            pendingCell = null;
+        }
         const hasBandage = next?.some(item => item.kind === 'bandage') ?? false;
         selector.disabled = !hasBandage || !isEnabled;
-        message.textContent =
-            next === null
-                ? 'Сетка недоступна.'
-                : `Масса в сетке: ${String(inventoryWeightGrams(next))} / ${String(inventorySettings.maxWeightGrams)} г`;
+        if (next === null) message.textContent = 'Сетка недоступна.';
+        else if (selectedId === null)
+            message.textContent = `Масса в сетке: ${String(inventoryWeightGrams(next))} / ${String(inventorySettings.maxWeightGrams)} г`;
+        else if (pendingCell === null) message.textContent = selectionHelp;
         footprints.splice(0).forEach(footprint => {
             footprint.remove();
         });
-        itemSelectors.replaceChildren();
+        const activeSelectors = new Set<string>();
 
         for (const item of next ?? []) {
             const definition = itemDefinitions[item.kind];
@@ -107,20 +118,30 @@ export const createInventoryGrid = ({
                 }) ?? false;
             const isSelectable = item.kind !== 'bandage' || hasDuplicates;
             if (isSelectable) {
-                const button = document.createElement('button');
-                button.type = 'button';
+                activeSelectors.add(item.itemId);
+                let button = itemButtons.get(item.itemId);
+                if (button === undefined) {
+                    button = document.createElement('button');
+                    button.type = 'button';
+                    button.dataset['itemId'] = item.itemId;
+                    itemButtons.set(item.itemId, button);
+                    itemSelectors.append(button);
+                }
                 button.disabled = !isEnabled;
-                button.dataset['itemId'] = item.itemId;
                 button.textContent = `Переместить: ${itemDisplayName(item)} · ${String(definition.columns)} × ${String(definition.rows)} · ${String(itemWeightGrams(item))} г`;
 
                 if (hasDuplicates) {
                     button.textContent += ` · ячейка ${String(item.cell.column + 1)}, ${String(item.cell.row + 1)}`;
                 }
-
-                button.setAttribute('aria-pressed', 'false');
-                itemSelectors.append(button);
             }
         }
+
+        for (const [itemId, button] of itemButtons) {
+            if (activeSelectors.has(itemId)) continue;
+            button.remove();
+            itemButtons.delete(itemId);
+        }
+        updateSelection();
 
         for (const button of cells) {
             button.disabled = next === null || !isEnabled;
@@ -191,6 +212,7 @@ export const createInventoryGrid = ({
         }
 
         message.textContent = 'Ожидание подтверждения сервера…';
+        pendingCell = cell;
         onMove(item.itemId, cell);
     };
     selector.addEventListener('click', onSelect);

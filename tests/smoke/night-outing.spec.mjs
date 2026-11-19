@@ -13,6 +13,7 @@ import {
     distanceToStartingZombie,
     movePlayerTo,
 } from '../fixtures/game-controls.mjs';
+import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3154';
 const route = [
@@ -92,7 +93,7 @@ test('depart at dusk, find the medical bandage by torch at night, survive combat
         const canvas = page.locator('canvas');
         await expect(status).toHaveAttribute('data-status', 'connected');
         await expect(canvas).toHaveAttribute('data-daylight-phase', 'dusk');
-        await page.getByRole('button', { name: 'Экипировать дубинку', exact: true }).click();
+        await clickEquipmentAction(page, 'Экипировать дубинку');
         const departureTime = await page.locator('#world-time').innerText();
         for (const position of route) {
             await movePlayerTo({ page, position });

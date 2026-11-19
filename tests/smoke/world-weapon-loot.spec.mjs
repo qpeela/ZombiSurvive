@@ -11,6 +11,7 @@ import { initialStateRequest, localWorldRoomId, pickupStateRequest } from '@zomb
 import { initialWorldPistolLoot, initialWorldWeaponLoot } from '@zombi-survive/worldgen';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
+import { clickEquipmentAction, openInventory } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3123';
 const loot = initialWorldWeaponLoot.find(item => item.kind === 'knife');
@@ -107,15 +108,16 @@ test('world weapon refuses an overweight pickup, then survives pickup, exact-ins
             .toBeGreaterThan(before.tick + 3);
         expect((await room.request(pickupStateRequest)).groundItem).toEqual(loot);
         await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 5');
-        await page.getByRole('button', { name: 'Экипировать топор', exact: true }).click();
+        await clickEquipmentAction(page, 'Экипировать топор');
         await expect(page.locator('#weapon-label')).toHaveText('Оружие: топор');
         await page.getByRole('button', { name: 'Подобрать нож', exact: true }).click();
         for (const view of [page, tab]) {
             await expect(view.locator('#ground-item')).toHaveText(remainingGround);
             await expect(view.locator('#inventory')).toHaveText('Контейнер: предметов 5');
         }
-        await page.locator(`[data-item-id="${loot.itemId}"]`).click();
-        await page.getByRole('button', { name: 'Экипировать нож', exact: true }).click();
+        await openInventory(page);
+        await page.locator(`#inventory-items button[data-item-id="${loot.itemId}"]`).click();
+        await clickEquipmentAction(page, 'Экипировать нож');
         await expect
             .poll(async () => (await room.request(pickupStateRequest)).hands?.itemId)
             .toBe(loot.itemId);

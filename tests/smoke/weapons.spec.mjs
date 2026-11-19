@@ -4,6 +4,7 @@ import { once } from 'node:events';
 import { expect, test } from '@playwright/test';
 
 import { activateStartingZombie, distanceToStartingZombie } from '../fixtures/game-controls.mjs';
+import { clickEquipmentAction, openEquipment } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3115';
 const cases = [
@@ -67,6 +68,7 @@ for (const weapon of cases) {
             const attack = page.getByRole('button', { name: 'Ударить (F)' });
             await expect(status).toHaveAttribute('data-status', 'connected');
             await expect(page.locator('#weapon-options button')).toHaveCount(5);
+            await openEquipment(page);
             await expect(
                 page.getByRole('button', { name: 'Экипировать пистолет', exact: true }),
             ).toBeDisabled();
@@ -82,6 +84,7 @@ for (const weapon of cases) {
                 await page.getByRole('button', { name: weapon.equip }).click();
             }
             await expect(label).toHaveText(`Оружие: ${weapon.name}`);
+            await page.keyboard.press('Escape');
             await activateStartingZombie(page);
             await expect
                 .poll(() => distanceToStartingZombie(page), { timeout: 10000 })
@@ -99,9 +102,9 @@ for (const weapon of cases) {
             const tab = await context.newPage();
             await tab.goto(origin);
             await expect(tab.locator('#weapon-label')).toHaveText(`Оружие: ${weapon.name}`);
-            await tab.getByRole('button', { name: 'Экипировать дубинку' }).click();
+            await clickEquipmentAction(tab, 'Экипировать дубинку');
             await expect(label).toHaveText('Оружие: дубинка');
-            await page.getByRole('button', { name: weapon.equip }).click();
+            await clickEquipmentAction(page, weapon.equip);
             await expect(tab.locator('#weapon-label')).toHaveText(`Оружие: ${weapon.name}`);
             await tab.close();
             await context.setOffline(true);

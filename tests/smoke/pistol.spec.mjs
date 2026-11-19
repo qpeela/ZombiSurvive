@@ -6,6 +6,7 @@ import { join, resolve } from 'node:path';
 import { expect, test } from '@playwright/test';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
+import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3132';
 test('a partial pistol magazine survives ground pickup, hands, inventory, tabs, reload and SIGKILL', async ({
@@ -53,7 +54,7 @@ test('a partial pistol magazine survives ground pickup, hands, inventory, tabs, 
         await page.getByRole('button', { name: 'Подобрать пистолет 9 мм', exact: true }).click();
         await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 1');
         await expect(page.locator('#equipment-weight')).toContainText('836 г');
-        await page.getByRole('button', { name: 'Экипировать пистолет', exact: true }).click();
+        await clickEquipmentAction(page, 'Экипировать пистолет');
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 3/8');
         await expect(page.locator('#equipment-weight')).toContainText('836 г');
         await expect(page.locator('canvas')).toHaveAttribute('data-weapon', 'pistol');
@@ -62,10 +63,10 @@ test('a partial pistol magazine survives ground pickup, hands, inventory, tabs, 
         tab = await context.newPage();
         await tab.goto(origin);
         await expect(tab.locator('#ammo-label')).toHaveText('Патроны: 3/8');
-        await page.getByRole('button', { name: 'Убрать оружие в сетку', exact: true }).click();
+        await clickEquipmentAction(page, 'Убрать оружие в сетку');
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: —');
         await expect(page.locator('#equipment-weight')).toContainText('836 г');
-        await page.getByRole('button', { name: 'Экипировать пистолет', exact: true }).click();
+        await clickEquipmentAction(page, 'Экипировать пистолет');
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 3/8');
         await expect(page.locator('#equipment-weight')).toContainText('836 г');
         await page.reload();
