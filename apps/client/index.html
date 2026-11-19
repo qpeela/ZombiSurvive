@@ -170,11 +170,30 @@
                     </button>
                     <label id="health-label" for="health">Здоровье: —</label>
                     <progress id="health" max="100" value="0"></progress>
-                    <span id="bleeding-label">Кровотечение: —</span>
-                    <strong id="combat-status" hidden>В бою</strong>
-                    <label id="stamina-label" for="stamina">Выносливость: —</label>
-                    <progress id="stamina" max="1" value="0"></progress>
-                    <span id="load-label">Нагрузка: —</span>
+                    <div class="character-status" role="group" aria-label="Состояние персонажа">
+                        <div class="status-chip">
+                            <span class="status-icon" aria-hidden="true">◆</span>
+                            <span id="bleeding-label" aria-live="polite">Кровотечение: —</span>
+                        </div>
+                        <div class="status-chip">
+                            <span class="status-icon" aria-hidden="true">ϟ</span>
+                            <div>
+                                <label id="stamina-label" for="stamina">Выносливость: —</label>
+                                <progress id="stamina" max="1" value="0" hidden></progress>
+                            </div>
+                        </div>
+                        <div class="status-chip">
+                            <span class="status-icon" aria-hidden="true">▣</span>
+                            <span id="load-label">Нагрузка: —</span>
+                        </div>
+                        <div class="status-chip">
+                            <span class="status-icon" aria-hidden="true">!</span>
+                            <span aria-live="polite">
+                                <span id="combat-idle">Бой: —</span>
+                                <strong id="combat-status" hidden>В бою</strong>
+                            </span>
+                        </div>
+                    </div>
                     <span id="movement-label">Режим: —</span>
                 </div>
             </section>

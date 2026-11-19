@@ -132,9 +132,32 @@ h1 {
     pointer-events: none;
 }
 
-#stamina {
-    width: 180px;
+#stamina:not([hidden]) {
+    display: block;
+    width: min(180px, 100%);
     accent-color: #a2c878;
+}
+
+.character-status {
+    display: grid;
+    gap: 3px;
+    width: min(16rem, 34vw);
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.status-chip {
+    display: grid;
+    grid-template-columns: 1rem minmax(0, 1fr);
+    align-items: start;
+    gap: 5px;
+    padding: 3px 5px;
+    background: #17221c;
+}
+
+.status-icon {
+    color: #b4caa4;
+    text-align: center;
 }
 
 #health {
@@ -156,7 +179,8 @@ h1 {
     text-align: center;
 }
 
-#bleeding-label[data-bleeding='true'] {
+#bleeding-label[data-bleeding='true'],
+#stamina-label[data-exhausted='true'] {
     color: #ff9b89;
     font-weight: bold;
 }

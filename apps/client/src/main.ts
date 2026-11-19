@@ -27,11 +27,11 @@ import {
     findInventorySpace,
     getDaylightPhase,
     getWorldWeather,
-    sprintDrainMultiplier,
 } from '@zombi-survive/simulation';
 import { AUTO, Game, Scale } from 'phaser';
 
 import { BootScene } from './boot-scene';
+import { createCharacterHud } from './character-hud';
 import { createControlPanels } from './control-panels';
 import { createCorpseControls } from './corpse-controls';
 import { createFullscreenControls } from './fullscreen';
@@ -80,6 +80,7 @@ const health = document.querySelector<HTMLProgressElement>('#health');
 const healthLabel = document.querySelector<HTMLElement>('#health-label');
 const bleedingLabel = document.querySelector<HTMLElement>('#bleeding-label');
 const combatStatus = document.querySelector<HTMLElement>('#combat-status');
+const combatIdle = document.querySelector<HTMLElement>('#combat-idle');
 const loadLabel = document.querySelector<HTMLElement>('#load-label');
 const movementLabel = document.querySelector<HTMLElement>('#movement-label');
 const groundLabel = document.querySelector<HTMLElement>('#ground-item');
@@ -133,6 +134,7 @@ if (
     !healthLabel ||
     !bleedingLabel ||
     !combatStatus ||
+    !combatIdle ||
     !movementLabel ||
     !loadLabel ||
     !groundLabel ||
@@ -152,6 +154,14 @@ if (
 }
 
 const scene = new BootScene();
+const characterHud = createCharacterHud({
+    bleedingLabel,
+    combatStatus,
+    combatIdle,
+    stamina,
+    staminaLabel,
+    loadLabel,
+});
 const game = new Game({
     type: AUTO,
     parent: container,
@@ -364,21 +374,10 @@ let otherPlayers: readonly PlayerMovementState[] = [];
 scene.onFrame = () => {
     const player = prediction.sample(performance.now());
     scene.setPlayer(player);
-    stamina.value = player?.stamina ?? 0;
-    if (player === null) loadLabel.textContent = 'Нагрузка: —';
-    else {
-        const weightGrams = player.carriedWeightGrams ?? 0;
-        const multiplier = sprintDrainMultiplier(weightGrams).toFixed(2).replace('.', ',');
-        loadLabel.textContent = `Нагрузка: ${String(weightGrams)} г · Расход спринта: ×${multiplier}`;
-    }
     movementLabel.textContent =
         player === null
             ? 'Режим: —'
             : `${player.isSneaking ? 'Скрытность' : 'Обычный режим'} · Шум: ${String(player.noiseRadiusMeters)} м`;
-    staminaLabel.textContent =
-        player === null
-            ? 'Выносливость: —'
-            : `Выносливость: ${String(Math.round(player.stamina * 100))}%${player.isExhausted ? ' · Восстановление до 20%' : ''}`;
 };
 const connection = createWorldConnection(
     window.location.origin,
@@ -390,6 +389,7 @@ const connection = createWorldConnection(
         if (state.status === 'connected') {
             const { snapshot } = state;
             lastMovement = snapshot;
+            characterHud.setMovement(snapshot.player);
             worldTime.textContent =
                 snapshot.worldTimeMs === undefined
                     ? 'Время мира: —'
@@ -450,10 +450,7 @@ const connection = createWorldConnection(
         prediction.reset();
         health.value = 0;
         healthLabel.textContent = 'Здоровье: —';
-        bleedingLabel.textContent = 'Кровотечение: —';
-        bleedingLabel.removeAttribute('data-bleeding');
-        combatStatus.hidden = true;
-        delete combatStatus.dataset['remainingTicks'];
+        characterHud.reset();
         ammoLabel.textContent = 'Патроны: —';
         receivedGroundItem = null;
         groundItem = null;
@@ -577,10 +574,7 @@ const connection = createWorldConnection(
         attack.disabled = attack.disabled || snapshot.health <= 0;
         updateFirearm();
         isBleeding = snapshot.bleedingTicks > 0;
-        bleedingLabel.textContent = isBleeding ? 'Кровотечение: есть' : 'Кровотечение: нет';
-        bleedingLabel.dataset['bleeding'] = String(isBleeding);
-        combatStatus.hidden = !isAlive || snapshot.combatTicks === 0;
-        combatStatus.dataset['remainingTicks'] = String(snapshot.combatTicks);
+        characterHud.setHealth({ isBleeding, combatTicks: isAlive ? snapshot.combatTicks : 0 });
         health.max = snapshot.maxHealth;
         health.value = snapshot.health;
         updateBandage();

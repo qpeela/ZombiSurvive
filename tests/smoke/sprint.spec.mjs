@@ -2,16 +2,23 @@ import { spawn } from 'node:child_process';
 import { mkdir } from 'node:fs/promises';
 
 import { expect, test } from '@playwright/test';
+import { movementSettings } from '@zombi-survive/content';
 
 const state = page =>
-    page.getByRole('status').evaluate(element => ({
-        x: Number(element.dataset.xMeters),
-        y: Number(element.dataset.yMeters),
-        tick: Number(element.dataset.tick),
-        stamina: Number(element.dataset.stamina),
-        isExhausted: element.dataset.exhausted === 'true',
-        noise: Number(element.dataset.noiseRadius),
-    }));
+    page.getByRole('status').evaluate(element => {
+        const label = element.ownerDocument.getElementById('stamina-label');
+
+        return {
+            x: Number(element.dataset.xMeters),
+            y: Number(element.dataset.yMeters),
+            tick: Number(element.dataset.tick),
+            stamina: Number(element.dataset.stamina),
+            isExhausted: element.dataset.exhausted === 'true',
+            noise: Number(element.dataset.noiseRadius),
+            hudExhausted: label?.dataset.exhausted === 'true',
+            staminaText: label?.textContent ?? '',
+        };
+    });
 
 const measureSpeed = async (page, metersPerTick) => {
     const start = await state(page);
@@ -48,16 +55,23 @@ test('Shift sprints, exhausts, recovers, and supports clicks and reload in the h
         await page.keyboard.down('w');
         await expect.poll(async () => (await state(page)).stamina).toBeLessThan(0.99);
         await measureSpeed(page, 0.35);
+        const recoveryPercent = Math.round(movementSettings.sprintRecoveryThreshold * 100);
         await expect
             .poll(
                 async () => {
                     const current = await state(page);
-                    return { isExhausted: current.isExhausted, noise: current.noise };
+                    return {
+                        isExhausted: current.isExhausted,
+                        noise: current.noise,
+                        hudExhausted: current.hudExhausted,
+                        explainsRecovery: current.staminaText.includes(
+                            `Восстановление до ${String(recoveryPercent)}%`,
+                        ),
+                    };
                 },
                 { timeout: 10000 },
             )
-            .toEqual({ isExhausted: true, noise: 8 });
-        await expect(page.locator('#stamina-label')).toContainText('Восстановление до 20%');
+            .toEqual({ isExhausted: true, noise: 8, hudExhausted: true, explainsRecovery: true });
         // A held Shift would resume sprint after recovery during the measurement.
         // Observe a stopped snapshot before starting a fresh, unmodified walk.
         await page.keyboard.up('w');
@@ -78,6 +92,7 @@ test('Shift sprints, exhausts, recovers, and supports clicks and reload in the h
         expect(reloaded.stamina).toBeLessThan(0.8);
         expect(reloaded.stamina).toBeGreaterThanOrEqual(beforeReload.stamina);
         await expect.poll(async () => (await state(page)).isExhausted).toBe(false);
+        await expect(page.locator('#stamina-label')).toHaveAttribute('data-exhausted', 'false');
         await page.locator('canvas').scrollIntoViewIfNeeded();
         await page.keyboard.down('Shift');
         const box = await page.locator('canvas').boundingBox();
