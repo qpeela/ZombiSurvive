@@ -343,6 +343,27 @@ button:focus-visible {
     background: transparent;
 }
 
+.item-details:not([hidden]) {
+    position: absolute;
+    inset-block-start: 0;
+    inset-inline-end: calc(100% + 8px);
+    z-index: 3;
+    display: grid;
+    gap: 2px;
+    width: max-content;
+    max-width: min(16rem, 60vw);
+    padding: 6px 8px;
+    border-inline-start: 2px solid #a1b477;
+    background: #101a14;
+    overflow-wrap: anywhere;
+    pointer-events: none;
+}
+
+.item-details span {
+    color: #c2d2b8;
+    font-size: 12px;
+}
+
 #player-profile {
     display: flex;
     align-items: center;

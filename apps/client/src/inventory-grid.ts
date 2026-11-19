@@ -7,17 +7,30 @@ import {
 import type { InventoryCell, InventoryItem } from '@zombi-survive/domain';
 import { inventoryWeightGrams, placeInventoryItem } from '@zombi-survive/simulation';
 
+const describeItem = (item: InventoryItem): string => {
+    const { columns, rows } = itemDefinitions[item.kind];
+    const details = [`${String(itemWeightGrams(item))} г`, `${String(columns)} × ${String(rows)}`];
+
+    if (item.kind === 'ammo9mm') details.push(`Количество: ${String(item.quantity)}`);
+    if (item.kind === 'pistol')
+        details.push(`Магазин: ${String(item.rounds)}/${String(item.magazineCapacity)}`);
+
+    return details.join(' · ');
+};
+
 export const createInventoryGrid = ({
     grid,
     selector,
     itemSelectors,
     message,
+    details,
     onMove,
 }: {
     readonly grid: HTMLElement;
     readonly selector: HTMLButtonElement;
     readonly itemSelectors: HTMLElement;
     readonly message: HTMLElement;
+    readonly details: HTMLElement;
     readonly onMove: (itemId: string, cell: InventoryCell) => void;
 }): {
     selectedItem: () => InventoryItem | null;
@@ -32,6 +45,38 @@ export const createInventoryGrid = ({
     const cells: HTMLButtonElement[] = [];
     const footprints: HTMLElement[] = [];
     const itemButtons = new Map<string, HTMLButtonElement>();
+    const detailsName = document.createElement('strong');
+    const detailsDescription = document.createElement('span');
+    details.append(detailsName, detailsDescription);
+    let pointerTarget: EventTarget | null = null;
+    let isPointerPrimary = false;
+    const itemIdAt = (target: EventTarget | null): string | undefined => {
+        if (!(target instanceof HTMLButtonElement) || target.disabled) return undefined;
+        if (target !== selector && !grid.contains(target) && !itemSelectors.contains(target))
+            return undefined;
+
+        return target.dataset['itemId'];
+    };
+    const updateDetails = (focused: EventTarget | null = document.activeElement): void => {
+        const hoveredId = itemIdAt(pointerTarget);
+        const focusedId = itemIdAt(focused);
+        const itemId = isPointerPrimary ? (hoveredId ?? focusedId) : (focusedId ?? hoveredId);
+        const item = isEnabled ? items?.find(candidate => candidate.itemId === itemId) : undefined;
+
+        details.hidden = item === undefined;
+        detailsName.textContent = item === undefined ? '' : itemDefinitions[item.kind].name;
+        detailsDescription.textContent = item === undefined ? '' : describeItem(item);
+    };
+    const onPointerChange = (event: PointerEvent): void => {
+        pointerTarget = event.type === 'pointerover' ? event.target : event.relatedTarget;
+        isPointerPrimary = true;
+        updateDetails();
+    };
+    const onFocusChange = (event: FocusEvent): void => {
+        isPointerPrimary = false;
+        updateDetails(event.type === 'focusin' ? event.target : event.relatedTarget);
+    };
+    const itemSurfaces = [grid, selector, itemSelectors];
     const selectionHelp = 'Выберите верхнюю левую ячейку или экипируйте выбранное оружие.';
     grid.style.setProperty('--inventory-columns', String(inventorySettings.columns));
 
@@ -87,8 +132,10 @@ export const createInventoryGrid = ({
             selectedId = null;
             pendingCell = null;
         }
-        const hasBandage = next?.some(item => item.kind === 'bandage') ?? false;
-        selector.disabled = !hasBandage || !isEnabled;
+        const bandage = next?.find(item => item.kind === 'bandage');
+        selector.disabled = bandage === undefined || !isEnabled;
+        if (bandage === undefined) delete selector.dataset['itemId'];
+        else selector.dataset['itemId'] = bandage.itemId;
         if (next === null) message.textContent = 'Сетка недоступна.';
         else if (selectedId === null)
             message.textContent = `Масса в сетке: ${String(inventoryWeightGrams(next))} / ${String(inventorySettings.maxWeightGrams)} г`;
@@ -129,6 +176,11 @@ export const createInventoryGrid = ({
                 }
                 button.disabled = !isEnabled;
                 button.textContent = `Переместить: ${itemDisplayName(item)} · ${String(definition.columns)} × ${String(definition.rows)} · ${String(itemWeightGrams(item))} г`;
+                if (item.kind === 'pistol')
+                    button.setAttribute(
+                        'aria-description',
+                        `Магазин: ${String(item.rounds)}/${String(item.magazineCapacity)}`,
+                    );
 
                 if (hasDuplicates) {
                     button.textContent += ` · ячейка ${String(item.cell.column + 1)}, ${String(item.cell.row + 1)}`;
@@ -156,15 +208,19 @@ export const createInventoryGrid = ({
 
                 return isColumn && isRow;
             });
-            const definition = item === undefined ? null : itemDefinitions[item.kind];
             button.setAttribute(
                 'aria-description',
-                definition === null || item === undefined
+                item === undefined
                     ? 'Свободно'
-                    : `${itemDisplayName(item)} · часть предмета ${String(definition.columns)} × ${String(definition.rows)}`,
+                    : `${itemDefinitions[item.kind].name} · ${describeItem(item)}`,
             );
             button.dataset['occupied'] = String(item !== undefined);
+            if (item === undefined) delete button.dataset['itemId'];
+            else button.dataset['itemId'] = item.itemId;
         }
+
+        if (!enabled) pointerTarget = null;
+        updateDetails();
     };
     const onSelect = (): void => {
         if (!isEnabled) return;
@@ -218,6 +274,12 @@ export const createInventoryGrid = ({
     selector.addEventListener('click', onSelect);
     itemSelectors.addEventListener('click', onItemSelect);
     grid.addEventListener('click', onCellClick);
+    for (const surface of itemSurfaces) {
+        surface.addEventListener('pointerover', onPointerChange);
+        surface.addEventListener('pointerout', onPointerChange);
+        surface.addEventListener('focusin', onFocusChange);
+        surface.addEventListener('focusout', onFocusChange);
+    }
     update(null);
 
     return {
@@ -227,8 +289,16 @@ export const createInventoryGrid = ({
             selector.removeEventListener('click', onSelect);
             itemSelectors.removeEventListener('click', onItemSelect);
             grid.removeEventListener('click', onCellClick);
+            for (const surface of itemSurfaces) {
+                surface.removeEventListener('pointerover', onPointerChange);
+                surface.removeEventListener('pointerout', onPointerChange);
+                surface.removeEventListener('focusin', onFocusChange);
+                surface.removeEventListener('focusout', onFocusChange);
+            }
             grid.replaceChildren();
             itemSelectors.replaceChildren();
+            details.hidden = true;
+            details.replaceChildren();
         },
     };
 };
