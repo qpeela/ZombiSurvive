@@ -57,7 +57,7 @@ test('the inventory drag previews a two-cell item and saves only a valid drop ac
     try {
         await expect.poll(running.output).toContain('Local world ready');
         await open(page);
-        await page.getByRole('button', { name: 'Подобрать бинт', exact: true }).click();
+        await page.getByRole('button', { name: 'Взять: Бинт', exact: true }).click();
         await openInventory(page);
         const grid = page.locator('#inventory-grid');
         const source = grid.getByRole('button', { name: 'Ячейка 1, 1', exact: true });
