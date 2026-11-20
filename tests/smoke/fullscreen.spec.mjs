@@ -208,3 +208,63 @@ test('fullscreen denial and unsupported browsers leave the game usable', async (
     await expect(page.locator('#fullscreen-message')).toContainText('недоступен');
     await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
 });
+
+test('interface scale persists and keeps keyboard targets and world coordinates usable at 1280 × 720', async ({
+    page,
+}) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await open(page);
+    const scale = page.getByLabel('Размер интерфейса');
+    const hud = page.getByRole('group', { name: 'Условия мира' });
+    const icon = page.locator('.status-icon').first();
+    const fullscreen = page.locator('#fullscreen');
+    const bounds = await page.locator('canvas').boundingBox();
+    const normalHeight = (await fullscreen.boundingBox()).height;
+    const expectScale = async mode => {
+        const fontSize = mode === 'large' ? '15px' : '12px';
+        await expect(scale).toHaveValue(mode);
+        await expect(hud).toHaveCSS('font-size', fontSize);
+        await expect(icon).toHaveCSS('font-size', fontSize);
+    };
+
+    await expectScale('normal');
+    await assertPointer(page);
+    await scale.selectOption('large');
+    await expectScale('large');
+    await expect
+        .poll(async () => (await fullscreen.boundingBox()).height)
+        .toBeGreaterThan(normalHeight);
+    await expect.poll(() => page.locator('canvas').boundingBox()).toEqual(bounds);
+    await assertPointer(page);
+    await page.reload();
+    await expect(page.locator('#connection-status')).toHaveAttribute('data-status', 'connected');
+    await expectScale('large');
+
+    await fullscreen.click();
+    await expect(fullscreen).toHaveAttribute('aria-pressed', 'true');
+    await expectScale('large');
+    await assertPointer(page);
+    const equipmentToggle = page.getByRole('button', { name: 'Экипировка (Q)', exact: true });
+    await equipmentToggle.click();
+    await page.getByRole('button', { name: 'Экипировать дубинку', exact: true }).click();
+    await equipmentToggle.click();
+    const attack = page.locator('#melee-attack');
+    await expect(attack).toBeEnabled();
+    const controls = page.getByRole('region', { name: 'Настройки и игровые действия' });
+    await scale.focus();
+    for (let index = 0; index < 10; index++) {
+        await page.keyboard.press('Tab');
+        if (await attack.evaluate(element => element === globalThis.document.activeElement)) break;
+    }
+    await expect(attack).toBeFocused();
+    await expect(attack).toBeInViewport();
+    await expect.poll(() => controls.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+
+    await scale.selectOption('normal');
+    await expectScale('normal');
+    await assertPointer(page);
+    await fullscreen.click();
+    await expect(fullscreen).toHaveAttribute('aria-pressed', 'false');
+    await page.reload();
+    await expectScale('normal');
+});
