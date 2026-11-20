@@ -48,15 +48,14 @@ export const createLootDrag = ({
     };
     const onDragStart = (event: DragEvent): void => {
         const { dataTransfer, target } = event;
-        if (
-            !(target instanceof HTMLElement) ||
-            dataTransfer === null ||
-            inventory.matches('[hidden]')
-        )
-            return;
+        if (!(target instanceof HTMLElement) || dataTransfer === null) return;
 
         const itemId = target.dataset['lootDragId'];
         if (itemId === undefined) return;
+        if (inventory.matches('[hidden]')) {
+            event.preventDefault();
+            return;
+        }
 
         drag = { itemId, source: target };
         dataTransfer.effectAllowed = 'move';

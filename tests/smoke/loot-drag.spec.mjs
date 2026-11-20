@@ -141,6 +141,38 @@ test('the Take button remains a keyboard alternative to dragging', async ({ page
     await expect(take).toHaveCount(0);
 });
 
+test('a drop does not send a pickup after another tab collects the source mid-drag', async ({
+    page,
+    context,
+}) => {
+    let pickups = 0;
+    page.on('websocket', socket => {
+        socket.on('framesent', ({ payload }) => {
+            if (payload.includes('pickup-item')) pickups++;
+        });
+    });
+    const { source, zone, status, inventoryItem } = await open(page);
+    const transfer = await source.evaluateHandle(
+        element => new element.ownerDocument.defaultView.DataTransfer(),
+    );
+    const tab = await context.newPage();
+    try {
+        await source.dispatchEvent('dragstart', { dataTransfer: transfer });
+        await zone.dispatchEvent('dragover', { dataTransfer: transfer });
+        await expect(zone).toHaveAttribute('data-drag-over', 'allowed');
+        await tab.goto(origin);
+        await tab.getByRole('button', { name: 'Взять: Бинт', exact: true }).click();
+        await expect(source).toHaveCount(0);
+        await expect(status).toHaveText('Источник больше недоступен.');
+        await zone.dispatchEvent('drop', { dataTransfer: transfer });
+        await expect(inventoryItem).toHaveCount(1);
+        expect(pickups).toBe(0);
+    } finally {
+        await transfer.dispose();
+        await tab.close();
+    }
+});
+
 test.describe('full backpack', () => {
     test.use({ full: true });
 
