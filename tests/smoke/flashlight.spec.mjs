@@ -7,7 +7,7 @@ import { expect, test } from '@playwright/test';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
 import { aimWorld } from '../fixtures/game-controls.mjs';
-import { openInventory } from '../fixtures/game-panels.mjs';
+import { openInventory, openSettings } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3149';
 const start = path => {
@@ -129,9 +129,11 @@ test('L toggles once per press, ignores text entry, and HUD/reload/disconnect/re
         await page.keyboard.down('l');
         await expect(button).toHaveAttribute('aria-pressed', 'true');
         await page.keyboard.up('l');
-        await page.locator('#display-name').click();
+        await openSettings(page);
+        await page.getByRole('textbox', { name: 'Имя игрока' }).click();
         await page.keyboard.press('l');
         await expect(button).toHaveAttribute('aria-pressed', 'true');
+        await page.locator('#toggle-settings').click();
         await button.click();
         await expect(button).toHaveAttribute('aria-pressed', 'false');
         await button.click();
