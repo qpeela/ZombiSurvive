@@ -90,12 +90,15 @@ const mapZoomIn = document.querySelector<HTMLButtonElement>('#map-zoom-in');
 const mapZoomOut = document.querySelector<HTMLButtonElement>('#map-zoom-out');
 const mapCenter = document.querySelector<HTMLButtonElement>('#map-center');
 const mapMarkers = document.querySelector<HTMLFormElement>('#map-markers');
+const settingsPanel = document.querySelector<HTMLElement>('#settings-panel');
+const settingsToggle = document.querySelector<HTMLButtonElement>('#toggle-settings');
 const helpPanel = document.querySelector<HTMLElement>('#help-panel');
 const helpToggle = document.querySelector<HTMLButtonElement>('#toggle-help');
 const fullscreenButton = document.querySelector<HTMLButtonElement>('#fullscreen');
 const fullscreenMessage = document.querySelector<HTMLElement>('#fullscreen-message');
 const container = document.querySelector<HTMLElement>('#game');
 const status = document.querySelector<HTMLElement>('#connection-status');
+const connectionDetails = document.querySelector<HTMLElement>('#connection-details');
 const weaponOptions = document.querySelector<HTMLElement>('#weapon-options');
 const unequip = document.querySelector<HTMLButtonElement>('#unequip-weapon');
 const itemSelectors = document.querySelector<HTMLElement>('#inventory-items');
@@ -182,6 +185,8 @@ if (
     !mapZoomOut ||
     !mapCenter ||
     !mapMarkers ||
+    !settingsPanel ||
+    !settingsToggle ||
     !helpPanel ||
     !helpToggle ||
     !fullscreenButton ||
@@ -202,6 +207,7 @@ if (
     !heldAmmo ||
     !container ||
     !status ||
+    !connectionDetails ||
     !reconnect ||
     !stamina ||
     !staminaLabel ||
@@ -629,6 +635,7 @@ const controlPanels = createControlPanels({
             shortcut: 'KeyM',
             onVisibilityChange: visitedMap.setOpen,
         },
+        { element: settingsPanel, button: settingsToggle },
         { element: helpPanel, button: helpToggle },
     ],
     protectedRegions: [nearbyPanel, worldContextPanel],
@@ -649,10 +656,11 @@ let otherPlayers: readonly PlayerMovementState[] = [];
 scene.onFrame = () => {
     const player = prediction.sample(performance.now());
     scene.setPlayer(player);
-    movementLabel.textContent =
+    const movement =
         player === null
             ? 'Режим: —'
             : `${player.isSneaking ? 'Скрытность' : 'Обычный режим'} · Шум: ${String(player.noiseRadiusMeters)} м`;
+    if (movementLabel.textContent !== movement) movementLabel.textContent = movement;
 };
 const connection = createWorldConnection(
     window.location.origin,
@@ -684,7 +692,9 @@ const connection = createWorldConnection(
             status.dataset['sneaking'] = String(snapshot.player.isSneaking);
             status.dataset['noiseRadius'] = String(snapshot.player.noiseRadiusMeters);
             status.dataset['ack'] = String(snapshot.lastProcessedInputSequence);
-            status.textContent = `Мир подключён. Позиция: ${xMeters.toFixed(2)}, ${yMeters.toFixed(2)} м. Персонажей: ${String(snapshot.otherPlayers.length + 1)}.`;
+            if (status.textContent !== 'Мир подключён.') status.textContent = 'Мир подключён.';
+            const details = `Позиция: ${xMeters.toFixed(2)}, ${yMeters.toFixed(2)} м. Персонажей: ${String(snapshot.otherPlayers.length + 1)}.`;
+            if (connectionDetails.textContent !== details) connectionDetails.textContent = details;
             scene.setPlayers(prediction.sample(performance.now()), otherPlayers);
             status.dataset['playerCount'] = String(snapshot.otherPlayers.length + 1);
 
@@ -754,6 +764,7 @@ const connection = createWorldConnection(
         delete status.dataset['playerCount'];
         scene.setPlayers(null, []);
         status.textContent = messages[state.status];
+        connectionDetails.textContent = 'Позиция: —';
     }),
     command => {
         prediction.recordSent(command, performance.now());

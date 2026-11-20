@@ -13,7 +13,7 @@ import {
     distanceToStartingZombie,
     movePlayerTo,
 } from '../fixtures/game-controls.mjs';
-import { clickEquipmentAction, openInventory } from '../fixtures/game-panels.mjs';
+import { clickEquipmentAction, openInventory, openSettings } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3154';
 const route = [
@@ -279,7 +279,9 @@ test('the night outing works through the map, Nearby, health, journal and a relo
         await expect(pickup).toBeVisible();
         await expect(pickup).toBeDisabled();
         await page.screenshot({ path: '.cache/t081-night-hud.png' });
+        await openSettings(page);
         await scale.selectOption('large');
+        await page.locator('#toggle-settings').click();
         await aimWorld({ page, position: medicalOutpost.bandagePosition });
         await page.screenshot({ path: '.cache/t081-night-hud-large.png' });
 

@@ -8,7 +8,7 @@ import { expect, test } from '@playwright/test';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
 import { activateStartingZombie, clickWorld, movePlayerTo } from '../fixtures/game-controls.mjs';
-import { clickEquipmentAction, openInventory } from '../fixtures/game-panels.mjs';
+import { clickEquipmentAction, openInventory, openSettings } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3136';
 const gunId = 'pistol-v1:0:0';
@@ -98,6 +98,7 @@ test('complete solo cycle uses real UI, retains one life and finite items across
     try {
         await expect.poll(running.output).toContain('Local world ready');
         await page.goto(origin);
+        await openSettings(page);
         await expect(page.locator('#display-name')).toBeEnabled();
         await page.locator('#display-name').fill('Одиночный цикл');
         await page.locator('#save-name').click();
@@ -111,6 +112,7 @@ test('complete solo cycle uses real UI, retains one life and finite items across
         await expect(page.locator('#inventory-grid')).toBeInViewport();
         await page.locator('#toggle-inventory').click();
         await page.getByRole('button', { name: 'Выйти из полного экрана' }).click();
+        await page.locator('#toggle-settings').click();
         await page.setViewportSize({ width: 1280, height: 900 });
         await clickEquipmentAction(page, 'Экипировать топор');
         const canvas = page.locator('canvas');

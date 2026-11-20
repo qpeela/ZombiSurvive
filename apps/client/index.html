@@ -10,13 +10,9 @@
         <main class="game-shell">
             <aside class="game-controls" aria-label="Управление игрой">
                 <div class="connection-panel">
-                    <p id="game-version" class="game-version">Версия __GAME_VERSION__</p>
+                    <h1>ZombiSurvive</h1>
                     <p id="connection-status" role="status">Подключение к локальному миру…</p>
                     <button id="reconnect" type="button" disabled>Подключиться снова</button>
-                    <button id="fullscreen" type="button" aria-pressed="false">
-                        На весь экран
-                    </button>
-                    <span id="fullscreen-message" aria-live="polite"></span>
                     <div class="panel-toggles" aria-label="Игровые панели" role="group">
                         <button
                             id="toggle-inventory"
@@ -64,12 +60,12 @@
                             Карта (M)
                         </button>
                         <button
-                            id="toggle-help"
+                            id="toggle-settings"
                             type="button"
-                            aria-controls="help-panel"
+                            aria-controls="settings-panel"
                             aria-expanded="false"
                         >
-                            Справка
+                            Настройки
                         </button>
                     </div>
                 </div>
@@ -78,6 +74,49 @@
                     aria-label="Настройки и игровые действия"
                     tabindex="0"
                 >
+                    <section
+                        id="settings-panel"
+                        class="settings-panel game-panel"
+                        aria-labelledby="settings-heading"
+                        tabindex="-1"
+                        hidden
+                    >
+                        <h2 id="settings-heading">Настройки</h2>
+                        <button id="fullscreen" type="button" aria-pressed="false">
+                            На весь экран
+                        </button>
+                        <span id="fullscreen-message" aria-live="polite"></span>
+                        <div class="interface-scale">
+                            <label for="interface-scale">Размер интерфейса</label>
+                            <select id="interface-scale">
+                                <option value="normal">Обычный</option>
+                                <option value="large">Увеличенный</option>
+                            </select>
+                        </div>
+                        <form id="player-profile" novalidate>
+                            <label for="display-name">Имя игрока</label>
+                            <input
+                                id="display-name"
+                                name="displayName"
+                                autocomplete="off"
+                                disabled
+                            />
+                            <button id="save-name" type="submit" disabled>Сохранить имя</button>
+                            <span id="profile-message" aria-live="polite"></span>
+                        </form>
+                        <button
+                            id="toggle-help"
+                            type="button"
+                            aria-controls="help-panel"
+                            aria-expanded="false"
+                        >
+                            Справка
+                        </button>
+                        <p id="player-name">Имя: —</p>
+                        <p id="movement-label">Режим: —</p>
+                        <p id="connection-details">Позиция: —</p>
+                        <p id="game-version" class="game-version">Версия __GAME_VERSION__</p>
+                    </section>
                     <section
                         id="help-panel"
                         class="help-panel game-panel"
@@ -248,27 +287,6 @@
                             <span id="map-marker-status" aria-live="polite"></span>
                         </form>
                     </section>
-                    <header>
-                        <h1>ZombiSurvive</h1>
-                        <p class="description">
-                            WASD — движение · Shift — спринт · Ctrl — скрытность · Левый клик — идти
-                            к точке · Мышь — прицел · E — взаимодействовать. WASD отменяет выбранную
-                            точку.
-                        </p>
-                    </header>
-                    <div class="interface-scale">
-                        <label for="interface-scale">Размер интерфейса</label>
-                        <select id="interface-scale">
-                            <option value="normal">Обычный</option>
-                            <option value="large">Увеличенный</option>
-                        </select>
-                    </div>
-                    <form id="player-profile" novalidate>
-                        <label for="display-name">Имя игрока</label>
-                        <input id="display-name" name="displayName" autocomplete="off" disabled />
-                        <button id="save-name" type="submit" disabled>Сохранить имя</button>
-                        <span id="profile-message" aria-live="polite"></span>
-                    </form>
                     <section
                         id="nearby-panel"
                         class="pickup-panel game-panel"
@@ -344,7 +362,6 @@
                 </section>
                 <div class="playfield-hud">
                     <div class="stamina-hud">
-                        <span id="player-name">Имя: —</span>
                         <div
                             id="world-hud"
                             class="world-hud"
@@ -396,7 +413,6 @@
                                 </span>
                             </div>
                         </div>
-                        <span id="movement-label">Режим: —</span>
                     </div>
                     <div class="held-equipment">
                         <div
