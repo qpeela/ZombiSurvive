@@ -3,14 +3,23 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-import { collisionSettings, worldGenerationSettings } from '@zombi-survive/content';
+import {
+    collisionSettings,
+    militaryWarehouse,
+    worldGenerationSettings,
+} from '@zombi-survive/content';
 import { copyItem, isWeaponId, type ItemLocation, type ZombieState } from '@zombi-survive/domain';
-import { movementStepSeconds, stepGunshotInvestigation } from '@zombi-survive/simulation';
+import {
+    movementStepSeconds,
+    resolveMovement,
+    stepGunshotInvestigation,
+} from '@zombi-survive/simulation';
 import {
     generateChunkLoot,
     generateWorldAmmoLoot,
     generateWorldChunk,
     generateWorldWeaponLoot,
+    warehouseLoot,
 } from '@zombi-survive/worldgen';
 import { afterEach, expect, test } from 'vitest';
 
@@ -155,7 +164,7 @@ test('v12 migration preserves the complete old world and adds a registry without
     expect(loaded.initialItemLocations).toEqual(original);
     loaded.close();
     const migrated = new DatabaseSync(path);
-    expect(migrated.prepare('PRAGMA user_version').get()?.['user_version']).toBe(19);
+    expect(migrated.prepare('PRAGMA user_version').get()?.['user_version']).toBe(20);
     expect(migrated.prepare('SELECT loot_chunks FROM solo_world').get()?.['loot_chunks']).toBe(
         '[]',
     );
@@ -187,13 +196,85 @@ test('new chunk keys and items commit together; consumed ammo and expired weapon
     ]);
     loaded.close();
     loaded = open(path);
-    expect(loaded.initialItemLocations).toHaveLength(23);
+    expect(loaded.initialItemLocations).toHaveLength(23 + warehouseLoot.length);
     expect(
         loaded.initialItemLocations.filter(location => location.type === 'expired'),
     ).toHaveLength(1);
     expect(
         loaded.initialItemLocations.filter(location => location.type === 'consumed'),
     ).toHaveLength(1);
+});
+
+test('the warehouse has accessible and distinct pistol and ammunition spots', () => {
+    const { chunkX, chunkY, entrance, floor } = militaryWarehouse;
+    const chunk = generateWorldChunk({
+        seed: worldGenerationSettings.initialSeed,
+        generatorVersion: worldGenerationSettings.generatorVersion,
+        chunkX,
+        chunkY,
+    });
+    expect(warehouseLoot.map(item => item.kind)).toEqual([
+        'pistol',
+        'ammo9mm',
+        'pistol',
+        'ammo9mm',
+    ]);
+    expect(lootFor(chunkX, chunkY)).toEqual(expect.arrayContaining([...warehouseLoot]));
+    const warehouseIds = new Set(warehouseLoot.map(item => item.itemId));
+    expect(lootFor(chunkX + 1, chunkY).some(item => warehouseIds.has(item.itemId))).toBe(false);
+
+    for (const item of warehouseLoot) {
+        expect(item.position.xMeters).toBeGreaterThan(floor.minXMeters);
+        expect(item.position.xMeters).toBeLessThan(floor.minXMeters + floor.widthMeters);
+        expect(item.position.yMeters).toBeGreaterThan(floor.minYMeters);
+        expect(item.position.yMeters).toBeLessThan(floor.minYMeters + floor.heightMeters);
+        expect(resolveMovement(entrance, item.position, chunk.obstacles)).toEqual(item.position);
+    }
+});
+
+test('a visited v19 warehouse gains stock once and preserves picked-up and spent items', () => {
+    const { path, store } = create();
+    const { chunkX, chunkY } = militaryWarehouse;
+    const originalIds = new Set(warehouseLoot.map(item => item.itemId));
+    const oldNorthLoot = groundFor(chunkX, chunkY).filter(
+        ({ item }) => !originalIds.has(item.itemId),
+    );
+    const oldItems = [...store.initialItemLocations, ...oldNorthLoot];
+    const world = store.initialWorld;
+    store.close();
+
+    const database = new DatabaseSync(path);
+    database
+        .prepare('UPDATE solo_world SET loot_chunks = ?, item_location = ?')
+        .run(JSON.stringify([`${String(chunkX)},${String(chunkY)}`]), JSON.stringify(oldItems));
+    database.exec('PRAGMA user_version = 19');
+    database.close();
+
+    const migrated = open(path);
+    expect(migrated.initialWorld).toEqual(world);
+    expect(migrated.initialItemLocations).toHaveLength(oldItems.length + warehouseLoot.length);
+    expect(migrated.initialItemLocations).toEqual(expect.arrayContaining(oldItems));
+    const newItems = migrated.initialItemLocations.filter(({ item }) =>
+        originalIds.has(item.itemId),
+    );
+    expect(newItems).toEqual(warehouseLoot.map(item => ({ type: 'ground', item })));
+    const pickedUp = migrated.initialItemLocations.map((location): ItemLocation => {
+        const { item } = location;
+        if (item.itemId.endsWith(':warehouse-pistol-1')) {
+            return { type: 'hands', playerId: world.playerId, item: copyItem(item) };
+        }
+        if (item.itemId.endsWith(':warehouse-ammo-1') && item.kind === 'ammo9mm') {
+            return {
+                type: 'consumed',
+                item: { itemId: item.itemId, kind: item.kind, quantity: 0 },
+            };
+        }
+
+        return location;
+    });
+    migrated.saveItemLocations(pickedUp);
+    migrated.close();
+    expect(open(path).initialItemLocations).toEqual(pickedUp);
 });
 
 test('a larger visited manifest restores beyond the former 16KB cap without relaxing exact ownership/ID checks', () => {
