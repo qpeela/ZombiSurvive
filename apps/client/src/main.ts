@@ -44,6 +44,7 @@ import {
     getPickupReason,
     isWithinPickupRange,
 } from './nearby-loot';
+import { createOutingJournal } from './outing-journal';
 import { createPlayerProfileControls } from './player-profile';
 import { formatWorldTime } from './world-clock';
 import { createWorldConnection } from './world-connection';
@@ -74,6 +75,10 @@ const panelHealth = document.querySelector<HTMLElement>('#panel-health');
 const panelBleeding = document.querySelector<HTMLElement>('#panel-bleeding');
 const panelBandage = document.querySelector<HTMLButtonElement>('#panel-bandage');
 const panelBandageReason = document.querySelector<HTMLElement>('#panel-bandage-reason');
+const journalPanel = document.querySelector<HTMLElement>('#journal-panel');
+const journalToggle = document.querySelector<HTMLButtonElement>('#toggle-journal');
+const journalEvents = document.querySelector<HTMLElement>('#journal-events');
+const journalEmpty = document.querySelector<HTMLElement>('#journal-empty');
 const fullscreenButton = document.querySelector<HTMLButtonElement>('#fullscreen');
 const fullscreenMessage = document.querySelector<HTMLElement>('#fullscreen-message');
 const container = document.querySelector<HTMLElement>('#game');
@@ -150,6 +155,10 @@ if (
     !panelBleeding ||
     !panelBandage ||
     !panelBandageReason ||
+    !journalPanel ||
+    !journalToggle ||
+    !journalEvents ||
+    !journalEmpty ||
     !fullscreenButton ||
     !fullscreenMessage ||
     !weaponOptions ||
@@ -237,6 +246,7 @@ const healthUi = createHealthPanel({
     action: panelBandage,
     reason: panelBandageReason,
 });
+const journal = createOutingJournal({ list: journalEvents, empty: journalEmpty });
 let lastHealth: HealthStatus | null = null;
 let inventoryItems: readonly InventoryItem[] = [];
 let hands: Item | null = null;
@@ -566,6 +576,7 @@ const controlPanels = createControlPanels({
         },
         { element: equipmentPanel, button: equipmentToggle, shortcut: 'KeyQ' },
         { element: healthPanel, button: healthToggle, shortcut: 'KeyH' },
+        { element: journalPanel, button: journalToggle, shortcut: 'KeyJ' },
     ],
     protectedRegions: [nearbyPanel, worldContextPanel],
     dismissOverlay: worldContext.close,
@@ -628,6 +639,7 @@ const connection = createWorldConnection(
 
         updateWorldTime();
         profileUi.update(null);
+        journal.disconnect();
         lastHealth = null;
         lifeState = null;
         worldContext.close();
@@ -728,6 +740,7 @@ const connection = createWorldConnection(
         inventoryUi.update(snapshot.items, lifeState === 'alive');
         updatePickup();
         lootDrag.accept(snapshot);
+        journal.acceptInventory(snapshot);
     }),
     snapshot => {
         scene.setZombies(snapshot.zombies);
@@ -744,6 +757,7 @@ const connection = createWorldConnection(
         health.dataset['lifeRevision'] = String(nextLife);
         lifeState = snapshot.lifeState;
         lastHealth = snapshot;
+        journal.acceptHealth(snapshot);
         equipmentHud.acceptLife(snapshot);
         const isAlive = lifeState === 'alive';
         scene.setAlive(isAlive);

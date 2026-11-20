@@ -73,6 +73,15 @@ body {
     outline-offset: -2px;
 }
 
+#journal-events {
+    margin: 6px 0 0;
+    padding-inline-start: 1.3em;
+}
+
+#journal-events li + li {
+    margin-top: 4px;
+}
+
 .control-scroll {
     flex: 1;
     min-height: 0;

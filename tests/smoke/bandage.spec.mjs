@@ -6,7 +6,7 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { Client } from '@colyseus/sdk';
 import { expect, test } from '@playwright/test';
-import { localWorldRoomId } from '@zombi-survive/protocol';
+import { localWorldRoomId, protocolVersion } from '@zombi-survive/protocol';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
 import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
@@ -18,10 +18,19 @@ const command = {
     inventoryVersion: 2,
     itemId: 'starter-bandage',
 };
-const seed = (path, { health = 70, bleedingTicks = 100, worldTimeMs, hasBandage = true } = {}) => {
+const seed = (
+    path,
+    {
+        health = 70,
+        bleedingTicks = 100,
+        worldTimeMs,
+        hasBandage = true,
+        position = { xMeters: 8, yMeters: 12 },
+    } = {},
+) => {
     const store = new SoloWorldStore(path);
     const playerId = store.initialWorld.playerId;
-    store.savePosition({ xMeters: 8, yMeters: 12 }, worldTimeMs);
+    store.savePosition(position, worldTimeMs);
     store.saveCombat(
         { health, bleedingTicks, cooldownTicks: 0 },
         store.initialItemLocations.map(location =>
@@ -377,6 +386,53 @@ test('Health explains why an injured player without a bandage cannot treat bleed
         await expect(action).toBeDisabled();
         await expect(action).toHaveAccessibleDescription('В рюкзаке нет бинта.');
     } finally {
+        await stop(running);
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
+
+test('the outing journal records confirmed loot, damage and treatment once', async ({ page }) => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-outing-journal-'));
+    const path = join(directory, 'world.sqlite');
+    seed(path, {
+        bleedingTicks: 70,
+        hasBandage: false,
+        position: { xMeters: 2, yMeters: 2 },
+    });
+    const running = start(path);
+    let peer;
+    try {
+        await expect.poll(running.output).toContain('Local world ready');
+        await open(page);
+        await page.locator('#game').focus();
+        await page.keyboard.press('j');
+        const journal = page.getByRole('region', { name: 'Журнал вылазки' });
+        const events = journal.getByRole('listitem');
+        await expect(journal).toBeFocused();
+        await expect(journal.getByText('В журнале пока нет событий.')).toBeVisible();
+        peer = await observer();
+        const tick = async () => Number(await page.getByRole('status').getAttribute('data-tick'));
+        const before = await tick();
+        peer.send('pickup-item', {
+            type: 'pickup-item',
+            protocolVersion,
+            itemId: 'missing-loot-item',
+        });
+        await expect.poll(tick).toBeGreaterThanOrEqual(before + 3);
+        await expect(events.filter({ hasText: 'Подобрано' })).toHaveCount(0);
+        await page.getByRole('button', { name: 'Взять: Бинт', exact: true }).click();
+        await expect(events.filter({ hasText: 'Подобрано с земли: Бинт.' })).toHaveCount(1);
+        await expect(events.filter({ hasText: 'Получен урон: 1 HP.' })).toHaveCount(1);
+        const panel = await openHealth(page);
+        await panel.getByRole('button', { name: 'Перевязаться' }).click();
+        await expect(events.first()).toHaveText('Кровотечение остановлено.');
+        await expect(events).toHaveCount(3);
+        await journal.screenshot({ path: '.cache/t076-outing-journal.png' });
+        await page.keyboard.press('Escape');
+        await expect(panel).toBeHidden();
+        await expect(journal).toBeVisible();
+    } finally {
+        peer?.connection.close();
         await stop(running);
         rmSync(directory, { recursive: true, force: true });
     }
