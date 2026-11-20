@@ -131,6 +131,7 @@
                         <h2 id="inventory-heading">Инвентарь</h2>
                         <p id="inventory">Контейнер: —</p>
                         <p id="equipment-weight">Вес снаряжения: —</p>
+                        <p id="load-label">Нагрузка: —</p>
                         <button id="inventory-select" type="button" aria-pressed="false" disabled>
                             Переместить бинт · 2 × 1 · 100 г
                         </button>
@@ -376,7 +377,7 @@
                         <label id="health-label" for="health">Здоровье: —</label>
                         <progress id="health" max="100" value="0"></progress>
                         <div class="character-status" role="group" aria-label="Состояние персонажа">
-                            <div class="status-chip">
+                            <div class="status-chip bleeding-chip">
                                 <span class="status-icon" aria-hidden="true">◆</span>
                                 <span id="bleeding-label" aria-live="polite">Кровотечение: —</span>
                             </div>
@@ -387,11 +388,7 @@
                                     <progress id="stamina" max="1" value="0" hidden></progress>
                                 </div>
                             </div>
-                            <div class="status-chip">
-                                <span class="status-icon" aria-hidden="true">▣</span>
-                                <span id="load-label">Нагрузка: —</span>
-                            </div>
-                            <div class="status-chip">
+                            <div class="status-chip combat-chip">
                                 <span class="status-icon" aria-hidden="true">!</span>
                                 <span aria-live="polite">
                                     <span id="combat-idle">Бой: —</span>

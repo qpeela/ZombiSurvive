@@ -163,10 +163,10 @@ h1 {
     position: relative;
     z-index: 1;
     display: grid;
-    gap: 6px;
+    gap: 4px;
     min-height: 0;
     max-width: 100%;
-    padding: 8px 12px;
+    padding: 6px 8px;
     overflow: auto;
     overscroll-behavior: contain;
     background: #0b100ed9;
@@ -212,6 +212,7 @@ h1 {
 #stamina:not([hidden]) {
     display: block;
     width: min(180px, 100%);
+    height: calc(8px * var(--ui-scale));
     accent-color: #a2c878;
 }
 
@@ -227,9 +228,8 @@ h1 {
     display: grid;
     grid-template-columns: calc(1rem * var(--ui-scale)) minmax(0, 1fr);
     align-items: start;
-    gap: 5px;
-    padding: 3px 5px;
-    background: #17221c;
+    gap: 4px;
+    padding: 2px 0;
 }
 
 .status-icon {
@@ -250,6 +250,18 @@ h1 {
     line-height: 1.4;
 }
 
+.bleeding-chip:not(:has([data-bleeding='true'])),
+.combat-chip:has(#combat-status[hidden]),
+.held-equipment:not(:has(#held-item[data-equipped])) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+}
+
 #held-ammo:not([hidden]) {
     display: block;
 }
@@ -265,7 +277,8 @@ h1 {
 }
 
 #health {
-    width: 180px;
+    width: min(180px, 100%);
+    height: calc(9px * var(--ui-scale));
     accent-color: #cf7864;
 }
 
