@@ -56,6 +56,7 @@ export class LocalWorldRoom extends Room {
     private saveTimer: ReturnType<typeof setInterval> | undefined;
     private isStopping = false;
     private worldTimeMs = 0;
+    private needs = initialPlayerNeeds;
     private offlineVulnerabilityTicks = 0;
     private pendingStep: (() => void) | null = null;
     private save: ((logoutVulnerabilityTicks?: number) => boolean) | undefined;
@@ -89,7 +90,7 @@ export class LocalWorldRoom extends Room {
             cooldownTicks: 0,
             bleedingTicks: 0,
         };
-        let needs = options.soloStore?.initialNeeds ?? initialPlayerNeeds;
+        this.needs = options.soloStore?.initialNeeds ?? initialPlayerNeeds;
         let lifeRevision = savedCombat.lifeRevision ?? 0;
         let pendingRespawn: number | null = null;
         this.combat = new LocalWorldCombat({
@@ -124,7 +125,7 @@ export class LocalWorldRoom extends Room {
             this.save = logoutVulnerabilityTicks => {
                 try {
                     if (logoutVulnerabilityTicks === undefined) {
-                        store.savePosition(movement.soloPosition(), this.worldTimeMs, needs);
+                        store.savePosition(movement.soloPosition(), this.worldTimeMs, this.needs);
                     } else {
                         const nextCombat: SavedCombat = {
                             health: savedCombat.health,
@@ -142,7 +143,7 @@ export class LocalWorldRoom extends Room {
                             undefined,
                             undefined,
                             undefined,
-                            { worldTimeMs: this.worldTimeMs, needs },
+                            { worldTimeMs: this.worldTimeMs, needs: this.needs },
                         );
                         savedCombat = nextCombat;
                     }
@@ -256,7 +257,7 @@ export class LocalWorldRoom extends Room {
                                 position,
                                 this.worldTimeMs,
                             );
-                            needs = initialPlayerNeeds;
+                            this.needs = initialPlayerNeeds;
                             lifeRevision = savedCombat.lifeRevision ?? 0;
                             movement.respawnPlayer(soloPlayerId, position);
                             this.combat.respawnPlayer(soloPlayerId);
@@ -289,8 +290,8 @@ export class LocalWorldRoom extends Room {
                 isSoloPresent &&
                 this.combat.health(soloPlayerId) > 0
             ) {
-                needs = advanceNeeds(needs, this.worldTimeMs - previousWorldTimeMs);
-                movement.setStaminaEffects(soloPlayerId, staminaEffectsFromNeeds(needs));
+                this.needs = advanceNeeds(this.needs, this.worldTimeMs - previousWorldTimeMs);
+                movement.setStaminaEffects(soloPlayerId, staminaEffectsFromNeeds(this.needs));
             }
 
             const expiredCorpses = this.pickup.stageExpiry(nowMs);
@@ -313,8 +314,13 @@ export class LocalWorldRoom extends Room {
                 ({ snapshot, locations, itemId, kind }) => {
                     if (snapshot.player.playerId !== soloPlayerId) return locations;
                     const consume = kind === 'drink-water' ? drinkWater : eatRation;
-                    const result = consume({ needs, locations, itemId, playerId: soloPlayerId });
-                    needs = result.needs;
+                    const result = consume({
+                        needs: this.needs,
+                        locations,
+                        itemId,
+                        playerId: soloPlayerId,
+                    });
+                    this.needs = result.needs;
                     return result.locations;
                 },
             );
@@ -445,7 +451,7 @@ export class LocalWorldRoom extends Room {
             this.lootTimers.stage(this.pickup.stagedLocations(), this.worldTimeMs);
             const timerSave = this.lootTimers.pendingSave();
             const worldProgress = {
-                needs,
+                needs: this.needs,
                 worldTimeMs: this.worldTimeMs,
                 ...(timerSave === null ? {} : { restocks: timerSave }),
             };
@@ -474,7 +480,7 @@ export class LocalWorldRoom extends Room {
                         client.send('health-state', {
                             ...this.combat.snapshot(snapshot),
                             lifeRevision,
-                            ...(store === undefined ? {} : { needs }),
+                            ...(store === undefined ? {} : { needs: worldProgress.needs }),
                         });
                         client.send('melee-state', meleeState);
                         client.send('firearm-state', this.reload.snapshot(snapshot));
@@ -586,6 +592,8 @@ export class LocalWorldRoom extends Room {
         this.movement?.join(client.sessionId, playerId);
         this.pickup.initializePlayer(playerId);
         this.movement?.setCarriedWeight(playerId, this.pickup.weightGrams(playerId));
+        if (this.save !== undefined && playerId === this.access?.soloPlayerId)
+            this.movement?.setStaminaEffects(playerId, staminaEffectsFromNeeds(this.needs));
     }
 
     override onLeave(client: Client): void {
