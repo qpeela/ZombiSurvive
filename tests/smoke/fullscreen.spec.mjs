@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
 
-import { openInventory } from '../fixtures/game-panels.mjs';
+import { openInventory, openSettings } from '../fixtures/game-panels.mjs';
 import { isolatedHostOrigin, test } from '../fixtures/isolated-host.mjs';
 
 test.use({ baseURL: isolatedHostOrigin });
@@ -96,18 +96,26 @@ for (const viewport of [
         const canvas = page.locator('canvas');
         const expectedBounds = { x: 0, y: 0, ...viewport };
         await expect.poll(() => canvas.boundingBox()).toEqual(expectedBounds);
-        await expect(page.locator('#fullscreen')).toBeInViewport();
+        const settingsToggle = page.locator('#toggle-settings');
+        await expect(settingsToggle).toBeInViewport();
+        await expect(page.locator('#fullscreen')).toBeHidden();
         await expect(page.locator('#health')).toBeInViewport();
         await page.screenshot({ path: `.cache/t062-${viewport.width}.png` });
 
+        await openSettings(page);
+        await page.getByRole('button', { name: 'Справка', exact: true }).click();
+        await openInventory(page);
         const controls = page.getByRole('region', { name: 'Настройки и игровые действия' });
         await controls.focus();
+        await controls.evaluate(element => {
+            element.scrollTop = 0;
+        });
         await page.keyboard.press('Space');
         await expect.poll(() => controls.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
         const attack = page.locator('#melee-attack');
         await attack.scrollIntoViewIfNeeded();
         await expect(attack).toBeInViewport();
-        await expect(page.locator('#fullscreen')).toBeInViewport();
+        await expect(settingsToggle).toBeInViewport();
         expect(await canvas.boundingBox()).toEqual(expectedBounds);
         expect(
             await page.evaluate(() => ({
@@ -149,6 +157,7 @@ test('fullscreen includes HTML UI, preserves pointer coordinates and exits with 
 }) => {
     await open(page);
     const enter = page.locator('#fullscreen');
+    await openSettings(page);
     await enter.click();
     await expect
         .poll(() => page.evaluate(() => globalThis.document.fullscreenElement?.className))
@@ -174,8 +183,10 @@ test('fullscreen includes HTML UI, preserves pointer coordinates and exits with 
     await enter.click();
     await expect(enter).toHaveAttribute('aria-pressed', 'true');
     await assertPointer(page);
+    await page.locator('#toggle-settings').click();
     await page.keyboard.press('Escape');
     await expect(enter).toHaveAttribute('aria-pressed', 'false');
+    await openSettings(page);
     await enter.click();
     await expect(enter).toHaveAttribute('aria-pressed', 'true');
     await page.evaluate(() => globalThis.document.exitFullscreen());
@@ -191,6 +202,7 @@ test('fullscreen denial and unsupported browsers leave the game usable', async (
     });
     await open(page);
     const button = page.getByRole('button', { name: 'На весь экран', exact: true });
+    await openSettings(page);
     await button.click();
     await expect(page.locator('#fullscreen-message')).toContainText('Не удалось');
     await expect(button).toBeEnabled();
@@ -204,6 +216,7 @@ test('fullscreen denial and unsupported browsers leave the game usable', async (
         Object.defineProperty(globalThis.document, 'fullscreenEnabled', { value: false });
     });
     await page.reload();
+    await openSettings(page);
     await expect(button).toBeDisabled();
     await expect(page.locator('#fullscreen-message')).toContainText('недоступен');
     await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
@@ -218,6 +231,7 @@ test('interface scale persists and keeps keyboard targets and world coordinates 
     const hud = page.getByRole('group', { name: 'Условия мира' });
     const icon = page.locator('.status-icon').first();
     const fullscreen = page.locator('#fullscreen');
+    await openSettings(page);
     const bounds = await page.locator('canvas').boundingBox();
     const normalHeight = (await fullscreen.boundingBox()).height;
     const expectScale = async mode => {
@@ -238,6 +252,7 @@ test('interface scale persists and keeps keyboard targets and world coordinates 
     await assertPointer(page);
     await page.reload();
     await expect(page.locator('#connection-status')).toHaveAttribute('data-status', 'connected');
+    await openSettings(page);
     await expectScale('large');
 
     await fullscreen.click();

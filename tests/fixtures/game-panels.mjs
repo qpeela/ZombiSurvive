@@ -9,6 +9,7 @@ const openPanel = async (page, panel) => {
 
 export const openInventory = page => openPanel(page, 'inventory');
 export const openEquipment = page => openPanel(page, 'equipment');
+export const openSettings = page => openPanel(page, 'settings');
 
 export const clickEquipmentAction = async (page, name) => {
     await openEquipment(page);
