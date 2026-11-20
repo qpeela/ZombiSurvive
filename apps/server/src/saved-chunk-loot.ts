@@ -1,12 +1,17 @@
 import { worldGenerationSettings } from '@zombi-survive/content';
 import type { GroundItem } from '@zombi-survive/domain';
-import { generateChunkLoot } from '@zombi-survive/worldgen';
+import { generateChunkLoot, warehouseLoot } from '@zombi-survive/worldgen';
+
+const legacyLootKinds = new Set(['weapon', 'ammo', 'bandage']);
+const warehouseLootIds = new Set(warehouseLoot.map(item => item.itemId));
+
+export const isWarehouseLootId = (itemId: string): boolean => warehouseLootIds.has(itemId);
 
 const invalid = (): never => {
     throw new Error('Solo save contains an invalid chunk loot registry.');
 };
 
-export const chunkLootForKey = (key: string, includeBandages = true): readonly GroundItem[] => {
+export const chunkLootForKey = (key: string): readonly GroundItem[] => {
     const coordinates = key.split(',');
     const chunkX = Number(coordinates[0]);
     const chunkY = Number(coordinates[1]);
@@ -21,13 +26,15 @@ export const chunkLootForKey = (key: string, includeBandages = true): readonly G
     });
     if (loot.length === 0) return invalid();
 
-    return includeBandages ? loot : loot.filter(item => item.kind !== 'bandage');
+    return loot;
 };
 
 export const chunkLootKeyFromItemId = (itemId: string): string | null => {
     if (!itemId.startsWith('chunk-loot-v1:')) return null;
-    const match = /^chunk-loot-v1:(-?\d+):(-?\d+):(weapon|ammo|bandage)$/.exec(itemId);
+    const match = /^chunk-loot-v1:(-?\d+):(-?\d+):(.+)$/.exec(itemId);
     if (match === null) return invalid();
+    const isLegacyKind = legacyLootKinds.has(match[3] ?? '');
+    if (!isLegacyKind && !isWarehouseLootId(itemId)) return invalid();
     const key = `${match[1] ?? ''},${match[2] ?? ''}`;
     if (key !== `${String(Number(match[1]))},${String(Number(match[2]))}`) return invalid();
 

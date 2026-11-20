@@ -6,9 +6,9 @@ import { DatabaseSync } from 'node:sqlite';
 
 import { Client } from '@colyseus/sdk';
 import { expect, test } from '@playwright/test';
-import { meleeWeapons, worldGenerationSettings } from '@zombi-survive/content';
+import { meleeWeapons, militaryWarehouse, worldGenerationSettings } from '@zombi-survive/content';
 import { localWorldRoomId } from '@zombi-survive/protocol';
-import { generateChunkLoot } from '@zombi-survive/worldgen';
+import { generateChunkLoot, warehouseLoot } from '@zombi-survive/worldgen';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
 import { clickWorld, movePlayerTo } from '../fixtures/game-controls.mjs';
@@ -124,7 +124,7 @@ test('walking into a new northern chunk discovers weapon and ammo once; pickup, 
         await expect(page.locator('canvas')).toHaveAttribute('data-weapon', weapon.kind);
         await stop(running, 'SIGKILL');
         let saved = new SoloWorldStore(path);
-        expect(saved.initialItemLocations).toHaveLength(21);
+        expect(saved.initialItemLocations).toHaveLength(19 + loot.length);
         expect(
             saved.initialItemLocations.find(location => location.item.itemId === weapon.itemId),
         ).toMatchObject({ type: 'hands' });
@@ -145,7 +145,7 @@ test('walking into a new northern chunk discovers weapon and ammo once; pickup, 
         await expect(page.locator('#ground-item')).toHaveText('На земле: пусто');
         await stop(running);
         saved = new SoloWorldStore(path);
-        expect(saved.initialItemLocations).toHaveLength(21);
+        expect(saved.initialItemLocations).toHaveLength(19 + loot.length);
         saved.close();
         expect(errors).toEqual([]);
     } finally {
@@ -291,6 +291,66 @@ test('a nearly full bag can reach the separate ammo pack without taking the heav
         await expect(
             page.locator(`#inventory-items button[data-item-id="${ammo.itemId}"]`),
         ).toContainText('×7');
+    } finally {
+        await stop(running);
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
+
+test('warehouse pistol and ammunition can be picked up inside and survive host restart', async ({
+    page,
+}) => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-warehouse-stock-'));
+    const path = join(directory, 'world.sqlite');
+    const seed = new SoloWorldStore(path);
+    seed.savePosition(militaryWarehouse.entrance);
+    seed.close();
+    const [pistol, ammo] = warehouseLoot;
+    let running = start(path);
+    try {
+        await expect.poll(running.output).toContain('Local world ready');
+        await page.goto(origin);
+        await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
+        await expect(page.locator('#game canvas')).toHaveAttribute('data-player-visible', 'true');
+        await clickEquipmentAction(page, 'Экипировать топор');
+        await expect(page.locator('#held-item')).toHaveText('В руках: Топор');
+
+        const pickup = page.locator('#pickup');
+        const inInventory = item =>
+            page.locator(`#inventory-items button[data-item-id="${item.itemId}"]`);
+        for (const item of [pistol, ammo]) {
+            await waitForIdleCamera(page);
+            await movePlayerTo({ page, position: item.position });
+            await expect(pickup).toHaveAttribute('data-item-id', item.itemId);
+            await expect(pickup).toBeEnabled();
+            await pickup.click();
+            await expect(inInventory(item)).toHaveCount(1);
+        }
+        await page.screenshot({ path: '.cache/t086-warehouse.png' });
+        await stop(running);
+
+        const saved = new SoloWorldStore(path);
+        try {
+            const stockIds = new Set(warehouseLoot.map(item => item.itemId));
+            const stock = saved.initialItemLocations.filter(({ item }) =>
+                stockIds.has(item.itemId),
+            );
+            expect(stock).toHaveLength(warehouseLoot.length);
+            expect(stock.filter(location => location.type === 'ground')).toHaveLength(2);
+            expect(stock.find(({ item }) => item.itemId === pistol.itemId)).toMatchObject({
+                type: 'container',
+                item: { kind: 'pistol' },
+            });
+        } finally {
+            saved.close();
+        }
+        running = start(path);
+        await expect.poll(running.output).toContain('Local world ready');
+        await page.reload();
+        await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
+        await openInventory(page);
+        await expect(inInventory(pistol)).toHaveText(/Пистолет 9 мм/);
+        await expect(inInventory(ammo)).toHaveText(/Патроны 9 мм ×8/);
     } finally {
         await stop(running);
         rmSync(directory, { recursive: true, force: true });
