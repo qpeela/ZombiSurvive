@@ -32,6 +32,7 @@ import { createControlPanels } from './control-panels';
 import { createEquipmentHud } from './equipment-hud';
 import { createFullscreenControls } from './fullscreen';
 import { createHealthPanel, type HealthStatus } from './health-panel';
+import { createInterfaceScale } from './interface-scale';
 import type { InventoryContextAction } from './inventory-context-menu';
 import { createInventoryGrid } from './inventory-grid';
 import { createLootDrag } from './loot-drag';
@@ -65,6 +66,7 @@ const worldSummary = document.querySelector<HTMLElement>('#world-hud summary');
 const worldClockStatus = document.querySelector<HTMLElement>('#world-clock-status');
 const playerName = document.querySelector<HTMLElement>('#player-name');
 const shell = document.querySelector<HTMLElement>('.game-shell');
+const interfaceScaleSelect = document.querySelector<HTMLSelectElement>('#interface-scale');
 const controlScroll = document.querySelector<HTMLElement>('.control-scroll');
 const inventoryPanel = document.querySelector<HTMLElement>('#inventory-panel');
 const equipmentPanel = document.querySelector<HTMLElement>('#equipment-panel');
@@ -154,6 +156,7 @@ if (
     !weatherLabel ||
     !flashlightButton ||
     !shell ||
+    !interfaceScaleSelect ||
     !controlScroll ||
     !inventoryPanel ||
     !equipmentPanel ||
@@ -233,6 +236,7 @@ if (
     throw new Error('Game UI is missing.');
 }
 
+const interfaceScale = createInterfaceScale({ shell, select: interfaceScaleSelect });
 const scene = new BootScene();
 const characterHud = createCharacterHud({
     bleedingLabel,
@@ -1009,6 +1013,7 @@ if (import.meta.hot) {
         session.cancel();
         gameResize.disconnect();
         fullscreen.dispose();
+        interfaceScale.dispose();
         controlPanels.dispose();
         visitedMap.dispose();
         worldHud.dispose();
