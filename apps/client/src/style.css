@@ -318,6 +318,31 @@ button:disabled {
     margin-top: 12px;
 }
 
+#loot-drop-zone {
+    margin-top: 8px;
+    padding: 6px;
+    border: 1px dashed #788c70;
+    color: #c2d2b8;
+}
+
+#loot-drop-zone[data-drag-over='allowed'] {
+    border-color: #cde499;
+    background: #3c4d36;
+}
+
+#loot-drop-zone[data-drag-over='blocked'] {
+    border-color: #ff9b89;
+    background: #4a302b;
+}
+
+#loot-drop-status:empty {
+    display: none;
+}
+
+#inventory-panel [data-loot-drag-id] {
+    cursor: grab;
+}
+
 #inventory-grid button {
     min-width: 0;
     aspect-ratio: 1;

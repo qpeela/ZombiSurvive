@@ -33,6 +33,7 @@ import { createEquipmentHud } from './equipment-hud';
 import { createFullscreenControls } from './fullscreen';
 import type { InventoryContextAction } from './inventory-context-menu';
 import { createInventoryGrid } from './inventory-grid';
+import { createLootDrag } from './loot-drag';
 import type { LootSource } from './loot-highlight';
 import { createMovementInputController } from './movement-input';
 import { MovementPrediction } from './movement-prediction';
@@ -102,6 +103,8 @@ const inventory = document.querySelector<HTMLElement>('#inventory');
 const restockLabel = document.querySelector<HTMLElement>('#restock-label');
 const equipmentWeight = document.querySelector<HTMLElement>('#equipment-weight');
 const pickup = document.querySelector<HTMLButtonElement>('#pickup');
+const lootDropZone = document.querySelector<HTMLElement>('#loot-drop-zone');
+const lootDropStatus = document.querySelector<HTMLElement>('#loot-drop-status');
 const inventoryGrid = document.querySelector<HTMLElement>('#inventory-grid');
 const inventorySelector = document.querySelector<HTMLButtonElement>('#inventory-select');
 const inventoryMessage = document.querySelector<HTMLElement>('#inventory-message');
@@ -170,6 +173,8 @@ if (
     !equipmentWeight ||
     !restockLabel ||
     !pickup ||
+    !lootDropZone ||
+    !lootDropStatus ||
     !inventoryGrid ||
     !inventorySelector ||
     !inventoryMessage ||
@@ -366,14 +371,25 @@ const nearbyUi = createNearbyLoot({
     groundReason,
     corpseList: corpseItems,
     canReach: canReachLoot,
-    onPickup: pickUp,
+    onPickup: itemId => {
+        lootDrag.request(itemId);
+    },
     onHighlight: source => {
         scene.setLootHighlight(source);
     },
 });
+const lootDrag = createLootDrag({
+    nearby: nearbyPanel,
+    inventory: inventoryPanel,
+    zone: lootDropZone,
+    status: lootDropStatus,
+    getReason: nearbyUi.pickupReason,
+    onPickup: pickUp,
+});
 const updatePickup = (): void => {
     if (!hasPickupSnapshot || confirmedPosition === null) {
         nearbyUi.update(null);
+        lootDrag.sync();
 
         return;
     }
@@ -389,6 +405,7 @@ const updatePickup = (): void => {
         inventory: inventoryItems,
         life: lifeState,
     });
+    lootDrag.sync();
 };
 const worldContext = createWorldContext({
     panel: worldContextPanel,
@@ -453,7 +470,7 @@ const worldContext = createWorldContext({
         });
     },
     onAction: ({ kind, id }) => {
-        if (kind === 'ground') pickUp(id);
+        if (kind === 'ground') lootDrag.request(id);
         else nearbyUi.focusCorpse(id);
     },
 });
@@ -522,6 +539,7 @@ const controlPanels = createControlPanels({
             onVisibilityChange: isOpen => {
                 if (isOpen) inventoryPanel.append(nearbyPanel);
                 else nearbyAnchor.after(nearbyPanel);
+                lootDrag.sync();
             },
             onEscape: inventoryUi.dismissContextMenu,
         },
@@ -602,6 +620,7 @@ const connection = createWorldConnection(
         equipmentHud.reset();
         ammoLabel.textContent = 'Патроны: —';
         hasPickupSnapshot = false;
+        lootDrag.reset();
         receivedGroundItem = null;
         corpses = [];
         nearbyUi.update(null);
@@ -685,6 +704,7 @@ const connection = createWorldConnection(
             : 'Недостаточно места в сетке';
         inventoryUi.update(snapshot.items, lifeState === 'alive');
         updatePickup();
+        lootDrag.accept(snapshot);
     }),
     snapshot => {
         scene.setZombies(snapshot.zombies);
@@ -908,6 +928,7 @@ if (import.meta.hot) {
         profileUi.dispose();
         inventoryUi.dispose();
         worldContext.dispose();
+        lootDrag.dispose();
         nearbyUi.dispose();
         nearbyAnchor.remove();
         connection.dispose();

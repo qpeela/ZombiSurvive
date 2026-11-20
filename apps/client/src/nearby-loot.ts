@@ -91,6 +91,7 @@ const createRow = (): LootRow => {
     element.className = 'loot-row';
     element.setAttribute('role', 'group');
     const name = document.createElement('span');
+    name.draggable = true;
     const button = createPickupButton();
     const reason = document.createElement('span');
     reason.className = 'loot-reason';
@@ -139,10 +140,12 @@ export const createNearbyLoot = ({
 }): {
     update: (state: NearbyState | null) => void;
     focusCorpse: (id: string) => void;
+    pickupReason: (itemId: string) => string | null;
     dispose: () => void;
 } => {
     const groups = new Map<string, CorpseGroup>();
     let groundButton = initialGroundButton;
+    let latestState: NearbyState | null = null;
     groundRow.setAttribute('role', 'group');
     groundRow.setAttribute('aria-describedby', groundReason.id);
     let pointerTarget: EventTarget | null = null;
@@ -196,7 +199,23 @@ export const createNearbyLoot = ({
     panel.addEventListener('focusout', onFocusChange);
 
     return {
+        pickupReason: itemId => {
+            const state = latestState;
+            if (state === null) return 'Источник больше недоступен.';
+            const { ground } = state;
+            if (ground?.itemId === itemId)
+                return getPickupReason(state, ground.position, ground, canReach);
+
+            for (const corpse of state.corpses) {
+                const item = corpse.items.find(candidate => candidate.itemId === itemId);
+                if (item !== undefined)
+                    return getPickupReason(state, corpse.position, item, canReach);
+            }
+
+            return 'Источник больше недоступен.';
+        },
         update: state => {
+            latestState = state;
             const ground = state?.ground ?? null;
             const corpses = state?.corpses ?? [];
             const hasSources = ground !== null || corpses.length > 0;
@@ -209,6 +228,8 @@ export const createNearbyLoot = ({
             groundRow.hidden = ground === null;
             if (ground === null || state === null) {
                 setText(groundLabel, `На земле: ${groundText}`);
+                groundLabel.draggable = false;
+                delete groundLabel.dataset['lootDragId'];
                 groundButton.disabled = true;
                 groundButton.title = '';
                 delete groundButton.dataset['itemId'];
@@ -220,6 +241,8 @@ export const createNearbyLoot = ({
                     groundLabel,
                     `На земле: ${itemDisplayName(ground)} · ${String(position.xMeters)}, ${String(position.yMeters)} м`,
                 );
+                groundLabel.draggable = true;
+                groundLabel.dataset['lootDragId'] = ground.itemId;
                 const reason = getPickupReason(state, position, ground, canReach);
                 const { columns, rows } = itemDefinitions[kind];
                 groundRow.tabIndex = reason === null ? -1 : 0;
@@ -281,6 +304,7 @@ export const createNearbyLoot = ({
 
                     const reason = getPickupReason(state, corpse.position, item, canReach);
                     setText(row.name, itemDisplayName(item));
+                    row.name.dataset['lootDragId'] = item.itemId;
                     setText(row.reason, reason ?? '');
                     row.element.tabIndex = reason === null ? -1 : 0;
                     row.element.setAttribute('aria-label', itemDisplayName(item));
