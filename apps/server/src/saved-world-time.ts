@@ -1,5 +1,9 @@
+import { thirstSettings } from '@zombi-survive/content';
+import type { PlayerNeeds } from '@zombi-survive/domain';
+
 export type SavedWorldProgress = {
     readonly worldTimeMs: number;
+    readonly needs?: PlayerNeeds;
     readonly restocks?: ReadonlyMap<string, number>;
 };
 
@@ -9,3 +13,24 @@ export const readSavedWorldTime = (value: unknown): number => {
 
     return value;
 };
+
+export const readSavedNeeds = (value: unknown): PlayerNeeds => {
+    if (typeof value !== 'string') throw new Error('Solo save contains invalid player needs.');
+    const needs: unknown = JSON.parse(value);
+    if (typeof needs !== 'object' || needs === null || !('thirstMs' in needs))
+        throw new Error('Solo save contains invalid player needs.');
+
+    const thirstMs = needs.thirstMs;
+    if (
+        typeof thirstMs !== 'number' ||
+        !Number.isSafeInteger(thirstMs) ||
+        thirstMs < 0 ||
+        thirstMs > thirstSettings.maximumMs
+    )
+        throw new Error('Solo save contains invalid player thirst.');
+
+    return { thirstMs };
+};
+
+export const writeSavedNeeds = (needs: PlayerNeeds): string =>
+    JSON.stringify(readSavedNeeds(JSON.stringify(needs)));

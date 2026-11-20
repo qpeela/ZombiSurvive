@@ -123,6 +123,7 @@ const health = document.querySelector<HTMLProgressElement>('#health');
 const healthLabel = document.querySelector<HTMLElement>('#health-label');
 const bleedingLabel = document.querySelector<HTMLElement>('#bleeding-label');
 const combatStatus = document.querySelector<HTMLElement>('#combat-status');
+const thirstLabel = document.querySelector<HTMLElement>('#thirst-status');
 const combatIdle = document.querySelector<HTMLElement>('#combat-idle');
 const loadLabel = document.querySelector<HTMLElement>('#load-label');
 const movementLabel = document.querySelector<HTMLElement>('#movement-label');
@@ -222,6 +223,7 @@ if (
     !bleedingLabel ||
     !combatStatus ||
     !combatIdle ||
+    !thirstLabel ||
     !movementLabel ||
     !loadLabel ||
     !groundLabel ||
@@ -258,6 +260,7 @@ const characterHud = createCharacterHud({
     bleedingLabel,
     combatStatus,
     combatIdle,
+    thirstLabel,
     stamina,
     staminaLabel,
     loadLabel,
@@ -324,6 +327,19 @@ const getContextActions = (item: InventoryItem): readonly InventoryContextAction
                 unavailable: isBleeding ? null : 'Кровотечения нет.',
                 run: () => {
                     useInventoryBandage(itemId);
+                },
+            },
+        ];
+    }
+
+    if (kind === 'waterBottle') {
+        return [
+            {
+                id: 'drink',
+                label: 'Пить',
+                unavailable: item.servings > 0 ? null : 'Бутылка пуста.',
+                run: () => {
+                    if (lifeState === 'alive') connection.drinkWater(itemId);
                 },
             },
         ];
@@ -876,7 +892,11 @@ const connection = createWorldConnection(
         updatePickup();
         attack.disabled = attack.disabled || snapshot.health <= 0;
         updateFirearm();
-        characterHud.setHealth({ isBleeding, combatTicks: isAlive ? snapshot.combatTicks : 0 });
+        characterHud.setHealth({
+            isBleeding,
+            combatTicks: isAlive ? snapshot.combatTicks : 0,
+            thirstMs: isAlive ? snapshot.needs?.thirstMs : undefined,
+        });
         health.max = snapshot.maxHealth;
         health.value = snapshot.health;
         updateBandage();

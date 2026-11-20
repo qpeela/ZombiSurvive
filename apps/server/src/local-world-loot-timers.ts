@@ -18,6 +18,7 @@ export class LocalWorldLootTimers {
 
     register(points: readonly GroundItem[]): void {
         for (const point of points) {
+            if (point.kind === 'waterBottle') continue;
             if (!this.points.has(point.itemId))
                 this.points.set(point.itemId, { ...point, position: { ...point.position } });
         }

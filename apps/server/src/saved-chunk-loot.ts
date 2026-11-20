@@ -1,4 +1,4 @@
-import { worldGenerationSettings } from '@zombi-survive/content';
+import { workshopWater, worldGenerationSettings } from '@zombi-survive/content';
 import type { GroundItem } from '@zombi-survive/domain';
 import { generateChunkLoot, warehouseLoot } from '@zombi-survive/worldgen';
 
@@ -34,7 +34,8 @@ export const chunkLootKeyFromItemId = (itemId: string): string | null => {
     const match = /^chunk-loot-v1:(-?\d+):(-?\d+):(.+)$/.exec(itemId);
     if (match === null) return invalid();
     const isLegacyKind = legacyLootKinds.has(match[3] ?? '');
-    if (!isLegacyKind && !isWarehouseLootId(itemId)) return invalid();
+    const isWorkshopWater = itemId === workshopWater.item.itemId;
+    if (!isLegacyKind && !isWarehouseLootId(itemId) && !isWorkshopWater) return invalid();
     const key = `${match[1] ?? ''},${match[2] ?? ''}`;
     if (key !== `${String(Number(match[1]))},${String(Number(match[2]))}`) return invalid();
 

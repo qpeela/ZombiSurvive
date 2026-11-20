@@ -96,6 +96,7 @@ export const createWorldConnection = (
     sendTarget: (target: WorldPosition, modifiers?: MovementModifiers) => void;
     pickUp: (itemId: string) => void;
     moveItem: (itemId: string, cell: InventoryCell) => void;
+    drinkWater: (itemId: string) => void;
     useBandage: (itemId: string) => void;
     respawn: () => void;
     disconnect: () => void;
@@ -574,12 +575,12 @@ export const createWorldConnection = (
         }
     };
 
-    const useBandage = (itemId: string): void => {
+    const useInventoryItem = (type: 'drink-water' | 'use-bandage', itemId: string): void => {
         if (!isReady || activeRoom === null) return;
 
         try {
-            activeRoom.send('use-bandage', {
-                type: 'use-bandage',
+            activeRoom.send(type, {
+                type,
                 protocolVersion,
                 inventoryVersion,
                 ...lifeFields(),
@@ -690,7 +691,12 @@ export const createWorldConnection = (
         sendTarget,
         pickUp,
         moveItem,
-        useBandage,
+        drinkWater: itemId => {
+            useInventoryItem('drink-water', itemId);
+        },
+        useBandage: itemId => {
+            useInventoryItem('use-bandage', itemId);
+        },
         respawn,
         disconnect,
         dispose,

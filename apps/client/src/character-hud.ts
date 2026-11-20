@@ -1,9 +1,13 @@
-import { movementSettings } from '@zombi-survive/content';
+import { movementSettings, thirstSettings } from '@zombi-survive/content';
 import type { PlayerMovementState } from '@zombi-survive/domain';
 import { sprintDrainMultiplier } from '@zombi-survive/simulation';
 
 type MovementStatus = Pick<PlayerMovementState, 'stamina' | 'isExhausted' | 'carriedWeightGrams'>;
-type HealthStatus = { readonly isBleeding: boolean; readonly combatTicks: number };
+type HealthStatus = {
+    readonly isBleeding: boolean;
+    readonly combatTicks: number;
+    readonly thirstMs: number | undefined;
+};
 const recoveryPercent = Math.round(movementSettings.sprintRecoveryThreshold * 100);
 
 const setText = (element: HTMLElement, text: string): void => {
@@ -14,6 +18,7 @@ export const createCharacterHud = ({
     bleedingLabel,
     combatStatus,
     combatIdle,
+    thirstLabel,
     stamina,
     staminaLabel,
     loadLabel,
@@ -21,6 +26,7 @@ export const createCharacterHud = ({
     readonly bleedingLabel: HTMLElement;
     readonly combatStatus: HTMLElement;
     readonly combatIdle: HTMLElement;
+    readonly thirstLabel: HTMLElement;
     readonly stamina: HTMLProgressElement;
     readonly staminaLabel: HTMLElement;
     readonly loadLabel: HTMLElement;
@@ -44,7 +50,15 @@ export const createCharacterHud = ({
             `Нагрузка: ${String(carriedWeightGrams)} г · Расход спринта: ×${multiplier}`,
         );
     },
-    setHealth: ({ isBleeding, combatTicks }) => {
+    setHealth: ({ isBleeding, combatTicks, thirstMs = 0 }) => {
+        thirstLabel.hidden = thirstMs < thirstSettings.noticeableMs;
+        if (!thirstLabel.hidden) {
+            const percentage = Math.min(
+                100,
+                Math.floor((thirstMs * 100) / thirstSettings.maximumMs),
+            );
+            setText(thirstLabel, `Жажда: ${String(percentage)}%`);
+        }
         setText(bleedingLabel, isBleeding ? 'Кровотечение: есть' : 'Кровотечение: нет');
         bleedingLabel.dataset['bleeding'] = String(isBleeding);
         const isInCombat = combatTicks > 0;
@@ -54,6 +68,7 @@ export const createCharacterHud = ({
         setText(combatIdle, 'Вне боя');
     },
     reset: () => {
+        thirstLabel.hidden = true;
         setText(bleedingLabel, 'Кровотечение: —');
         delete bleedingLabel.dataset['bleeding'];
         combatStatus.hidden = true;

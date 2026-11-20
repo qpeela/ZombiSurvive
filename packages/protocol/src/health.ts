@@ -3,6 +3,7 @@ import {
     type PlayerHealth,
     type PlayerLifeState,
     playerLifeState,
+    type PlayerNeeds,
 } from '@zombi-survive/domain';
 
 import { protocolVersion } from './movement.ts';
@@ -19,6 +20,7 @@ export type HealthSnapshot = PlayerHealth &
         readonly lifeState: PlayerLifeState;
         readonly combatTicks: number;
         readonly lifeRevision?: number;
+        readonly needs?: PlayerNeeds;
     };
 const isId = (value: unknown): value is string => {
     if (typeof value !== 'string') {
@@ -67,7 +69,13 @@ export const isHealthSnapshot = (value: unknown): value is HealthSnapshot => {
         revision === undefined ||
         (typeof revision === 'number' && Number.isSafeInteger(revision) && revision >= 0);
 
+    const needs = record['needs'];
+    const isNeedTime = (time: unknown): boolean =>
+        typeof time === 'number' && Number.isSafeInteger(time) && time >= 0;
+    const isNeeds = needs === undefined || (isRecord(needs) && isNeedTime(needs['thirstMs']));
+
     return (
+        isNeeds &&
         isRevision &&
         isType &&
         isVersion &&
