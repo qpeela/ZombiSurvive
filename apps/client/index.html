@@ -44,6 +44,15 @@
                         >
                             Здоровье (H)
                         </button>
+                        <button
+                            id="toggle-journal"
+                            type="button"
+                            aria-controls="journal-panel"
+                            aria-expanded="false"
+                            aria-keyshortcuts="J"
+                        >
+                            Журнал (J)
+                        </button>
                     </div>
                 </div>
                 <section
@@ -113,6 +122,17 @@
                             Перевязаться
                         </button>
                         <p id="panel-bandage-reason">Ожидание данных персонажа…</p>
+                    </section>
+                    <section
+                        id="journal-panel"
+                        class="pickup-panel game-panel"
+                        aria-labelledby="journal-heading"
+                        tabindex="-1"
+                        hidden
+                    >
+                        <h2 id="journal-heading">Журнал вылазки</h2>
+                        <p id="journal-empty">В журнале пока нет событий.</p>
+                        <ul id="journal-events" hidden></ul>
                     </section>
                     <header>
                         <h1>ZombiSurvive</h1>
