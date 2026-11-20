@@ -18,14 +18,14 @@ const command = {
     inventoryVersion: 2,
     itemId: 'starter-bandage',
 };
-const seed = (path, { health = 70, bleedingTicks = 100, worldTimeMs } = {}) => {
+const seed = (path, { health = 70, bleedingTicks = 100, worldTimeMs, hasBandage = true } = {}) => {
     const store = new SoloWorldStore(path);
     const playerId = store.initialWorld.playerId;
     store.savePosition({ xMeters: 8, yMeters: 12 }, worldTimeMs);
     store.saveCombat(
         { health, bleedingTicks, cooldownTicks: 0 },
         store.initialItemLocations.map(location =>
-            location.item.kind === 'bandage'
+            hasBandage && location.item.itemId === 'starter-bandage'
                 ? {
                       type: 'container',
                       playerId,
@@ -63,6 +63,13 @@ const stop = async running => {
 const open = async page => {
     await page.goto(origin);
     await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
+};
+const openHealth = async page => {
+    await page.getByRole('button', { name: 'Здоровье (H)', exact: true }).click();
+    const panel = page.getByRole('region', { name: 'Здоровье', exact: true });
+    await expect(panel).toBeFocused();
+
+    return panel;
 };
 const observer = async () => {
     const room = await new Client(origin, { headers: { Origin: origin } }).joinById(
@@ -102,7 +109,6 @@ test('night HUD shows bleeding and combat together, confirms bandaging and reset
         const staminaMeter = hud.locator('#stamina');
         const load = hud.locator('#load-label');
         const status = page.getByRole('status');
-        const bandage = page.getByRole('button', { name: 'Использовать бинт', exact: true });
         await expect(canvas).toHaveAttribute('data-daylight-phase', 'night');
         await expect(hud).toBeInViewport();
         await expect(hud.locator('.status-icon[aria-hidden="true"]')).toHaveCount(4);
@@ -118,13 +124,31 @@ test('night HUD shows bleeding and combat together, confirms bandaging and reset
         await expect(stamina).toHaveText('Выносливость: 100%');
         await expect(staminaMeter).toBeVisible();
         await page.screenshot({ path: '.cache/t064-night-status.png' });
-        await bandage.click();
+        await page.locator('#game').focus();
+        await page.keyboard.press('h');
+        const panel = page.getByRole('region', { name: 'Здоровье', exact: true });
+        await expect(panel).toBeFocused();
+        await expect(panel.locator('#panel-health')).toHaveText(/^Здоровье: [1-7]\d \/ 100 HP$/);
+        await expect(panel.locator('#panel-bleeding')).toHaveText('Кровотечение: есть');
+        const treatment = panel.getByRole('button', { name: 'Перевязаться' });
+        await expect(treatment).toBeEnabled();
+        await expect(treatment).toHaveAccessibleDescription(
+            'Бинт остановит кровотечение. Здоровье не восстановится.',
+        );
+        await panel.screenshot({ path: '.cache/t074-health-panel.png' });
+        await treatment.click();
+        await expect(panel.locator('#panel-bleeding')).toHaveText('Кровотечение: нет');
+        await expect(treatment).toBeDisabled();
+        const hp = await page.locator('#health').getAttribute('value');
+        await expect(panel.locator('#panel-health')).toHaveText(`Здоровье: ${hp} / 100 HP`);
         await expect(bleeding).toHaveText('Кровотечение: нет');
         await expect(combat).toBeVisible();
 
         await context.setOffline(true);
         await expect(status).toHaveAttribute('data-status', 'disconnected');
         await expect(bleeding).toHaveText('Кровотечение: —');
+        await expect(panel.locator('#panel-health')).toHaveText('Здоровье: —');
+        await expect(treatment).toHaveAccessibleDescription('Ожидание данных персонажа…');
         await expect(stamina).toHaveText('Выносливость: —');
         await expect(staminaMeter).toBeHidden();
         await expect(load).toHaveText('Нагрузка: —');
@@ -301,6 +325,15 @@ for (const state of [
             await open(page);
             await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 5');
             await expect(page.locator('#use-bandage')).toBeDisabled();
+            const panel = await openHealth(page);
+            const action = panel.getByRole('button', { name: 'Перевязаться' });
+            await expect(action).toBeDisabled();
+            await expect(action).toHaveAccessibleDescription(
+                state.health === 0 ? 'Персонаж погиб.' : 'Кровотечения нет.',
+            );
+            await expect(panel.locator('#panel-health')).toHaveText(
+                `Здоровье: ${state.health} / 100 HP`,
+            );
             room = await observer();
             let firstTick = -1;
             const observed = new Promise(resolve =>
@@ -327,3 +360,24 @@ for (const state of [
         }
     });
 }
+
+test('Health explains why an injured player without a bandage cannot treat bleeding', async ({
+    page,
+}) => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-health-panel-'));
+    const path = join(directory, 'world.sqlite');
+    seed(path, { hasBandage: false });
+    const running = start(path);
+    try {
+        await expect.poll(running.output).toContain('Local world ready');
+        await open(page);
+        const panel = await openHealth(page);
+        await expect(panel.locator('#panel-bleeding')).toHaveText('Кровотечение: есть');
+        const action = panel.getByRole('button', { name: 'Перевязаться' });
+        await expect(action).toBeDisabled();
+        await expect(action).toHaveAccessibleDescription('В рюкзаке нет бинта.');
+    } finally {
+        await stop(running);
+        rmSync(directory, { recursive: true, force: true });
+    }
+});

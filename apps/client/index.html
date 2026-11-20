@@ -35,6 +35,15 @@
                         >
                             Экипировка (Q)
                         </button>
+                        <button
+                            id="toggle-health"
+                            type="button"
+                            aria-controls="health-panel"
+                            aria-expanded="false"
+                            aria-keyshortcuts="H"
+                        >
+                            Здоровье (H)
+                        </button>
                     </div>
                 </div>
                 <section
@@ -84,6 +93,26 @@
                             Каждый предмет занимает ячейку сетки или единственный слот рук. Для
                             снятия оружия нужно свободное место в сетке.
                         </p>
+                    </section>
+                    <section
+                        id="health-panel"
+                        class="pickup-panel game-panel"
+                        aria-labelledby="health-heading"
+                        tabindex="-1"
+                        hidden
+                    >
+                        <h2 id="health-heading">Здоровье</h2>
+                        <p id="panel-health">Здоровье: —</p>
+                        <p id="panel-bleeding" aria-live="polite">Кровотечение: —</p>
+                        <button
+                            id="panel-bandage"
+                            type="button"
+                            aria-describedby="panel-bandage-reason"
+                            disabled
+                        >
+                            Перевязаться
+                        </button>
+                        <p id="panel-bandage-reason">Ожидание данных персонажа…</p>
                     </section>
                     <header>
                         <h1>ZombiSurvive</h1>

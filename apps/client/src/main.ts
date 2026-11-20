@@ -31,6 +31,7 @@ import { createCharacterHud } from './character-hud';
 import { createControlPanels } from './control-panels';
 import { createEquipmentHud } from './equipment-hud';
 import { createFullscreenControls } from './fullscreen';
+import { createHealthPanel, type HealthStatus } from './health-panel';
 import type { InventoryContextAction } from './inventory-context-menu';
 import { createInventoryGrid } from './inventory-grid';
 import { createLootDrag } from './loot-drag';
@@ -67,6 +68,12 @@ const inventoryPanel = document.querySelector<HTMLElement>('#inventory-panel');
 const equipmentPanel = document.querySelector<HTMLElement>('#equipment-panel');
 const inventoryToggle = document.querySelector<HTMLButtonElement>('#toggle-inventory');
 const equipmentToggle = document.querySelector<HTMLButtonElement>('#toggle-equipment');
+const healthPanel = document.querySelector<HTMLElement>('#health-panel');
+const healthToggle = document.querySelector<HTMLButtonElement>('#toggle-health');
+const panelHealth = document.querySelector<HTMLElement>('#panel-health');
+const panelBleeding = document.querySelector<HTMLElement>('#panel-bleeding');
+const panelBandage = document.querySelector<HTMLButtonElement>('#panel-bandage');
+const panelBandageReason = document.querySelector<HTMLElement>('#panel-bandage-reason');
 const fullscreenButton = document.querySelector<HTMLButtonElement>('#fullscreen');
 const fullscreenMessage = document.querySelector<HTMLElement>('#fullscreen-message');
 const container = document.querySelector<HTMLElement>('#game');
@@ -137,6 +144,12 @@ if (
     !equipmentPanel ||
     !inventoryToggle ||
     !equipmentToggle ||
+    !healthPanel ||
+    !healthToggle ||
+    !panelHealth ||
+    !panelBleeding ||
+    !panelBandage ||
+    !panelBandageReason ||
     !fullscreenButton ||
     !fullscreenMessage ||
     !weaponOptions ||
@@ -218,6 +231,13 @@ const game = new Game({
     scene: [scene],
 });
 
+const healthUi = createHealthPanel({
+    health: panelHealth,
+    bleeding: panelBleeding,
+    action: panelBandage,
+    reason: panelBandageReason,
+});
+let lastHealth: HealthStatus | null = null;
 let inventoryItems: readonly InventoryItem[] = [];
 let hands: Item | null = null;
 let isBleeding = false;
@@ -297,9 +317,10 @@ const updateFirearm = (): void => {
         : 'Перезарядка: нет';
 };
 const updateBandage = (): void => {
-    const hasBandage = inventoryItems.some(item => item.kind === 'bandage');
-    const isAlive = health.value > 0;
-    bandageButton.disabled = !hasBandage || !isBleeding || !isAlive;
+    const hasBandage = hasPickupSnapshot
+        ? inventoryItems.some(item => item.kind === 'bandage')
+        : null;
+    bandageButton.disabled = !healthUi.update({ state: lastHealth, hasBandage });
     bandageButton.title =
         'Останавливает кровотечение. Без раны бинт не расходуется. HP не восстанавливает.';
 };
@@ -544,6 +565,7 @@ const controlPanels = createControlPanels({
             onEscape: inventoryUi.dismissContextMenu,
         },
         { element: equipmentPanel, button: equipmentToggle, shortcut: 'KeyQ' },
+        { element: healthPanel, button: healthToggle, shortcut: 'KeyH' },
     ],
     protectedRegions: [nearbyPanel, worldContextPanel],
     dismissOverlay: worldContext.close,
@@ -606,6 +628,7 @@ const connection = createWorldConnection(
 
         updateWorldTime();
         profileUi.update(null);
+        lastHealth = null;
         lifeState = null;
         worldContext.close();
         scene.setAlive(false);
@@ -720,6 +743,7 @@ const connection = createWorldConnection(
         lifeRevision = nextLife;
         health.dataset['lifeRevision'] = String(nextLife);
         lifeState = snapshot.lifeState;
+        lastHealth = snapshot;
         equipmentHud.acceptLife(snapshot);
         const isAlive = lifeState === 'alive';
         scene.setAlive(isAlive);
@@ -829,6 +853,7 @@ const onUseBandage = (): void => {
     if (!bandageButton.disabled && bandage !== undefined) useInventoryBandage(bandage.itemId);
 };
 bandageButton.addEventListener('click', onUseBandage);
+panelBandage.addEventListener('click', onUseBandage);
 unequip.addEventListener('click', onUnequip);
 const onAttack = (): void => {
     if (!attack.disabled) connection.sendMelee({ type: 'melee-attack' });
@@ -938,6 +963,7 @@ if (import.meta.hot) {
         }
         unequip.removeEventListener('click', onUnequip);
         bandageButton.removeEventListener('click', onUseBandage);
+        panelBandage.removeEventListener('click', onUseBandage);
         attack.removeEventListener('click', onAttack);
         shotButton.removeEventListener('click', onShot);
         reloadButton.removeEventListener('click', onReload);
