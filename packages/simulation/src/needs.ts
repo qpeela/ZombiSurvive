@@ -1,11 +1,16 @@
 import { hungerSettings, thirstSettings } from '@zombi-survive/content';
-import type { ItemLocation, PlayerNeeds } from '@zombi-survive/domain';
+import type { ItemLocation, PlayerNeeds, StaminaEffects } from '@zombi-survive/domain';
 
 export const initialPlayerNeeds: PlayerNeeds = Object.freeze({ thirstMs: 0, hungerMs: 0 });
 
 export const advanceNeeds = (needs: PlayerNeeds, elapsedWorldMs: number): PlayerNeeds => ({
     thirstMs: Math.min(thirstSettings.maximumMs, needs.thirstMs + elapsedWorldMs),
     hungerMs: Math.min(hungerSettings.maximumMs, needs.hungerMs + elapsedWorldMs),
+});
+
+export const staminaEffectsFromNeeds = ({ hungerMs, thirstMs }: PlayerNeeds): StaminaEffects => ({
+    isRecoverySlowed: hungerMs >= hungerSettings.staminaPenaltyAtMs,
+    isDrainIncreased: thirstMs >= thirstSettings.staminaPenaltyAtMs,
 });
 
 type ConsumeSupply = {

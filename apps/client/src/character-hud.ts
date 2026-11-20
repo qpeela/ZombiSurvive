@@ -1,8 +1,11 @@
 import { hungerSettings, movementSettings, thirstSettings } from '@zombi-survive/content';
 import type { PlayerMovementState } from '@zombi-survive/domain';
-import { sprintDrainMultiplier } from '@zombi-survive/simulation';
+import { sprintDrainMultiplier, staminaEffectsFromNeeds } from '@zombi-survive/simulation';
 
-type MovementStatus = Pick<PlayerMovementState, 'stamina' | 'isExhausted' | 'carriedWeightGrams'>;
+type MovementStatus = Pick<
+    PlayerMovementState,
+    'stamina' | 'isExhausted' | 'carriedWeightGrams' | 'staminaEffects'
+>;
 type HealthStatus = {
     readonly isBleeding: boolean;
     readonly combatTicks: number;
@@ -20,11 +23,13 @@ const updateNeed = (
     name: string,
     currentMs: number,
     { maximumMs, noticeableMs }: { readonly maximumMs: number; readonly noticeableMs: number },
+    effect?: string,
 ): void => {
     label.hidden = currentMs < noticeableMs;
     if (!label.hidden) {
         const percentage = Math.min(100, Math.floor((currentMs * 100) / maximumMs));
-        setText(label, `${name}: ${String(percentage)}%`);
+        const detail = effect === undefined ? '' : ` · ${effect}`;
+        setText(label, `${name}: ${String(percentage)}%${detail}`);
     }
 };
 
@@ -51,7 +56,7 @@ export const createCharacterHud = ({
     setHealth: (state: HealthStatus) => void;
     reset: () => void;
 } => ({
-    setMovement: ({ stamina: endurance, isExhausted, carriedWeightGrams = 0 }) => {
+    setMovement: ({ stamina: endurance, isExhausted, carriedWeightGrams = 0, staminaEffects }) => {
         stamina.hidden = false;
         stamina.value = endurance;
         staminaLabel.dataset['exhausted'] = String(isExhausted);
@@ -60,15 +65,36 @@ export const createCharacterHud = ({
             ? ` · Истощение · Восстановление до ${String(recoveryPercent)}%`
             : '';
         setText(staminaLabel, `Выносливость: ${percentage}%${recovery}`);
-        const multiplier = sprintDrainMultiplier(carriedWeightGrams).toFixed(2).replace('.', ',');
+        const multiplier = sprintDrainMultiplier(
+            carriedWeightGrams,
+            staminaEffects?.isDrainIncreased,
+        )
+            .toFixed(2)
+            .replace('.', ',');
         setText(
             loadLabel,
             `Нагрузка: ${String(carriedWeightGrams)} г · Расход спринта: ×${multiplier}`,
         );
     },
     setHealth: ({ isBleeding, combatTicks, thirstMs = 0, hungerMs = 0 }) => {
-        updateNeed(thirstLabel, 'Жажда', thirstMs, thirstSettings);
-        updateNeed(hungerLabel, 'Голод', hungerMs, hungerSettings);
+        const { isDrainIncreased, isRecoverySlowed } = staminaEffectsFromNeeds({
+            thirstMs,
+            hungerMs,
+        });
+        updateNeed(
+            thirstLabel,
+            'Жажда',
+            thirstMs,
+            thirstSettings,
+            isDrainIncreased ? 'Спринт быстрее тратит выносливость' : undefined,
+        );
+        updateNeed(
+            hungerLabel,
+            'Голод',
+            hungerMs,
+            hungerSettings,
+            isRecoverySlowed ? 'Выносливость восстанавливается медленнее' : undefined,
+        );
         setText(bleedingLabel, isBleeding ? 'Кровотечение: есть' : 'Кровотечение: нет');
         bleedingLabel.dataset['bleeding'] = String(isBleeding);
         const isInCombat = combatTicks > 0;

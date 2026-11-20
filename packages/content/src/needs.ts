@@ -5,12 +5,16 @@ export const thirstSettings = Object.freeze({
     maximumMs: 8 * worldHourMs,
     noticeableMs: 2 * worldHourMs,
     servingReliefMs: 4 * worldHourMs,
+    staminaPenaltyAtMs: 6 * worldHourMs,
+    drainMultiplier: 1.5,
 });
 
 export const hungerSettings = Object.freeze({
     maximumMs: 12 * worldHourMs,
     noticeableMs: 3 * worldHourMs,
     rationReliefMs: 6 * worldHourMs,
+    staminaPenaltyAtMs: 8 * worldHourMs,
+    recoveryMultiplier: 0.5,
 });
 
 export const rationLoot = Object.freeze({

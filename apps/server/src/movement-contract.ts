@@ -1,5 +1,6 @@
 import type { PlayerMovementState, WorldId } from '@zombi-survive/domain';
 import {
+    copyMovementPlayer,
     isMovementInputCommand,
     isMovementSnapshot,
     isMovementTargetCommand,
@@ -51,29 +52,9 @@ export const createMovementSnapshot = (
         protocolVersion,
         worldId,
         tick,
-        player: {
-            playerId: player.playerId,
-            stamina: player.stamina,
-            ...(player.carriedWeightGrams === undefined
-                ? {}
-                : { carriedWeightGrams: player.carriedWeightGrams }),
-            isExhausted: player.isExhausted,
-            isSneaking: player.isSneaking,
-            noiseRadiusMeters: player.noiseRadiusMeters,
-            position: { xMeters: player.position.xMeters, yMeters: player.position.yMeters },
-        },
+        player: copyMovementPlayer(player),
         lastProcessedInputSequence,
-        otherPlayers: otherPlayers.map(other => ({
-            playerId: other.playerId,
-            stamina: other.stamina,
-            ...(other.carriedWeightGrams === undefined
-                ? {}
-                : { carriedWeightGrams: other.carriedWeightGrams }),
-            isExhausted: other.isExhausted,
-            isSneaking: other.isSneaking,
-            noiseRadiusMeters: other.noiseRadiusMeters,
-            position: { ...other.position },
-        })),
+        otherPlayers: otherPlayers.map(copyMovementPlayer),
     };
 
     if (!isMovementSnapshot(snapshot)) {
