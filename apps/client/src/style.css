@@ -524,3 +524,26 @@ button:focus-visible {
     pointer-events: auto;
     justify-self: start;
 }
+
+#map-viewport {
+    height: 12rem;
+    overflow: hidden;
+    background: #0b100e;
+    cursor: grab;
+    touch-action: none;
+}
+
+#map-viewport:active {
+    cursor: grabbing;
+}
+
+#map-viewport canvas {
+    display: block;
+}
+
+.map-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin-top: 6px;
+}
