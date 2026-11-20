@@ -13,7 +13,7 @@ import {
     distanceToStartingZombie,
     movePlayerTo,
 } from '../fixtures/game-controls.mjs';
-import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
+import { clickEquipmentAction, openInventory } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3154';
 const route = [
@@ -29,11 +29,21 @@ const route = [
     { xMeters: 60, yMeters: 10 },
     { xMeters: 68, yMeters: 10 },
 ];
-const start = path => {
-    const env = { ...process.env, PORT: '3154', CLIENT_ORIGIN: origin, WORLD_SAVE_PATH: path };
+const start = (path, { seededWounds = false } = {}) => {
+    const env = {
+        ...process.env,
+        PORT: '3154',
+        CLIENT_ORIGIN: origin,
+        WORLD_SAVE_PATH: path,
+        SOLO_ACCEPTANCE_PORT: '3154',
+        SOLO_ACCEPTANCE_CLOCK_OFFSET_MS: '0',
+    };
     delete env.COOP_HOST;
     delete env.COOP_NETWORK;
-    const host = spawn(process.execPath, ['apps/server/dist/main.js'], {
+    const entrypoint = seededWounds
+        ? 'tests/fixtures/solo-acceptance-host.mjs'
+        : 'apps/server/dist/main.js';
+    const host = spawn(process.execPath, [entrypoint], {
         env,
         stdio: ['ignore', 'pipe', 'pipe'],
     });
@@ -72,6 +82,27 @@ const readSave = path => {
     }
 };
 const health = async page => Number(await page.locator('#health').getAttribute('value'));
+const defeatStartingZombie = async page => {
+    const status = page.getByRole('status');
+    const canvas = page.locator('#game canvas');
+    await activateStartingZombie(page);
+    await expect.poll(() => distanceToStartingZombie(page), { timeout: 10000 }).toBeLessThan(1.1);
+    await expect.poll(() => health(page)).toBeLessThan(100);
+    for (const damage of [34, 34, 32]) {
+        await page.locator('#melee-attack').click();
+        await expect
+            .poll(() =>
+                canvas.evaluate(
+                    element => JSON.parse(element.dataset.meleeEffects ?? '[]').at(-1)?.impact,
+                ),
+            )
+            .toMatchObject({ zombieId: 'slow-zombie-1', damage });
+        const tick = Number(await status.getAttribute('data-tick'));
+        await expect
+            .poll(async () => Number(await status.getAttribute('data-tick')))
+            .toBeGreaterThanOrEqual(tick + meleeWeapons.club.cooldownTicks + 1);
+    }
+};
 
 test('depart at dusk, find the medical bandage by torch at night, survive combat, return and retain all four outcomes after host restart', async ({
     page,
@@ -120,25 +151,7 @@ test('depart at dusk, find the medical bandage by torch at night, survive combat
             await movePlayerTo({ page, position });
         }
         await movePlayerTo({ page, position: { xMeters: 0, yMeters: 0 } });
-        await activateStartingZombie(page);
-        await expect
-            .poll(() => distanceToStartingZombie(page), { timeout: 10000 })
-            .toBeLessThan(1.1);
-        await expect.poll(() => health(page)).toBeLessThan(100);
-        for (const damage of [34, 34, 32]) {
-            await page.locator('#melee-attack').click();
-            await expect
-                .poll(() =>
-                    canvas.evaluate(
-                        element => JSON.parse(element.dataset.meleeEffects ?? '[]').at(-1)?.impact,
-                    ),
-                )
-                .toMatchObject({ zombieId: 'slow-zombie-1', damage });
-            const tick = Number(await status.getAttribute('data-tick'));
-            await expect
-                .poll(async () => Number(await status.getAttribute('data-tick')))
-                .toBeGreaterThanOrEqual(tick + meleeWeapons.club.cooldownTicks + 1);
-        }
+        await defeatStartingZombie(page);
         const woundedHealth = await health(page);
         expect(woundedHealth).toBeGreaterThan(0);
         const use = page.locator('#use-bandage');
@@ -211,6 +224,122 @@ test('depart at dusk, find the medical bandage by torch at night, survive combat
             '.cache/t061-acceptance.json',
             JSON.stringify({ departureTime, returned, before, after }, null, 2),
         );
+        expect(errors).toEqual([]);
+    } finally {
+        await stop(running);
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
+
+test('the night outing works through the map, Nearby, health, journal and a reloaded enlarged interface', async ({
+    page,
+}) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 1280, height: 720 });
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-night-interface-'));
+    const path = join(directory, 'world.sqlite');
+    const seed = new SoloWorldStore(path);
+    seed.savePosition({ xMeters: 0, yMeters: 0 }, 12 * 3_600_000 - 900_000);
+    seed.close();
+    const running = start(path, { seededWounds: true });
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    try {
+        await expect.poll(running.output).toContain('Local world ready');
+        await page.goto(origin);
+        const status = page.locator('#connection-status');
+        const field = page.getByRole('region', { name: 'Игровое поле' });
+        const canvas = field.locator('canvas');
+        const scale = page.getByLabel('Размер интерфейса');
+        await expect(status).toHaveAttribute('data-status', 'connected');
+        await expect(canvas).toHaveAttribute('data-daylight-phase', 'dusk');
+        await clickEquipmentAction(page, 'Экипировать дубинку');
+        for (const position of route) {
+            await movePlayerTo({ page, position });
+        }
+        await movePlayerTo({ page, position: medicalOutpost.entrance });
+        await expect(canvas).toHaveAttribute('data-daylight-phase', 'night', { timeout: 25_000 });
+
+        const mapToggle = page.getByRole('button', { name: 'Карта (M)', exact: true });
+        const map = page.getByRole('region', { name: 'Карта посещений' });
+        await mapToggle.click();
+        await expect(map.getByRole('group', { name: 'Рельеф посещённых участков' })).toBeVisible();
+        await map.getByLabel('Название метки').fill('Вход в медпункт');
+        await map.getByRole('button', { name: 'Поставить метку' }).click();
+        await expect(map.getByText('Метка поставлена.')).toBeVisible();
+        await mapToggle.click();
+
+        const nearby = page.getByRole('region', { name: 'Рядом', exact: true });
+        const pickup = nearby.getByRole('button', { name: 'Взять: Бинт', exact: true });
+        await expect(canvas).toHaveAttribute('data-ground-item-visible', 'false');
+        await expect(pickup).toBeHidden();
+        await page.getByRole('button', { name: /Фонарик/ }).click();
+        await aimWorld({ page, position: medicalOutpost.bandagePosition });
+        await expect(canvas).toHaveAttribute('data-ground-item-visible', 'true');
+        await expect(pickup).toBeVisible();
+        await expect(pickup).toBeDisabled();
+        await page.screenshot({ path: '.cache/t081-night-hud.png' });
+        await scale.selectOption('large');
+        await aimWorld({ page, position: medicalOutpost.bandagePosition });
+        await page.screenshot({ path: '.cache/t081-night-hud-large.png' });
+
+        await movePlayerTo({ page, position: { xMeters: 68, yMeters: 4 } });
+        await movePlayerTo({ page, position: medicalOutpost.bandagePosition });
+        await expect(pickup).toBeEnabled();
+        await pickup.click();
+        await expect(pickup).toBeHidden();
+        await expect(nearby.locator('#restock-label')).toContainText('Бинт');
+
+        await movePlayerTo({ page, position: { xMeters: 68, yMeters: 4 } });
+        for (const position of [...route].reverse()) {
+            await movePlayerTo({ page, position });
+        }
+        await movePlayerTo({ page, position: { xMeters: 0, yMeters: 0 } });
+        await defeatStartingZombie(page);
+
+        const healthToggle = page.getByRole('button', { name: 'Здоровье (H)', exact: true });
+        await healthToggle.click();
+        const healthPanel = page.getByRole('region', { name: 'Здоровье', exact: true });
+        await expect(healthPanel.getByText('Кровотечение: есть')).toBeVisible();
+        const wounded = await health(page);
+        expect(wounded).toBeGreaterThan(0);
+        expect(wounded).toBeLessThan(100);
+        await healthPanel.getByRole('button', { name: 'Перевязаться', exact: true }).click();
+        await expect(healthPanel.getByText('Кровотечение: нет')).toBeVisible();
+        const treatedHealth = await health(page);
+        expect(treatedHealth).toBeLessThanOrEqual(wounded);
+        await healthToggle.click();
+
+        const journalToggle = page.getByRole('button', { name: 'Журнал (J)', exact: true });
+        await journalToggle.click();
+        const journal = page.getByRole('region', { name: 'Журнал вылазки' });
+        await expect(journal.getByText('Кровотечение остановлено.')).toBeVisible();
+        await expect(journal.getByText(/Получен урон:/).first()).toBeVisible();
+        await expect(journal.getByText('Подобрано с земли: Бинт.')).toBeVisible();
+        await journalToggle.click();
+
+        await openInventory(page);
+        const items = page.locator('#inventory-items button');
+        const inventory = await items.allTextContents();
+        expect(inventory.length).toBeGreaterThan(0);
+        expect(inventory.some(item => item.includes('Бинт'))).toBe(false);
+        const heldItem = await page.locator('#held-item').innerText();
+        const worldId = await status.getAttribute('data-world-id');
+        await page.reload();
+        await expect(status).toHaveAttribute('data-status', 'connected');
+        await expect(status).toHaveAttribute('data-world-id', worldId);
+        await expect(scale).toHaveValue('large');
+        await expect(page.locator('#held-item')).toHaveText(heldItem);
+        await expect(page.locator('#health')).toHaveAttribute('value', String(treatedHealth));
+        await expect(page.locator('#bleeding-label')).toHaveText('Кровотечение: нет');
+        await openInventory(page);
+        await expect(items).toHaveText(inventory);
+        await page.getByRole('button', { name: 'Инвентарь (I)', exact: true }).click();
+        await mapToggle.click();
+        const markers = map.getByLabel('Личные метки');
+        await markers.selectOption({ label: 'Вход в медпункт' });
+        await expect(map.getByLabel('Название метки')).toHaveValue('Вход в медпункт');
+        await expect(map.locator('canvas')).toHaveAttribute('data-visible-chunks', /1,0/);
         expect(errors).toEqual([]);
     } finally {
         await stop(running);
