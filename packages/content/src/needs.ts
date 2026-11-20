@@ -17,6 +17,13 @@ export const hungerSettings = Object.freeze({
     recoveryMultiplier: 0.5,
 });
 
+export const fatigueSettings = Object.freeze({
+    maximumMs: 24 * worldHourMs,
+    noticeableMs: 12 * worldHourMs,
+    staminaPenaltyAtMs: 16 * worldHourMs,
+    maximumStamina: 0.65,
+});
+
 export const rationLoot = Object.freeze({
     chunkX: 0,
     chunkY: 1,

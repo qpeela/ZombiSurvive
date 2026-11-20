@@ -123,6 +123,7 @@ const health = document.querySelector<HTMLProgressElement>('#health');
 const healthLabel = document.querySelector<HTMLElement>('#health-label');
 const bleedingLabel = document.querySelector<HTMLElement>('#bleeding-label');
 const combatStatus = document.querySelector<HTMLElement>('#combat-status');
+const fatigueLabel = document.querySelector<HTMLElement>('#fatigue-status');
 const hungerLabel = document.querySelector<HTMLElement>('#hunger-status');
 const thirstLabel = document.querySelector<HTMLElement>('#thirst-status');
 const combatIdle = document.querySelector<HTMLElement>('#combat-idle');
@@ -224,6 +225,7 @@ if (
     !bleedingLabel ||
     !combatStatus ||
     !combatIdle ||
+    !fatigueLabel ||
     !hungerLabel ||
     !thirstLabel ||
     !movementLabel ||
@@ -262,6 +264,7 @@ const characterHud = createCharacterHud({
     bleedingLabel,
     combatStatus,
     combatIdle,
+    fatigueLabel,
     hungerLabel,
     thirstLabel,
     stamina,
@@ -913,6 +916,7 @@ const connection = createWorldConnection(
             combatTicks: isAlive ? snapshot.combatTicks : 0,
             thirstMs: isAlive ? snapshot.needs?.thirstMs : undefined,
             hungerMs: isAlive ? snapshot.needs?.hungerMs : undefined,
+            fatigueMs: isAlive ? snapshot.needs?.fatigueMs : undefined,
         });
         health.max = snapshot.maxHealth;
         health.value = snapshot.health;

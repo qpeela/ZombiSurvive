@@ -36,15 +36,23 @@ const prepareStep = ({
         throw new RangeError('Movement requires the configured fixed stepSeconds.');
     }
 
-    const canSprint = !player.isExhausted && player.stamina > 0;
+    const {
+        isRecoverySlowed = false,
+        isDrainIncreased = false,
+        maximumStamina = 1,
+    } = player.staminaEffects ?? {};
+    const availableStamina = Math.min(player.stamina, maximumStamina);
+    const canSprint = !player.isExhausted && availableStamina > 0;
     const isRunning = isMoving && isSprinting && !isSneaking && canSprint;
-    const { isRecoverySlowed = false, isDrainIncreased = false } = player.staminaEffects ?? {};
     const recoveryMultiplier = isRecoverySlowed ? hungerSettings.recoveryMultiplier : 1;
     const staminaChange = isRunning
         ? -movementSettings.staminaDrainPerSecond *
           sprintDrainMultiplier(player.carriedWeightGrams ?? 0, isDrainIncreased)
         : movementSettings.staminaRecoveryPerSecond * recoveryMultiplier;
-    const stamina = Math.min(1, Math.max(0, player.stamina + staminaChange * stepSeconds));
+    const stamina = Math.min(
+        maximumStamina,
+        Math.max(0, availableStamina + staminaChange * stepSeconds),
+    );
     const isExhausted =
         stamina === 0 || (player.isExhausted && stamina < movementSettings.sprintRecoveryThreshold);
     let speed: number = movementSettings.walkSpeedMetersPerSecond;

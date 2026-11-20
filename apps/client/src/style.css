@@ -304,6 +304,7 @@ h1 {
 .combat-chip:has(#combat-status[hidden]),
 .thirst-chip:has(#thirst-status[hidden]),
 .hunger-chip:has(#hunger-status[hidden]),
+.fatigue-chip:has(#fatigue-status[hidden]),
 .held-equipment:not(:has(#held-item[data-equipped])) {
     position: absolute;
     width: 1px;

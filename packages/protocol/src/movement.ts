@@ -177,11 +177,16 @@ const isPlayer = (value: unknown): value is PlayerMovementState => {
     if (!isValidWeight) return false;
 
     const effects = value['staminaEffects'];
+    const maximum = isRecord(effects) ? effects['maximumStamina'] : undefined;
+    const isValidMaximum =
+        maximum === undefined ||
+        (typeof maximum === 'number' && Number.isFinite(maximum) && maximum > 0 && maximum <= 1);
     const isValidEffects =
         effects === undefined ||
         (isRecord(effects) &&
             typeof effects['isRecoverySlowed'] === 'boolean' &&
-            typeof effects['isDrainIncreased'] === 'boolean');
+            typeof effects['isDrainIncreased'] === 'boolean' &&
+            isValidMaximum);
     if (!isValidEffects) return false;
 
     const position = value['position'];
@@ -262,6 +267,9 @@ export const copyMovementPlayer = (player: PlayerMovementState): PlayerMovementS
               staminaEffects: {
                   isRecoverySlowed: player.staminaEffects.isRecoverySlowed,
                   isDrainIncreased: player.staminaEffects.isDrainIncreased,
+                  ...(player.staminaEffects.maximumStamina === undefined
+                      ? {}
+                      : { maximumStamina: player.staminaEffects.maximumStamina }),
               },
           }),
     isExhausted: player.isExhausted,
