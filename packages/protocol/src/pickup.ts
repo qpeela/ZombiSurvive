@@ -20,6 +20,9 @@ export type UseBandageCommand = {
 export type DrinkWaterCommand = Omit<UseBandageCommand, 'type'> & {
     readonly type: 'drink-water';
 };
+export type EatRationCommand = Omit<UseBandageCommand, 'type'> & {
+    readonly type: 'eat-ration';
+};
 export type InventoryMoveCommand = {
     readonly type: 'inventory-move';
     readonly protocolVersion: typeof protocolVersion;
@@ -97,7 +100,7 @@ const isItem = (value: unknown): value is Item => {
         const isRounds = typeof rounds === 'number' && Number.isSafeInteger(rounds) && rounds >= 0;
         return isRevision && isCapacity && isRounds && rounds <= capacity;
     }
-    return value['kind'] === 'bandage' || isWeaponId(value['kind']);
+    return value['kind'] === 'bandage' || value['kind'] === 'ration' || isWeaponId(value['kind']);
 };
 
 export const isUseBandageCommand = (value: unknown): value is UseBandageCommand => {
@@ -113,6 +116,13 @@ export const isUseBandageCommand = (value: unknown): value is UseBandageCommand 
 export const isDrinkWaterCommand = (value: unknown): value is DrinkWaterCommand =>
     isRecord(value) &&
     value['type'] === 'drink-water' &&
+    value['protocolVersion'] === protocolVersion &&
+    value['inventoryVersion'] === inventoryVersion &&
+    isId(value['itemId']);
+
+export const isEatRationCommand = (value: unknown): value is EatRationCommand =>
+    isRecord(value) &&
+    value['type'] === 'eat-ration' &&
     value['protocolVersion'] === protocolVersion &&
     value['inventoryVersion'] === inventoryVersion &&
     isId(value['itemId']);

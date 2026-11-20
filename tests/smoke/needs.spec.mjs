@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { expect, test } from '@playwright/test';
-import { workshopWater } from '@zombi-survive/content';
+import { rationLoot, workshopWater } from '@zombi-survive/content';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
 import { openInventory } from '../fixtures/game-panels.mjs';
@@ -39,7 +39,7 @@ test('drinking workshop water from inventory clears the thirst warning and survi
     const directory = mkdtempSync(join(tmpdir(), 'zombi-water-smoke-'));
     const path = join(directory, 'world.sqlite');
     const store = new SoloWorldStore(path);
-    store.savePosition(workshopWater.item.position, 0, { thirstMs: 5 * 3_600_000 });
+    store.savePosition(workshopWater.item.position, 0, { thirstMs: 5 * 3_600_000, hungerMs: 0 });
     store.close();
     let host = startHost(path);
     try {
@@ -70,6 +70,51 @@ test('drinking workshop water from inventory clears the thirst warning and survi
         await expect(thirst).toBeHidden();
         await empty.press('Shift+F10');
         await expect(page.getByRole('menuitem', { name: 'Пить', exact: true })).toBeDisabled();
+    } finally {
+        await host.stop('SIGTERM');
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
+
+test('one ready ration reduces hunger independently of thirst and stays consumed after reconnect', async ({
+    page,
+}) => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-ration-smoke-'));
+    const path = join(directory, 'world.sqlite');
+    const store = new SoloWorldStore(path);
+    store.savePosition(rationLoot.item.position, 0, {
+        thirstMs: 5 * 3_600_000,
+        hungerMs: 8 * 3_600_000,
+    });
+    store.close();
+    const host = startHost(path);
+    try {
+        await expect.poll(host.output).toContain('Local world ready');
+        await page.goto(origin);
+        const hunger = page.locator('#hunger-status');
+        const thirst = page.locator('#thirst-status');
+        await expect(hunger).toBeVisible();
+        await expect(thirst).toBeVisible();
+        const pickUp = page.getByRole('button', { name: 'Взять: Готовый паёк', exact: true });
+        await expect(pickUp).toBeEnabled();
+        await pickUp.click();
+        await openInventory(page);
+        const ration = page.getByRole('button', { name: /^Переместить: Готовый паёк/ });
+        await expect(ration).toBeVisible();
+        const itemCount = page.locator('#inventory');
+        await expect(itemCount).toHaveText('Контейнер: предметов 5');
+        await ration.press('Shift+F10');
+        await page.getByRole('menuitem', { name: 'Съесть', exact: true }).click();
+        await expect(itemCount).toHaveText('Контейнер: предметов 4');
+        await expect(ration).toHaveCount(0);
+        await expect(hunger).toBeHidden();
+        await expect(thirst).toBeVisible();
+        await page.reload();
+        await expect(thirst).toBeVisible();
+        await openInventory(page);
+        await expect(itemCount).toHaveText('Контейнер: предметов 4');
+        await expect(pickUp).toHaveCount(0);
+        await expect(hunger).toBeHidden();
     } finally {
         await host.stop('SIGTERM');
         rmSync(directory, { recursive: true, force: true });

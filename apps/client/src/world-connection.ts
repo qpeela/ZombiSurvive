@@ -97,6 +97,7 @@ export const createWorldConnection = (
     pickUp: (itemId: string) => void;
     moveItem: (itemId: string, cell: InventoryCell) => void;
     drinkWater: (itemId: string) => void;
+    eatRation: (itemId: string) => void;
     useBandage: (itemId: string) => void;
     respawn: () => void;
     disconnect: () => void;
@@ -575,7 +576,10 @@ export const createWorldConnection = (
         }
     };
 
-    const useInventoryItem = (type: 'drink-water' | 'use-bandage', itemId: string): void => {
+    const useInventoryItem = (
+        type: 'drink-water' | 'eat-ration' | 'use-bandage',
+        itemId: string,
+    ): void => {
         if (!isReady || activeRoom === null) return;
 
         try {
@@ -693,6 +697,9 @@ export const createWorldConnection = (
         moveItem,
         drinkWater: itemId => {
             useInventoryItem('drink-water', itemId);
+        },
+        eatRation: itemId => {
+            useInventoryItem('eat-ration', itemId);
         },
         useBandage: itemId => {
             useInventoryItem('use-bandage', itemId);

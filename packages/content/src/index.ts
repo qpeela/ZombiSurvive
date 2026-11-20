@@ -5,7 +5,7 @@ export { initialGroundItem, inventorySettings, itemDefinitions, pickupSettings }
 export { ammoSettings, itemDisplayName, itemWeightGrams } from './items.ts';
 export { medicalOutpost } from './medical-outpost.ts';
 export { movementSettings } from './movement.ts';
-export { thirstSettings, workshopWater } from './needs.ts';
+export { hungerSettings, rationLoot, thirstSettings, workshopWater } from './needs.ts';
 export { collisionSettings, startingRuins } from './obstacles.ts';
 export { pistolSettings } from './pistol.ts';
 export { meleeWeapons } from './weapons.ts';

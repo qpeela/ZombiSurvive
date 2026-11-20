@@ -123,6 +123,7 @@ const health = document.querySelector<HTMLProgressElement>('#health');
 const healthLabel = document.querySelector<HTMLElement>('#health-label');
 const bleedingLabel = document.querySelector<HTMLElement>('#bleeding-label');
 const combatStatus = document.querySelector<HTMLElement>('#combat-status');
+const hungerLabel = document.querySelector<HTMLElement>('#hunger-status');
 const thirstLabel = document.querySelector<HTMLElement>('#thirst-status');
 const combatIdle = document.querySelector<HTMLElement>('#combat-idle');
 const loadLabel = document.querySelector<HTMLElement>('#load-label');
@@ -223,6 +224,7 @@ if (
     !bleedingLabel ||
     !combatStatus ||
     !combatIdle ||
+    !hungerLabel ||
     !thirstLabel ||
     !movementLabel ||
     !loadLabel ||
@@ -260,6 +262,7 @@ const characterHud = createCharacterHud({
     bleedingLabel,
     combatStatus,
     combatIdle,
+    hungerLabel,
     thirstLabel,
     stamina,
     staminaLabel,
@@ -340,6 +343,19 @@ const getContextActions = (item: InventoryItem): readonly InventoryContextAction
                 unavailable: item.servings > 0 ? null : 'Бутылка пуста.',
                 run: () => {
                     if (lifeState === 'alive') connection.drinkWater(itemId);
+                },
+            },
+        ];
+    }
+
+    if (kind === 'ration') {
+        return [
+            {
+                id: 'eat',
+                label: 'Съесть',
+                unavailable: null,
+                run: () => {
+                    if (lifeState === 'alive') connection.eatRation(itemId);
                 },
             },
         ];
@@ -896,6 +912,7 @@ const connection = createWorldConnection(
             isBleeding,
             combatTicks: isAlive ? snapshot.combatTicks : 0,
             thirstMs: isAlive ? snapshot.needs?.thirstMs : undefined,
+            hungerMs: isAlive ? snapshot.needs?.hungerMs : undefined,
         });
         health.max = snapshot.maxHealth;
         health.value = snapshot.health;

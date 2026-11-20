@@ -1,4 +1,4 @@
-import { thirstSettings } from '@zombi-survive/content';
+import { hungerSettings, thirstSettings } from '@zombi-survive/content';
 import type { PlayerNeeds } from '@zombi-survive/domain';
 
 export type SavedWorldProgress = {
@@ -29,7 +29,16 @@ export const readSavedNeeds = (value: unknown): PlayerNeeds => {
     )
         throw new Error('Solo save contains invalid player thirst.');
 
-    return { thirstMs };
+    const hungerMs = 'hungerMs' in needs ? needs.hungerMs : 0;
+    if (
+        typeof hungerMs !== 'number' ||
+        !Number.isSafeInteger(hungerMs) ||
+        hungerMs < 0 ||
+        hungerMs > hungerSettings.maximumMs
+    )
+        throw new Error('Solo save contains invalid player hunger.');
+
+    return { thirstMs, hungerMs };
 };
 
 export const writeSavedNeeds = (needs: PlayerNeeds): string =>

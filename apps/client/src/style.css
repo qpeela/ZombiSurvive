@@ -303,6 +303,7 @@ h1 {
 .bleeding-chip:not(:has([data-bleeding='true'])),
 .combat-chip:has(#combat-status[hidden]),
 .thirst-chip:has(#thirst-status[hidden]),
+.hunger-chip:has(#hunger-status[hidden]),
 .held-equipment:not(:has(#held-item[data-equipped])) {
     position: absolute;
     width: 1px;
