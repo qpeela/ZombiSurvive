@@ -31,9 +31,12 @@ LocalWorldRoom.prototype.onCreate = function (options) {
     }
 };
 const store = new SoloWorldStore(path, now);
-const origin = 'http://127.0.0.1:3136';
+const port = Number(process.env.SOLO_ACCEPTANCE_PORT ?? 3136);
+if (!Number.isInteger(port) || port < 1 || port > 65535)
+    throw new Error('Invalid acceptance host port.');
+const origin = `http://127.0.0.1:${String(port)}`;
 const server = await startLocalServer(
-    3136,
+    port,
     origin,
     new URL('../../apps/client/dist/', import.meta.url),
     { soloStore: store },
