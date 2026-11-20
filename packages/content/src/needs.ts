@@ -24,6 +24,12 @@ export const fatigueSettings = Object.freeze({
     maximumStamina: 0.65,
 });
 
+export const restSettings = Object.freeze({
+    durationWorldMs: 8 * 60 * 1000,
+    feedbackWorldMs: 10 * 60 * 1000,
+    restedFatigueMs: 14 * worldHourMs,
+});
+
 export const rationLoot = Object.freeze({
     chunkX: 0,
     chunkY: 1,

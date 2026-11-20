@@ -282,6 +282,16 @@ h1 {
     padding: 2px 0;
 }
 
+#rest-chip[hidden] {
+    display: none;
+}
+
+#rest-progress:not([hidden]) {
+    display: block;
+    width: 100%;
+    accent-color: #a2c878;
+}
+
 .status-icon {
     color: #b4caa4;
     text-align: center;

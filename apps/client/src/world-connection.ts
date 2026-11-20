@@ -35,6 +35,7 @@ import {
     type ProfileSnapshot,
     profileVersion,
     protocolVersion,
+    type RestCommand,
     type ShotAction,
     type ShotAim,
     type ZombieSnapshot,
@@ -99,6 +100,7 @@ export const createWorldConnection = (
     drinkWater: (itemId: string) => void;
     eatRation: (itemId: string) => void;
     useBandage: (itemId: string) => void;
+    sendRest: (type: RestCommand['type']) => void;
     respawn: () => void;
     disconnect: () => void;
     dispose: () => void;
@@ -596,6 +598,17 @@ export const createWorldConnection = (
         }
     };
 
+    const sendRest = (type: RestCommand['type']): void => {
+        if (!isReady || activeRoom === null) return;
+
+        try {
+            activeRoom.send(type, { type, protocolVersion, ...lifeFields() });
+        } catch {
+            closeRoom();
+            onStateChange({ status: 'error' });
+        }
+    };
+
     const renamePlayer = async (displayName: string): Promise<ProfileResult> => {
         const room = activeRoom;
         const accept = acceptProfile;
@@ -704,6 +717,7 @@ export const createWorldConnection = (
         useBandage: itemId => {
             useInventoryItem('use-bandage', itemId);
         },
+        sendRest,
         respawn,
         disconnect,
         dispose,

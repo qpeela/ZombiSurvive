@@ -8,7 +8,9 @@ import {
     fatigueSettings,
     hungerSettings,
     rationLoot,
+    restSettings,
     thirstSettings,
+    workshopBench,
     workshopWater,
 } from '@zombi-survive/content';
 
@@ -217,6 +219,91 @@ test('high awake fatigue limits stamina after reconnect and host restart', async
         await expect.poll(host.output).toContain('Local world ready');
         await page.goto(origin);
         await checkCap();
+    } finally {
+        await host.stop('SIGTERM');
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
+
+const startBenchRest = async page => {
+    await page.goto(origin);
+    await expect(page.locator('#fatigue-status')).toContainText('Максимум выносливости 65%');
+    await expect(page.locator('canvas')).toHaveAttribute('data-player-visible', 'true');
+    await page.locator('#game').press('e');
+    const menu = page.locator('#world-context');
+    await expect(menu).toContainText('Скамья у мастерской');
+    await menu.getByRole('button', { name: 'Передохнуть', exact: true }).click();
+    await expect(page.getByRole('progressbar', { name: 'Передышка' })).toBeVisible();
+};
+
+test('bench rest runs on the game clock, lowers fatigue and survives immediate host restart', async ({
+    page,
+}) => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-bench-smoke-'));
+    const path = join(directory, 'world.sqlite');
+    const store = new SoloWorldStore(path);
+    store.savePosition(workshopBench.position, 0, {
+        fatigueMs: 18 * 3_600_000,
+        hungerMs: 0,
+        thirstMs: 0,
+    });
+    store.close();
+    let host = startHost(path);
+    try {
+        await expect.poll(host.output).toContain('Local world ready');
+        await startBenchRest(page);
+        const meter = page.getByRole('progressbar', { name: 'Передышка' });
+        await expect(meter).toHaveJSProperty('max', restSettings.durationWorldMs);
+        await expect.poll(() => meter.evaluate(progress => progress.value)).toBeGreaterThan(0);
+        const status = page.locator('#rest-status');
+        const fatigue = page.locator('#fatigue-status');
+        await expect(status).toHaveText('Передышка завершена.', { timeout: 12000 });
+        await expect(fatigue).toHaveText(/^Усталость: 58%$/);
+        await expect(meter).toBeHidden();
+        await expect
+            .poll(() => page.locator('#stamina').evaluate(progress => progress.value))
+            .toBeGreaterThan(fatigueSettings.maximumStamina);
+
+        await host.stop('SIGKILL');
+        host = startHost(path);
+        await expect.poll(host.output).toContain('Local world ready');
+        await page.goto(origin);
+        await expect(fatigue).toHaveText(/^Усталость: 58%$/);
+        await expect(status).toBeHidden();
+    } finally {
+        await host.stop('SIGTERM');
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
+
+test('bench rest reports movement and control loss without reducing fatigue', async ({ page }) => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-bench-cancel-smoke-'));
+    const path = join(directory, 'world.sqlite');
+    const store = new SoloWorldStore(path);
+    store.savePosition(workshopBench.position, 0, {
+        fatigueMs: 18 * 3_600_000,
+        hungerMs: 0,
+        thirstMs: 0,
+    });
+    store.close();
+    const host = startHost(path);
+    try {
+        await expect.poll(host.output).toContain('Local world ready');
+        await startBenchRest(page);
+        await page.evaluate(() => globalThis.dispatchEvent(new Event('blur')));
+        const status = page.locator('#rest-status');
+        await expect(status).toHaveText('Передышка прервана из-за потери управления.');
+        const fatigue = page.locator('#fatigue-status');
+        await expect(fatigue).toContainText('Максимум выносливости 65%');
+
+        await startBenchRest(page);
+        try {
+            await page.keyboard.down('d');
+            await expect(status).toHaveText('Передышка прервана из-за движения.');
+        } finally {
+            await page.keyboard.up('d');
+        }
+        await expect(fatigue).toContainText('Максимум выносливости 65%');
     } finally {
         await host.stop('SIGTERM');
         rmSync(directory, { recursive: true, force: true });

@@ -6,6 +6,8 @@ import {
     meleeWeapons,
     movementSettings,
     pistolSettings,
+    restSettings,
+    workshopBench,
 } from '@zombi-survive/content';
 import {
     type GroundItem,
@@ -17,7 +19,7 @@ import {
     type PlayerMovementState,
     type WorldPosition,
 } from '@zombi-survive/domain';
-import type { FirearmSnapshot, MovementSnapshot } from '@zombi-survive/protocol';
+import type { FirearmSnapshot, HealthSnapshot, MovementSnapshot } from '@zombi-survive/protocol';
 import {
     equipmentWeightGrams,
     findInventorySpace,
@@ -31,12 +33,11 @@ import { createCharacterHud } from './character-hud';
 import { createControlPanels } from './control-panels';
 import { createEquipmentHud } from './equipment-hud';
 import { createFullscreenControls } from './fullscreen';
-import { createHealthPanel, type HealthStatus } from './health-panel';
+import { createHealthPanel } from './health-panel';
 import { createInterfaceScale } from './interface-scale';
 import type { InventoryContextAction } from './inventory-context-menu';
 import { createInventoryGrid } from './inventory-grid';
 import { createLootDrag } from './loot-drag';
-import type { LootSource } from './loot-highlight';
 import { createMovementInputController } from './movement-input';
 import { MovementPrediction } from './movement-prediction';
 import {
@@ -47,10 +48,11 @@ import {
 } from './nearby-loot';
 import { createOutingJournal } from './outing-journal';
 import { createPlayerProfileControls } from './player-profile';
+import { createRestHud } from './rest-hud';
 import { createVisitedMap } from './visited-map';
 import { formatWorldTime } from './world-clock';
 import { createWorldConnection } from './world-connection';
-import { createWorldContext } from './world-context';
+import { createWorldContext, type WorldContextSource } from './world-context';
 import { createWorldHud } from './world-hud';
 import { createWorldSession } from './world-session';
 
@@ -123,6 +125,9 @@ const health = document.querySelector<HTMLProgressElement>('#health');
 const healthLabel = document.querySelector<HTMLElement>('#health-label');
 const bleedingLabel = document.querySelector<HTMLElement>('#bleeding-label');
 const combatStatus = document.querySelector<HTMLElement>('#combat-status');
+const restChip = document.querySelector<HTMLElement>('#rest-chip');
+const restLabel = document.querySelector<HTMLElement>('#rest-status');
+const restProgress = document.querySelector<HTMLProgressElement>('#rest-progress');
 const fatigueLabel = document.querySelector<HTMLElement>('#fatigue-status');
 const hungerLabel = document.querySelector<HTMLElement>('#hunger-status');
 const thirstLabel = document.querySelector<HTMLElement>('#thirst-status');
@@ -225,6 +230,9 @@ if (
     !bleedingLabel ||
     !combatStatus ||
     !combatIdle ||
+    !restChip ||
+    !restLabel ||
+    !restProgress ||
     !fatigueLabel ||
     !hungerLabel ||
     !thirstLabel ||
@@ -295,7 +303,8 @@ const healthUi = createHealthPanel({
     reason: panelBandageReason,
 });
 const journal = createOutingJournal({ list: journalEvents, empty: journalEmpty });
-let lastHealth: HealthStatus | null = null;
+const updateRestHud = createRestHud({ chip: restChip, label: restLabel, progress: restProgress });
+let lastHealth: HealthSnapshot | null = null;
 let inventoryItems: readonly InventoryItem[] = [];
 let hands: Item | null = null;
 let isBleeding = false;
@@ -544,7 +553,7 @@ const worldContext = createWorldContext({
         const position = confirmedPosition;
         if (position === null || lifeState !== 'alive' || !hasPickupSnapshot) return [];
 
-        const targets: (LootSource & {
+        const targets: (WorldContextSource & {
             readonly position: WorldPosition;
             readonly label: string;
             readonly item: GroundItem | null;
@@ -566,22 +575,37 @@ const worldContext = createWorldContext({
             });
         }
 
+        if (lastHealth?.rest !== undefined) {
+            targets.push({
+                kind: 'bench',
+                id: workshopBench.id,
+                position: workshopBench.position,
+                label: 'Скамья у мастерской',
+                item: null,
+            });
+        }
+
         return targets.flatMap(({ position: target, item, ...source }) => {
             if (!isWithinPickupRange(position, target) || !canReachLoot(position, target))
                 return [];
 
-            const point = scene.getLootScreenPoint(target, source.kind);
+            const point = scene.getContextScreenPoint(target, source.kind);
             if (point === null) return [];
 
-            const reason =
-                item === null
-                    ? null
-                    : getPickupReason(
-                          { position, life: lifeState, inventory: inventoryItems },
-                          target,
-                          item,
-                          canReachLoot,
-                      );
+            let reason: string | null = null;
+            if (item !== null) {
+                reason = getPickupReason(
+                    { position, life: lifeState, inventory: inventoryItems },
+                    target,
+                    item,
+                    canReachLoot,
+                );
+            } else if (source.kind === 'bench') {
+                const fatigueMs = lastHealth?.needs?.fatigueMs ?? 0;
+                if (lastHealth?.rest?.state === 'resting') reason = 'Передышка уже идёт.';
+                else if (fatigueMs <= restSettings.restedFatigueMs)
+                    reason = 'Передышка доступна после 14 игровых часов усталости.';
+            }
 
             return [
                 {
@@ -598,7 +622,8 @@ const worldContext = createWorldContext({
     },
     onAction: ({ kind, id }) => {
         if (kind === 'ground') lootDrag.request(id);
-        else nearbyUi.focusCorpse(id);
+        else if (kind === 'corpse') nearbyUi.focusCorpse(id);
+        else connection.sendRest('rest-at-bench');
     },
 });
 const messages = {
@@ -768,6 +793,7 @@ const connection = createWorldConnection(
         journal.disconnect();
         visitedMap.disconnect();
         lastHealth = null;
+        updateRestHud();
         lifeState = null;
         worldContext.close();
         scene.setAlive(false);
@@ -885,6 +911,7 @@ const connection = createWorldConnection(
         health.dataset['lifeRevision'] = String(nextLife);
         lifeState = snapshot.lifeState;
         lastHealth = snapshot;
+        updateRestHud(snapshot.rest);
         journal.acceptHealth(snapshot);
         equipmentHud.acceptLife(snapshot);
         const isAlive = lifeState === 'alive';
@@ -1086,6 +1113,14 @@ const onRespawn = (): void => {
 };
 respawnButton.addEventListener('click', onRespawn);
 reconnect.addEventListener('click', onConnect);
+const onRestControlLost = (): void => {
+    if (lastHealth?.rest !== undefined) connection.sendRest('cancel-rest');
+};
+const onRestVisibilityChange = (): void => {
+    if (document.hidden) onRestControlLost();
+};
+window.addEventListener('blur', onRestControlLost);
+document.addEventListener('visibilitychange', onRestVisibilityChange);
 window.addEventListener('pagehide', onPageHide);
 window.addEventListener('pageshow', onPageShow);
 onConnect();
@@ -1124,6 +1159,8 @@ if (import.meta.hot) {
         flashlightButton.removeEventListener('click', onFlashlight);
         respawnButton.removeEventListener('click', onRespawn);
         reconnect.removeEventListener('click', onConnect);
+        window.removeEventListener('blur', onRestControlLost);
+        document.removeEventListener('visibilitychange', onRestVisibilityChange);
         window.removeEventListener('pagehide', onPageHide);
         window.removeEventListener('pageshow', onPageShow);
         game.destroy(true);
