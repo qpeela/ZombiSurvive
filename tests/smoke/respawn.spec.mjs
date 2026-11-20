@@ -76,7 +76,7 @@ test('death, explicit respawn in both tabs, return and pickup survive old comman
             observer.onMessage(type, () => {});
         const respawn = page.getByRole('button', { name: 'Возродиться', exact: true });
         await expect(respawn).toBeInViewport();
-        await page.locator('#fullscreen').click({ trial: true });
+        await page.locator('#toggle-settings').click({ trial: true });
         await respawn.dblclick();
         for (const current of [page, tab]) {
             await expect(current.locator('#death-screen')).toBeHidden();

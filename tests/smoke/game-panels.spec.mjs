@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
 
 import { movePlayerTo } from '../fixtures/game-controls.mjs';
+import { openSettings } from '../fixtures/game-panels.mjs';
 import { isolatedHostOrigin, test } from '../fixtures/isolated-host.mjs';
 
 test.use({ baseURL: isolatedHostOrigin });
@@ -95,6 +96,12 @@ test('in-game help explains inventory actions, world actions and map markers', a
     const field = page.getByRole('region', { name: 'Игровое поле' });
     const toggle = page.getByRole('button', { name: 'Справка', exact: true });
     const help = page.getByRole('region', { name: 'Управление' });
+    const settings = page.getByRole('region', { name: 'Настройки', exact: true });
+    const settingsToggle = page.getByRole('button', { name: 'Настройки', exact: true });
+    await expect(settings).toBeHidden();
+    await expect(toggle).toBeHidden();
+    await openSettings(page);
+    await expect(settings).toBeFocused();
     await toggle.press('Enter');
     await expect(toggle).toHaveAttribute('aria-expanded', 'true');
     await expect(help).toBeFocused();
@@ -110,6 +117,9 @@ test('in-game help explains inventory actions, world actions and map markers', a
     await page.keyboard.press('Escape');
     await expect(help).toBeHidden();
     await expect(toggle).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(settings).toBeHidden();
+    await expect(settingsToggle).toBeFocused();
 
     await field.focus();
     await page.keyboard.press('i');

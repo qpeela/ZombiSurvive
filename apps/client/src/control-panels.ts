@@ -123,7 +123,7 @@ export const createControlPanels = ({
         }
     };
     const onUiKey = (event: KeyboardEvent): void => {
-        if (ownsInput(event.target)) event.stopPropagation();
+        if (event.key !== 'Escape' && ownsInput(event.target)) event.stopPropagation();
     };
     const onFocusIn = (event: FocusEvent): void => {
         if (ownsInput(event.target) && !ownsInput(event.relatedTarget)) resetInput();

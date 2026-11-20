@@ -8,7 +8,7 @@ import { Client } from '@colyseus/sdk';
 import { expect, test } from '@playwright/test';
 import { localWorldRoomId } from '@zombi-survive/protocol';
 
-import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
+import { clickEquipmentAction, openSettings } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3116';
 const start = path => {
@@ -64,6 +64,7 @@ test('name validation, safe text, focus, tabs, retry and host restart retain the
     try {
         await expect.poll(running.output).toContain('Local world ready');
         await page.goto(origin);
+        await openSettings(page);
         const input = page.getByRole('textbox', { name: 'Имя игрока' });
         const save = page.getByRole('button', { name: 'Сохранить имя' });
         const label = page.locator('#player-name');
@@ -109,12 +110,14 @@ test('name validation, safe text, focus, tabs, retry and host restart retain the
         // A second tab receives persisted revisions and can rename the same player.
         const tab = await context.newPage();
         await tab.goto(origin);
+        await openSettings(tab);
         await expect(tab.locator('#player-name')).toHaveText('Имя: Иван Петров');
         await tab.getByRole('textbox', { name: 'Имя игрока' }).fill('Анна-2');
         await tab.getByRole('button', { name: 'Сохранить имя' }).click();
         await expect(label).toHaveText('Имя: Анна-2');
         await tab.close();
         await page.reload();
+        await openSettings(page);
         await expect(input).toHaveValue('Анна-2');
         await context.setOffline(true);
         await expect(input).toBeDisabled();
@@ -151,6 +154,7 @@ test('name validation, safe text, focus, tabs, retry and host restart retain the
         running = start(path);
         await expect.poll(running.output).toContain('Local world ready');
         await page.reload();
+        await openSettings(page);
         await expect(input).toHaveValue('Ёж_42');
         expect((await state(page)).playerId).toBe(initial.playerId);
         await page.screenshot({ path: '.cache/t022-player-profile.png', fullPage: true });

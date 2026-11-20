@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 
 import { expect, test } from '@playwright/test';
 
+import { openSettings } from '../fixtures/game-panels.mjs';
+
 const gameVersion = JSON.parse(
     readFileSync(new URL('../../package.json', import.meta.url)),
 ).version;
@@ -19,19 +21,18 @@ test('production client boots a Phaser scene without browser errors', async ({ p
     await expect(page).toHaveTitle('ZombiSurvive');
     await expect(page.getByRole('heading', { name: 'ZombiSurvive' })).toBeVisible();
     const versionLabel = page.locator('#game-version');
-    await expect(versionLabel).toContainText(`Версия ${gameVersion}`);
-    await expect(versionLabel).toBeInViewport();
+    await expect(versionLabel).toBeHidden();
     const canvas = page.locator('#game canvas');
     await expect(canvas).toBeVisible();
     await expect(canvas).toHaveAttribute('data-scene-ready', 'true');
     expect(await canvas.evaluate(element => element.width > 0 && element.height > 0)).toBe(true);
     await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
-    await expect(page.getByRole('status')).toContainText('Позиция:');
+    await expect(page.getByRole('status')).toHaveText('Мир подключён.');
     await expect(canvas).toHaveAttribute('data-player-visible', 'true');
-    await page.locator('.control-scroll').evaluate(element => {
-        element.scrollTop = element.scrollHeight;
-    });
+    await openSettings(page);
+    await expect(versionLabel).toContainText(`Версия ${gameVersion}`);
     await expect(versionLabel).toBeInViewport();
+    await expect(page.locator('#connection-details')).toContainText('Позиция:');
     expect(errors).toEqual([]);
 });
 
