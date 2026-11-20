@@ -8,9 +8,11 @@ import {
 } from '@zombi-survive/domain';
 import {
     type DrinkWaterCommand,
+    type EatRationCommand,
     type InventoryMoveCommand,
     inventoryVersion,
     isDrinkWaterCommand,
+    isEatRationCommand,
     isInventoryMoveCommand,
     isMeleeCommand,
     isPickupCommand,
@@ -41,6 +43,7 @@ type ItemCommand =
     | InventoryMoveCommand
     | UseBandageCommand
     | DrinkWaterCommand
+    | EatRationCommand
     | Exclude<MeleeCommand, { type: 'melee-attack' }>;
 
 type UseItem = (input: {
@@ -137,8 +140,9 @@ export class LocalWorldPickup {
         }
     }
 
-    receiveDrink(sessionId: string, value: unknown): void {
-        if (isDrinkWaterCommand(value)) this.pending.set(sessionId, value);
+    receiveSupplyUse(sessionId: string, value: unknown): void {
+        if (isDrinkWaterCommand(value) || isEatRationCommand(value))
+            this.pending.set(sessionId, value);
     }
 
     receive(sessionId: string, value: unknown): void {
@@ -177,7 +181,11 @@ export class LocalWorldPickup {
         sessions: ReadonlyMap<string, MovementSnapshot>,
         health: (snapshot: MovementSnapshot) => number = () => 100,
         useBandage: UseItem = input => input.locations,
-        drink: UseItem = input => input.locations,
+        consume: (
+            input: Parameters<UseItem>[0] & {
+                readonly kind: DrinkWaterCommand['type'] | EatRationCommand['type'];
+            },
+        ) => readonly ItemLocation[] = input => input.locations,
     ): void {
         if (this.pendingSave !== null) return;
 
@@ -199,8 +207,13 @@ export class LocalWorldPickup {
                 continue;
             }
 
-            if (command.type === 'drink-water') {
-                next = drink({ snapshot, locations: next, itemId: command.itemId });
+            if (command.type === 'drink-water' || command.type === 'eat-ration') {
+                next = consume({
+                    snapshot,
+                    locations: next,
+                    itemId: command.itemId,
+                    kind: command.type,
+                });
                 continue;
             }
 

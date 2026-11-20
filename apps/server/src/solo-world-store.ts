@@ -56,7 +56,8 @@ const ammoManifest = [...pistolManifest, ...initialWorldAmmoLoot];
 const worldItemManifest = [...ammoManifest, ...initialExpandedLoot];
 const warehouseLootSaveVersion = 20;
 const thirstSaveVersion = 21;
-const currentSaveVersion = thirstSaveVersion;
+const hungerSaveVersion = 22;
+const currentSaveVersion = hungerSaveVersion;
 
 export type SavedSoloWorld = {
     readonly worldId: string;
@@ -177,6 +178,7 @@ export class SoloWorldStore {
                 version !== 18 &&
                 version !== 19 &&
                 version !== warehouseLootSaveVersion &&
+                version !== thirstSaveVersion &&
                 version !== currentSaveVersion
             ) {
                 throw new Error('Unsupported solo save schema version.');
@@ -252,7 +254,8 @@ export class SoloWorldStore {
                             version < warehouseLootSaveVersion && isWarehouseLootId(item.itemId);
                         const isNewWater =
                             version < thirstSaveVersion && item.kind === 'waterBottle';
-                        if (isNewBandage || isNewWarehouseLoot || isNewWater)
+                        const isNewRation = version < hungerSaveVersion && item.kind === 'ration';
+                        if (isNewBandage || isNewWarehouseLoot || isNewWater || isNewRation)
                             chunkLootAdditions.push(item);
                         else savedLoot.push(item);
                     }

@@ -39,7 +39,9 @@ export {
 } from './movement.ts';
 export {
     type DrinkWaterCommand,
+    type EatRationCommand,
     isDrinkWaterCommand,
+    isEatRationCommand,
     isPickupCommand,
     isPickupSnapshot,
     isUseBandageCommand,

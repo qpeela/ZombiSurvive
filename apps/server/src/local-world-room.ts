@@ -20,6 +20,7 @@ import {
 import {
     advanceNeeds,
     drinkWater,
+    eatRation,
     findRespawnPosition,
     initialPlayerNeeds,
     movementStepSeconds,
@@ -197,10 +198,12 @@ export class LocalWorldRoom extends Room {
             if (isCurrentLifeCommand(value, lifeRevision))
                 this.pickup.receiveUseBandage(client.sessionId, value);
         });
-        this.onMessage<unknown>('drink-water', (client, value) => {
-            if (options.soloStore !== undefined && isCurrentLifeCommand(value, lifeRevision))
-                this.pickup.receiveDrink(client.sessionId, value);
-        });
+        for (const command of ['drink-water', 'eat-ration']) {
+            this.onMessage<unknown>(command, (client, value) => {
+                if (options.soloStore !== undefined && isCurrentLifeCommand(value, lifeRevision))
+                    this.pickup.receiveSupplyUse(client.sessionId, value);
+            });
+        }
         this.onMessage<unknown>('movement-input', (client, value) => {
             if (isCurrentLifeCommand(value, lifeRevision))
                 movement.receive(client.sessionId, value);
@@ -302,9 +305,10 @@ export class LocalWorldRoom extends Room {
                 snapshots,
                 snapshot => this.combat.snapshot(snapshot).health,
                 input => this.combat.useBandage(input),
-                ({ snapshot, locations, itemId }) => {
+                ({ snapshot, locations, itemId, kind }) => {
                     if (snapshot.player.playerId !== soloPlayerId) return locations;
-                    const result = drinkWater({ needs, locations, itemId, playerId: soloPlayerId });
+                    const consume = kind === 'drink-water' ? drinkWater : eatRation;
+                    const result = consume({ needs, locations, itemId, playerId: soloPlayerId });
                     needs = result.needs;
                     return result.locations;
                 },

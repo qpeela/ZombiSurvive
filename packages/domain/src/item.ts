@@ -21,8 +21,10 @@ export type WaterBottle = {
     readonly kind: 'waterBottle';
     readonly servings: 0 | 1;
 };
+export type RationItem = { readonly itemId: string; readonly kind: 'ration' };
 export type Item =
     | BandageItem
+    | RationItem
     | WaterBottle
     | { readonly itemId: string; readonly kind: MeleeWeaponId }
     | PistolItem

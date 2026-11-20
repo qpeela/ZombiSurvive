@@ -7,6 +7,22 @@ export const thirstSettings = Object.freeze({
     servingReliefMs: 4 * worldHourMs,
 });
 
+export const hungerSettings = Object.freeze({
+    maximumMs: 12 * worldHourMs,
+    noticeableMs: 3 * worldHourMs,
+    rationReliefMs: 6 * worldHourMs,
+});
+
+export const rationLoot = Object.freeze({
+    chunkX: 0,
+    chunkY: 1,
+    item: Object.freeze({
+        itemId: 'chunk-loot-v1:0:1:ready-ration',
+        kind: 'ration',
+        position: Object.freeze({ xMeters: 0, yMeters: 64 }),
+    } satisfies GroundItem),
+});
+
 export const workshopWater = Object.freeze({
     chunkX: -1,
     chunkY: 0,

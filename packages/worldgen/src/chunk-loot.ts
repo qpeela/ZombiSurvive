@@ -5,6 +5,7 @@ import {
     medicalOutpost,
     militaryWarehouse,
     pistolSettings,
+    rationLoot,
     weaponLootSites,
     workshopWater,
 } from '@zombi-survive/content';
@@ -109,6 +110,9 @@ export const generateChunkLoot = (key: WorldChunkKey): readonly GroundItem[] => 
 
     if (key.chunkX === workshopWater.chunkX && key.chunkY === workshopWater.chunkY)
         loot.push(workshopWater.item);
+
+    if (key.chunkX === rationLoot.chunkX && key.chunkY === rationLoot.chunkY)
+        loot.push(rationLoot.item);
 
     return loot;
 };

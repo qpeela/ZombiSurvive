@@ -14,6 +14,7 @@ export const itemDefinitions = Object.freeze({
     ammo9mm: Object.freeze({ name: 'Патроны 9 мм', columns: 1, rows: 1, weightGrams: 12 }),
     pistol: Object.freeze({ name: 'Пистолет 9 мм', columns: 2, rows: 1, weightGrams: 800 }),
     waterBottle: Object.freeze({ name: 'Бутылка воды', columns: 1, rows: 1, weightGrams: 100 }),
+    ration: Object.freeze({ name: 'Готовый паёк', columns: 1, rows: 1, weightGrams: 80 }),
     bandage: Object.freeze({ name: 'Бинт', columns: 2, rows: 1, weightGrams: 100 }),
     club: Object.freeze({ name: 'Дубинка', columns: 1, rows: 1, weightGrams: 400 }),
     knife: Object.freeze({ name: 'Нож', columns: 1, rows: 1, weightGrams: 100 }),

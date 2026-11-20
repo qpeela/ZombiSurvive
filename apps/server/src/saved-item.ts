@@ -121,6 +121,10 @@ const readKnownItem = (
     const kind = item['kind'];
     const itemId = item['itemId'];
     if (typeof itemId !== 'string') return invalidItem();
+    if (kind === 'ration') {
+        if (worldLoot.get(itemId)?.kind !== kind) return invalidItem();
+        return { itemId, kind };
+    }
     if (kind === 'waterBottle') {
         const servings = item['servings'];
         if (worldLoot.get(itemId)?.kind !== kind || (servings !== 0 && servings !== 1))
@@ -226,7 +230,8 @@ export const readSavedItems = (
             if (
                 !(
                     (item.kind === 'ammo9mm' && item.quantity === 0) ||
-                    (item.kind === 'bandage' && worldItems.has(item.itemId))
+                    ((item.kind === 'bandage' || item.kind === 'ration') &&
+                        worldItems.has(item.itemId))
                 ) ||
                 entry['playerId'] !== undefined ||
                 entry['cell'] !== undefined ||
