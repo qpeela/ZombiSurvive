@@ -15,6 +15,7 @@ export type {
     MovementModifiers,
     PlayerId,
     PlayerMovementState,
+    StaminaEffects,
     WorldId,
     WorldPosition,
 } from './movement.ts';

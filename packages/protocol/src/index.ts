@@ -28,6 +28,7 @@ export {
     meleeVersion,
 } from './melee.ts';
 export {
+    copyMovementPlayer,
     isMovementInputCommand,
     isMovementSnapshot,
     isMovementTargetCommand,

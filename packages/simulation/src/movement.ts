@@ -1,4 +1,4 @@
-import { movementSettings } from '@zombi-survive/content';
+import { hungerSettings, movementSettings, thirstSettings } from '@zombi-survive/content';
 import type {
     MovementDirection,
     MovementModifiers,
@@ -8,14 +8,15 @@ import type {
 
 export const movementStepSeconds = 1 / movementSettings.ticksPerSecond;
 
-export const sprintDrainMultiplier = (weightGrams: number): number => {
+export const sprintDrainMultiplier = (weightGrams: number, isDrainIncreased = false): number => {
     if (!Number.isSafeInteger(weightGrams) || weightGrams < 0)
         throw new RangeError('Carried weight must be a nonnegative integer.');
 
-    return Math.min(
+    const loadMultiplier = Math.min(
         movementSettings.maxLoadDrainMultiplier,
         1 + weightGrams / movementSettings.loadReferenceWeightGrams,
     );
+    return isDrainIncreased ? loadMultiplier * thirstSettings.drainMultiplier : loadMultiplier;
 };
 
 const prepareStep = ({
@@ -37,10 +38,12 @@ const prepareStep = ({
 
     const canSprint = !player.isExhausted && player.stamina > 0;
     const isRunning = isMoving && isSprinting && !isSneaking && canSprint;
+    const { isRecoverySlowed = false, isDrainIncreased = false } = player.staminaEffects ?? {};
+    const recoveryMultiplier = isRecoverySlowed ? hungerSettings.recoveryMultiplier : 1;
     const staminaChange = isRunning
         ? -movementSettings.staminaDrainPerSecond *
-          sprintDrainMultiplier(player.carriedWeightGrams ?? 0)
-        : movementSettings.staminaRecoveryPerSecond;
+          sprintDrainMultiplier(player.carriedWeightGrams ?? 0, isDrainIncreased)
+        : movementSettings.staminaRecoveryPerSecond * recoveryMultiplier;
     const stamina = Math.min(1, Math.max(0, player.stamina + staminaChange * stepSeconds));
     const isExhausted =
         stamina === 0 || (player.isExhausted && stamina < movementSettings.sprintRecoveryThreshold);

@@ -1,6 +1,7 @@
 import type {
     MovementDirection,
     PlayerMovementState,
+    StaminaEffects,
     WorldChunk,
     WorldId,
     WorldPosition,
@@ -115,6 +116,13 @@ export class LocalWorldMovement {
         if (input === undefined) throw new Error('Cannot weigh an unknown player.');
 
         input.player = { ...input.player, carriedWeightGrams: weightGrams };
+    }
+
+    setStaminaEffects(playerId: string, effects: StaminaEffects): void {
+        const input = this.players.get(playerId);
+        if (input === undefined) throw new Error('Cannot update stamina for an unknown player.');
+
+        input.player = { ...input.player, staminaEffects: effects };
     }
 
     leave(sessionId: string): void {

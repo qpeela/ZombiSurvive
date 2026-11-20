@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { expect, test } from '@playwright/test';
-import { rationLoot, workshopWater } from '@zombi-survive/content';
+import { hungerSettings, rationLoot, thirstSettings, workshopWater } from '@zombi-survive/content';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
 import { openInventory } from '../fixtures/game-panels.mjs';
@@ -120,3 +120,58 @@ test('one ready ration reduces hunger independently of thirst and stays consumed
         rmSync(directory, { recursive: true, force: true });
     }
 });
+
+for (const { supply, pickUpName, selector, action, affected, other } of [
+    {
+        supply: workshopWater,
+        pickUpName: 'Бутылка воды',
+        selector: /^Переместить: Бутылка воды/,
+        action: 'Пить',
+        affected: 'thirst',
+        other: 'hunger',
+    },
+    {
+        supply: rationLoot,
+        pickUpName: 'Готовый паёк',
+        selector: /^Переместить: Готовый паёк/,
+        action: 'Съесть',
+        affected: 'hunger',
+        other: 'thirst',
+    },
+]) {
+    test(`${action} removes only its own stamina penalty`, async ({ page }) => {
+        const directory = mkdtempSync(join(tmpdir(), 'zombi-stamina-smoke-'));
+        const path = join(directory, 'world.sqlite');
+        const store = new SoloWorldStore(path);
+        store.savePosition(supply.item.position, 0, {
+            thirstMs: thirstSettings.maximumMs,
+            hungerMs: hungerSettings.maximumMs,
+        });
+        store.close();
+        const host = startHost(path);
+        try {
+            await expect.poll(host.output).toContain('Local world ready');
+            await page.goto(origin);
+            const hints = {
+                thirst: 'Спринт быстрее тратит выносливость',
+                hunger: 'Выносливость восстанавливается медленнее',
+            };
+            const affectedLabel = page.locator(`#${affected}-status`);
+            const otherLabel = page.locator(`#${other}-status`);
+            await expect(affectedLabel).toContainText(hints[affected]);
+            await expect(otherLabel).toContainText(hints[other]);
+            await page.getByRole('button', { name: `Взять: ${pickUpName}`, exact: true }).click();
+            await openInventory(page);
+            const item = page.getByRole('button', { name: selector });
+            await expect(item).toBeVisible();
+            await item.press('Shift+F10');
+            await page.getByRole('menuitem', { name: action, exact: true }).click();
+            await expect(affectedLabel).not.toContainText(hints[affected]);
+            await expect(affectedLabel).toBeVisible();
+            await expect(otherLabel).toContainText(hints[other]);
+        } finally {
+            await host.stop('SIGTERM');
+            rmSync(directory, { recursive: true, force: true });
+        }
+    });
+}

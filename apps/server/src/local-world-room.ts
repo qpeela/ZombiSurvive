@@ -24,6 +24,7 @@ import {
     findRespawnPosition,
     initialPlayerNeeds,
     movementStepSeconds,
+    staminaEffectsFromNeeds,
     stepWorldClock,
 } from '@zombi-survive/simulation';
 import { generateChunkLoot, loadWorldChunks } from '@zombi-survive/worldgen';
@@ -279,6 +280,19 @@ export class LocalWorldRoom extends Room {
                 }
             }
 
+            const isSoloPresent =
+                movement.isPlayerConnected(soloPlayerId) ||
+                (this.offlineVulnerabilityTicks > 0 &&
+                    movement.disconnectedSoloSnapshot() !== null);
+            if (
+                options.soloStore !== undefined &&
+                isSoloPresent &&
+                this.combat.health(soloPlayerId) > 0
+            ) {
+                needs = advanceNeeds(needs, this.worldTimeMs - previousWorldTimeMs);
+                movement.setStaminaEffects(soloPlayerId, staminaEffectsFromNeeds(needs));
+            }
+
             const expiredCorpses = this.pickup.stageExpiry(nowMs);
             movement.step(
                 playerId => this.combat.health(playerId),
@@ -292,15 +306,6 @@ export class LocalWorldRoom extends Room {
                 const offline = movement.disconnectedSoloSnapshot();
                 if (offline !== null) snapshots.set('offline:solo', offline);
             }
-            const isSoloPresent =
-                movement.isPlayerConnected(soloPlayerId) || snapshots.has('offline:solo');
-            if (
-                options.soloStore !== undefined &&
-                isSoloPresent &&
-                this.combat.health(soloPlayerId) > 0
-            )
-                needs = advanceNeeds(needs, this.worldTimeMs - previousWorldTimeMs);
-
             this.pickup.step(
                 snapshots,
                 snapshot => this.combat.snapshot(snapshot).health,

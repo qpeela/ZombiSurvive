@@ -176,6 +176,14 @@ const isPlayer = (value: unknown): value is PlayerMovementState => {
             carriedWeight >= 0);
     if (!isValidWeight) return false;
 
+    const effects = value['staminaEffects'];
+    const isValidEffects =
+        effects === undefined ||
+        (isRecord(effects) &&
+            typeof effects['isRecoverySlowed'] === 'boolean' &&
+            typeof effects['isDrainIncreased'] === 'boolean');
+    if (!isValidEffects) return false;
+
     const position = value['position'];
 
     if (!isRecord(position)) {
@@ -240,3 +248,24 @@ export const isMovementSnapshot = (value: unknown): value is MovementSnapshot =>
 
     return true;
 };
+
+/** Copy the player fields carried by snapshots, detaching mutable nested input values. */
+export const copyMovementPlayer = (player: PlayerMovementState): PlayerMovementState => ({
+    playerId: player.playerId,
+    stamina: player.stamina,
+    ...(player.carriedWeightGrams === undefined
+        ? {}
+        : { carriedWeightGrams: player.carriedWeightGrams }),
+    ...(player.staminaEffects === undefined
+        ? {}
+        : {
+              staminaEffects: {
+                  isRecoverySlowed: player.staminaEffects.isRecoverySlowed,
+                  isDrainIncreased: player.staminaEffects.isDrainIncreased,
+              },
+          }),
+    isExhausted: player.isExhausted,
+    isSneaking: player.isSneaking,
+    noiseRadiusMeters: player.noiseRadiusMeters,
+    position: { xMeters: player.position.xMeters, yMeters: player.position.yMeters },
+});
