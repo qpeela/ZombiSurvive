@@ -73,4 +73,69 @@ test('the map reveals entered chunks, remembers unloaded terrain and keeps input
     }
     await page.keyboard.press('m');
     await expect(mapCanvas).toHaveAttribute('data-visible-chunks', '0,0 1,0 2,0');
+    await page.reload();
+    await expect(status).toHaveAttribute('data-status', 'connected');
+    await page.getByRole('button', { name: 'Карта (M)', exact: true }).click();
+    await map.getByRole('button', { name: 'Уменьшить карту' }).click();
+    await expect(mapCanvas).toHaveAttribute('data-visible-chunks', '0,0 1,0 2,0');
+});
+
+const openMap = async page => {
+    await expect(page.locator('#connection-status')).toHaveAttribute('data-status', 'connected');
+    await page.getByRole('button', { name: 'Карта (M)', exact: true }).click();
+
+    return page.getByRole('region', { name: 'Карта посещений' });
+};
+
+test('map markers survive reload and support rename and removal', async ({ page }) => {
+    await page.goto('/');
+    const map = await openMap(page);
+    const markers = map.getByLabel('Личные метки');
+    const name = map.getByLabel('Название метки');
+    const viewport = map.getByRole('group', { name: 'Рельеф посещённых участков' });
+    const add = map.getByRole('button', { name: 'Поставить метку' });
+    await viewport.press('ArrowRight');
+    await viewport.press('ArrowRight');
+    await expect(add).toBeDisabled();
+    await map.getByRole('button', { name: 'К игроку' }).click();
+    await name.fill('Начало маршрута');
+    await add.click();
+    await expect(map.getByText('Метка поставлена.')).toBeVisible();
+
+    await page.reload();
+    await openMap(page);
+    await markers.selectOption({ label: 'Начало маршрута' });
+    await expect(name).toHaveValue('Начало маршрута');
+    await name.fill('Точка сбора');
+    await map.getByRole('button', { name: 'Переименовать' }).click();
+    await page.reload();
+    await openMap(page);
+    await markers.selectOption({ label: 'Точка сбора' });
+    await map.getByRole('button', { name: 'Удалить метку' }).click();
+    await expect(markers).toBeFocused();
+    await expect(map.getByText('Метка удалена.')).toBeVisible();
+    await page.reload();
+    await openMap(page);
+    await expect(markers.locator('option')).toHaveText(['Новая метка']);
+});
+
+test('map markers work with browser storage blocked', async ({ page }) => {
+    await page.addInitScript(() => {
+        Object.defineProperty(globalThis, 'localStorage', {
+            get: () => {
+                throw new DOMException('Storage is disabled', 'SecurityError');
+            },
+        });
+    });
+    await page.goto('/');
+    const map = await openMap(page);
+    await map.getByLabel('Название метки').fill('Временная');
+    await map.getByRole('button', { name: 'Поставить метку' }).click();
+    await expect(map.getByLabel('Личные метки').locator('option')).toHaveText([
+        'Новая метка',
+        'Временная',
+    ]);
+    await page.reload();
+    await openMap(page);
+    await expect(map.getByLabel('Личные метки').locator('option')).toHaveText(['Новая метка']);
 });

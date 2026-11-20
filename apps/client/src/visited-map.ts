@@ -2,10 +2,15 @@ import { medicalOutpost, worldGenerationSettings } from '@zombi-survive/content'
 import type { WorldChunk, WorldPosition } from '@zombi-survive/domain';
 import { generateWorldChunk } from '@zombi-survive/worldgen';
 
+import { createMapMarkerControls } from './map-markers';
+import { createMapStorage, type MapMarker } from './map-storage';
+
 const { chunkSizeMeters, generatorVersion, initialSeed: seed } = worldGenerationSettings;
 const chunkCoordinate = (meters: number): number =>
     Math.floor((meters + chunkSizeMeters / 2) / chunkSizeMeters);
 const chunkId = (chunkX: number, chunkY: number): string => `${String(chunkX)},${String(chunkY)}`;
+const mapChunkId = ({ xMeters, yMeters }: WorldPosition): string =>
+    chunkId(chunkCoordinate(xMeters), chunkCoordinate(yMeters));
 const terrainColors = { grass: '#34523e', dirt: '#5f5439', gravel: '#758373' };
 const panDirections = new Map<string, readonly [number, number]>([
     ['ArrowUp', [0, -1]],
@@ -20,12 +25,16 @@ export const createVisitedMap = ({
     zoomIn,
     zoomOut,
     centerPlayer,
+    markerForm,
+    host,
 }: {
     readonly viewport: HTMLElement;
     readonly coordinates: HTMLElement;
     readonly zoomIn: HTMLButtonElement;
     readonly zoomOut: HTMLButtonElement;
     readonly centerPlayer: HTMLButtonElement;
+    readonly markerForm: HTMLFormElement;
+    readonly host: string;
 }): {
     accept: (worldId: string, position: WorldPosition) => void;
     disconnect: () => void;
@@ -36,7 +45,9 @@ export const createVisitedMap = ({
     canvas.setAttribute('aria-hidden', 'true');
     const context = canvas.getContext('2d');
     let worldId: string | null = null;
-    const visited = new Set<string>();
+    let visited = new Set<string>();
+    let markers = new Map<string, MapMarker>();
+    const storage = createMapStorage(host);
     let chunks = new Map<string, WorldChunk>();
     let position: WorldPosition | null = null;
     let center: WorldPosition | null = null;
@@ -113,6 +124,25 @@ export const createVisitedMap = ({
         chunks = nextChunks;
         canvas.dataset['visibleChunks'] = [...chunks.keys()].join(' ');
         canvas.dataset['pixelsPerMeter'] = String(pixelsPerMeter);
+        context.strokeStyle = '#df9ced';
+        context.lineWidth = 2;
+        for (const marker of markers.values()) {
+            const x = (marker.xMeters - left) * pixelsPerMeter;
+            const y = (marker.yMeters - top) * pixelsPerMeter;
+            context.strokeRect(x - 6, y - 6, 12, 12);
+        }
+
+        const centerX = width / 2;
+        const centerY = height / 2;
+        context.strokeStyle = '#ece7d9';
+        context.lineWidth = 1;
+        context.beginPath();
+        context.moveTo(centerX - 7, centerY);
+        context.lineTo(centerX + 7, centerY);
+        context.moveTo(centerX, centerY - 7);
+        context.lineTo(centerX, centerY + 7);
+        context.stroke();
+
         if (position !== null) {
             context.beginPath();
             context.arc(
@@ -132,14 +162,52 @@ export const createVisitedMap = ({
         if (canvas.isConnected && frame === 0) frame = requestAnimationFrame(draw);
     };
     const resize = new ResizeObserver(scheduleDraw);
+    const listeners = new AbortController();
+    const { signal } = listeners;
+    const canMark = (): boolean => center !== null && visited.has(mapChunkId(center));
+    const locate = (location: WorldPosition): void => {
+        center = location;
+        markerControls.updateTarget();
+        scheduleDraw();
+    };
+    const markerControls = createMapMarkerControls({
+        form: markerForm,
+        canMark,
+        locate,
+        signal,
+        save: (label, id) => {
+            const previous = id === null ? undefined : markers.get(id);
+            const isNewMarker = id === null && center !== null && canMark();
+            if (previous === undefined && !isNewMarker) return null;
+
+            const location = previous ?? center;
+            if (location === null) return null;
+
+            const marker = {
+                xMeters: location.xMeters,
+                yMeters: location.yMeters,
+                id: id ?? crypto.getRandomValues(new Uint32Array(4)).join('-'),
+                label,
+            };
+            markers.set(marker.id, marker);
+            storage.save(marker);
+            scheduleDraw();
+
+            return marker;
+        },
+        remove: id => {
+            markers.delete(id);
+            storage.remove(id);
+            scheduleDraw();
+        },
+    });
     const pan = (xPixels: number, yPixels: number): void => {
         if (center === null) return;
 
-        center = {
+        locate({
             xMeters: center.xMeters + xPixels / pixelsPerMeter,
             yMeters: center.yMeters + yPixels / pixelsPerMeter,
-        };
-        scheduleDraw();
+        });
     };
     const zoom = (factor: number): void => {
         pixelsPerMeter = Math.max(1, Math.min(8, pixelsPerMeter * factor));
@@ -154,8 +222,7 @@ export const createVisitedMap = ({
     const onCenter = (): void => {
         if (position === null) return;
 
-        center = position;
-        scheduleDraw();
+        locate(position);
     };
     const onWheel = (event: WheelEvent): void => {
         event.preventDefault();
@@ -185,8 +252,6 @@ export const createVisitedMap = ({
     const onLostCapture = (): void => {
         drag = null;
     };
-    const listeners = new AbortController();
-    const { signal } = listeners;
     zoomIn.addEventListener('click', onZoomIn, { signal });
     zoomOut.addEventListener('click', onZoomOut, { signal });
     centerPlayer.addEventListener('click', onCenter, { signal });
@@ -205,6 +270,7 @@ export const createVisitedMap = ({
     const setOpen = (isOpen: boolean): void => {
         if (isOpen) {
             center = position ?? center;
+            markerControls.updateTarget();
             updatePositionLabel();
             viewport.append(canvas);
             resize.observe(viewport);
@@ -229,15 +295,25 @@ export const createVisitedMap = ({
             const isNewWorld = nextWorldId !== worldId;
             if (isNewWorld) {
                 worldId = nextWorldId;
-                visited.clear();
+                const records = storage.load(nextWorldId);
+                visited = records.visited;
+                markers = new Map(
+                    [...records.markers].filter(([, marker]) => visited.has(mapChunkId(marker))),
+                );
                 chunks.clear();
                 center = null;
+                markerControls.setMarkers(markers);
             }
 
             const chunkX = chunkCoordinate(nextPosition.xMeters);
             const chunkY = chunkCoordinate(nextPosition.yMeters);
             const isSupportedChunk = Math.abs(chunkX) <= 1_000_000 && Math.abs(chunkY) <= 1_000_000;
-            if (isSupportedChunk) visited.add(chunkId(chunkX, chunkY));
+            const id = chunkId(chunkX, chunkY);
+            const isNewVisit = isSupportedChunk && !visited.has(id);
+            if (isNewVisit) {
+                visited.add(id);
+                storage.visit(id);
+            }
             const hasPositionChanged =
                 nextPosition.xMeters !== position?.xMeters ||
                 nextPosition.yMeters !== position.yMeters;
@@ -245,6 +321,7 @@ export const createVisitedMap = ({
             center ??= position;
             centerPlayer.disabled = false;
             if (canvas.isConnected && (isNewWorld || hasPositionChanged)) {
+                markerControls.updateTarget();
                 updatePositionLabel();
                 scheduleDraw();
             }
