@@ -76,6 +76,9 @@ test('the same distant zombie and bandage are visible by day, hidden at night wi
         await expect(page.locator('canvas')).toHaveAttribute('data-zombies', /slow-zombie-1/);
         await page.locator('canvas').screenshot({ path: '.cache/t055-night.png' });
         await page.reload();
+        await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
+        await expect(page.locator('canvas')).toHaveAttribute('data-player-visible', 'true');
+        await expect(page.locator('canvas')).toHaveAttribute('data-daylight-phase', 'night');
         await expect(page.locator('canvas')).toHaveAttribute('data-ground-item-visible', 'false');
         await expect(bandage(page)).toBeHidden();
         await movePlayerTo({ page, position: { xMeters: 2, yMeters: 1.5 } });

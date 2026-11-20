@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 
+import { movePlayerTo } from '../fixtures/game-controls.mjs';
 import { isolatedHostOrigin, test } from '../fixtures/isolated-host.mjs';
 
 test.use({ baseURL: isolatedHostOrigin });
@@ -86,6 +87,27 @@ const openMap = async page => {
 
     return page.getByRole('region', { name: 'Карта посещений' });
 };
+
+test('the map identifies a landmark when its chunk is visited and remembers it', async ({
+    page,
+}) => {
+    test.setTimeout(55_000);
+    await page.goto('/');
+    const map = await openMap(page);
+    const landmarks = map.getByRole('list', { name: 'Открытые постройки' });
+    await expect(landmarks).toBeHidden();
+    await page.keyboard.press('Escape');
+    await movePlayerTo({ page, position: { xMeters: 0, yMeters: -9 } });
+    for (const yMeters of [-18, -27, -36]) {
+        await movePlayerTo({ page, position: { xMeters: 0, yMeters } });
+    }
+    await openMap(page);
+    await expect(landmarks).toHaveText('Военный склад');
+    await expect(map.locator('canvas')).toHaveAttribute('data-visible-chunks', /0,-1/);
+    await page.reload();
+    await openMap(page);
+    await expect(landmarks).toHaveText('Военный склад');
+});
 
 test('map markers survive reload and support rename and removal', async ({ page }) => {
     await page.goto('/');

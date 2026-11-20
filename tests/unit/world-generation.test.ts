@@ -1,4 +1,4 @@
-import { collisionSettings } from '@zombi-survive/content';
+import { collisionSettings, worldLandmarks } from '@zombi-survive/content';
 import type { WorldChunk, WorldChunkKey } from '@zombi-survive/domain';
 import { resolveMovement } from '@zombi-survive/simulation';
 import { generateWorldChunk, initialWorldChunk } from '@zombi-survive/worldgen';
@@ -106,6 +106,16 @@ test('chunks contain complete immutable terrain, bounded non-overlapping obstacl
             ).toBe(false);
         }
     }
+});
+
+test.each(worldLandmarks)('$name has a north approach through the original ruins', site => {
+    const { chunkX, chunkY, entrance, floor } = site;
+    const chunk = generateWorldChunk({ ...key, chunkX, chunkY });
+    const interior = { ...entrance, yMeters: floor.minYMeters + floor.heightMeters / 2 };
+
+    expect(entrance.yMeters).toBeLessThan(floor.minYMeters);
+    expect(resolveMovement(entrance, interior, chunk.obstacles)).toEqual(interior);
+    expect(resolveMovement(interior, entrance, chunk.obstacles)).toEqual(entrance);
 });
 
 test.each([
