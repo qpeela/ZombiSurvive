@@ -8,7 +8,7 @@ import { expect, test } from '@playwright/test';
 import { localWorldRoomId, protocolVersion } from '@zombi-survive/protocol';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
-import { movePlayerTo } from '../fixtures/game-controls.mjs';
+import { aimWorld, clickWorld, movePlayerTo } from '../fixtures/game-controls.mjs';
 import { openInventory } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3160';
@@ -271,6 +271,100 @@ test('loot outline follows the selected source and clears out of loot range or b
                 running.host.kill('SIGKILL');
             await running.exited;
         }
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
+
+test('E selects a visible source near the pointer or the nearest source and keeps right-click shooting', async ({
+    page,
+}) => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-world-context-'));
+    const path = join(directory, 'world.sqlite');
+    const now = Date.now();
+    const hour = 3_600_000;
+    const startPosition = { xMeters: 1, yMeters: 2 };
+    const groundPosition = { xMeters: 2, yMeters: 2 };
+    const store = new SoloWorldStore(path);
+    const { playerId } = store.initialWorld;
+    const body = {
+        corpseId: 'world-context-body',
+        playerId,
+        position: startPosition,
+        diedAtMs: now - hour,
+        expiresAtMs: now + 23 * hour,
+    };
+    store.savePosition(startPosition, 14 * hour);
+    store.saveCombat(
+        { health: 100, cooldownTicks: 0, bleedingTicks: 0 },
+        store.initialItemLocations.map(location => {
+            if (location.type === 'container' && location.item.kind === 'knife')
+                return { type: 'corpse', corpseId: body.corpseId, item: location.item };
+            if (location.item.itemId === 'pistol-v1:0:0')
+                return {
+                    type: 'hands',
+                    playerId,
+                    item: {
+                        itemId: location.item.itemId,
+                        kind: 'pistol',
+                        magazineCapacity: 8,
+                        rounds: 3,
+                    },
+                };
+
+            return location;
+        }),
+        startPosition,
+        [body],
+    );
+    store.close();
+    const { host, exited, output } = start({ path, now });
+    try {
+        await expect.poll(output).toContain('Local world ready');
+        await page.goto(origin);
+        const field = page.getByRole('region', { name: 'Игровое поле' });
+        const menu = page.getByRole('region', { name: 'Действия рядом' });
+        const take = page.getByRole('button', { name: 'Взять: Бинт', exact: true });
+        await expect(take).toBeEnabled();
+        await expect(page.locator('#held-ammo')).toContainText('3/8');
+
+        await field.focus();
+        await aimWorld({ page, position: { xMeters: 1, yMeters: 4 } });
+        await page.keyboard.press('e');
+        await menu.getByRole('button', { name: 'Открыть вещи' }).click();
+        await expect(menu).toBeHidden();
+        const group = page.getByRole('region', { name: /^Тело ·/ });
+        await expect(group.getByRole('button', { name: 'Взять: Нож' })).toBeEnabled();
+        await expect(group).toBeFocused();
+
+        await field.focus();
+        await aimWorld({ page, position: groundPosition });
+        await page.keyboard.press('e');
+        const action = menu.getByRole('button', { name: 'Взять' });
+        await expect(action).toBeFocused();
+        await expect(menu).toContainText('Бинт');
+        await menu.screenshot({ path: '.cache/t072-world-context.png' });
+        await page.keyboard.press('Escape');
+        await expect(menu).toBeHidden();
+        await expect(field).toBeFocused();
+        await clickWorld({ page, position: groundPosition, button: 'right' });
+        await expect(page.locator('#held-ammo')).toContainText('2/8');
+        await expect(menu).toBeHidden();
+        await page.keyboard.press('e');
+        await expect(action).toBeFocused();
+        await page.keyboard.press('Enter');
+        await expect(take).toHaveCount(0);
+        await expect(menu).toBeHidden();
+
+        await page.keyboard.press('e');
+        await expect(menu.getByRole('button', { name: 'Открыть вещи' })).toBeFocused();
+        host.send({ type: 'advance-wall-clock', nowMs: body.expiresAtMs + 1 });
+        await expect(menu).toBeHidden();
+        await expect(field).toBeFocused();
+        await page.keyboard.press('e');
+        await expect(menu).toBeHidden();
+    } finally {
+        if (host.exitCode === null && host.signalCode === null) host.kill('SIGKILL');
+        await exited;
         rmSync(directory, { recursive: true, force: true });
     }
 });

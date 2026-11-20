@@ -31,9 +31,9 @@
                             type="button"
                             aria-controls="equipment-panel"
                             aria-expanded="false"
-                            aria-keyshortcuts="E"
+                            aria-keyshortcuts="Q"
                         >
-                            Экипировка (E)
+                            Экипировка (Q)
                         </button>
                     </div>
                 </div>
@@ -88,7 +88,8 @@
                         <p class="game-version">Версия __GAME_VERSION__</p>
                         <p class="description">
                             WASD — движение · Shift — спринт · Ctrl — скрытность · Левый клик — идти
-                            к точке · Мышь — прицел. WASD отменяет выбранную точку.
+                            к точке · Мышь — прицел · E — взаимодействовать. WASD отменяет выбранную
+                            точку.
                         </p>
                     </header>
                     <form id="player-profile" novalidate>
@@ -167,6 +168,17 @@
                     </p>
                     <button id="respawn" type="button" disabled>Возродиться</button>
                 </div>
+                <section
+                    id="world-context"
+                    class="world-context"
+                    aria-label="Действия рядом"
+                    tabindex="-1"
+                    hidden
+                >
+                    <strong id="world-context-target"></strong>
+                    <button id="world-context-action" type="button"></button>
+                    <span id="world-context-reason"></span>
+                </section>
                 <div class="playfield-hud">
                     <div class="stamina-hud">
                         <span id="player-name">Имя: —</span>

@@ -165,7 +165,7 @@ test('v2 migrates; inventory and hands survive tabs, reload and SIGKILL in a fre
         await openInventory(page);
         const axeSelector = page.getByRole('button', { name: /^Переместить: Топор/i });
         await axeSelector.click();
-        await page.keyboard.press('e');
+        await page.keyboard.press('q');
         await expect(page.locator('#equipment-panel')).toBeFocused();
         await openInventory(tab);
         await tab

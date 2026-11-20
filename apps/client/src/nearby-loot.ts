@@ -39,6 +39,26 @@ type NearbyState = {
     readonly life: PlayerLifeState | null;
 };
 
+export const isWithinPickupRange = (from: WorldPosition, to: WorldPosition): boolean =>
+    Math.hypot(from.xMeters - to.xMeters, from.yMeters - to.yMeters) <= pickupSettings.rangeMeters;
+
+export const getPickupReason = (
+    state: Pick<NearbyState, 'position' | 'life' | 'inventory'>,
+    target: WorldPosition,
+    item: Item,
+    canReach: (from: WorldPosition, to: WorldPosition) => boolean,
+): string | null => {
+    const { position, life, inventory } = state;
+    if (life === null) return 'Ожидание данных персонажа…';
+    if (life === 'dead') return 'Персонаж погиб.';
+    if (!isWithinPickupRange(position, target)) return 'Подойдите ближе.';
+    if (!canReach(position, target)) return 'Путь к предмету перекрыт.';
+    if (findInventorySpace({ items: inventory, item }) === null)
+        return 'В сетке нет места или превышена допустимая масса.';
+
+    return null;
+};
+
 const setText = (element: HTMLElement, text: string): void => {
     if (element.textContent !== text) element.textContent = text;
 };
@@ -116,7 +136,11 @@ export const createNearbyLoot = ({
     readonly canReach: (from: WorldPosition, to: WorldPosition) => boolean;
     readonly onPickup: (itemId: string) => void;
     readonly onHighlight: (source: LootSource | null) => void;
-}): { update: (state: NearbyState | null) => void; dispose: () => void } => {
+}): {
+    update: (state: NearbyState | null) => void;
+    focusCorpse: (id: string) => void;
+    dispose: () => void;
+} => {
     const groups = new Map<string, CorpseGroup>();
     let groundButton = initialGroundButton;
     groundRow.setAttribute('role', 'group');
@@ -158,22 +182,6 @@ export const createNearbyLoot = ({
         isPointerPrimary = false;
         updateHighlight(event.type === 'focusin' ? event.target : event.relatedTarget);
     };
-    const getReason = (state: NearbyState, target: WorldPosition, item: Item): string | null => {
-        const { position, life, inventory } = state;
-        if (life === null) return 'Ожидание данных персонажа…';
-        if (life === 'dead') return 'Персонаж погиб.';
-
-        const distance = Math.hypot(
-            position.xMeters - target.xMeters,
-            position.yMeters - target.yMeters,
-        );
-        if (distance > pickupSettings.rangeMeters) return 'Подойдите ближе.';
-        if (!canReach(position, target)) return 'Путь к предмету перекрыт.';
-        if (findInventorySpace({ items: inventory, item }) === null)
-            return 'В сетке нет места или превышена допустимая масса.';
-
-        return null;
-    };
     const onClick = (event: MouseEvent): void => {
         const button = event.target;
         if (!(button instanceof HTMLButtonElement) || button.disabled) return;
@@ -212,7 +220,7 @@ export const createNearbyLoot = ({
                     groundLabel,
                     `На земле: ${itemDisplayName(ground)} · ${String(position.xMeters)}, ${String(position.yMeters)} м`,
                 );
-                const reason = getReason(state, position, ground);
+                const reason = getPickupReason(state, position, ground, canReach);
                 const { columns, rows } = itemDefinitions[kind];
                 groundRow.tabIndex = reason === null ? -1 : 0;
                 groundRow.setAttribute('aria-label', `На земле: ${itemDisplayName(ground)}`);
@@ -271,7 +279,7 @@ export const createNearbyLoot = ({
                         group.element.append(row.element);
                     }
 
-                    const reason = getReason(state, corpse.position, item);
+                    const reason = getPickupReason(state, corpse.position, item, canReach);
                     setText(row.name, itemDisplayName(item));
                     setText(row.reason, reason ?? '');
                     row.element.tabIndex = reason === null ? -1 : 0;
@@ -281,6 +289,7 @@ export const createNearbyLoot = ({
             }
             updateHighlight();
         },
+        focusCorpse: id => groups.get(id)?.element.focus(),
         dispose: () => {
             panel.removeEventListener('click', onClick);
             panel.removeEventListener('pointerover', onPointerChange);

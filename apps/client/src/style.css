@@ -120,6 +120,19 @@ h1 {
     cursor: none;
 }
 
+.world-context:not([hidden]) {
+    position: fixed;
+    z-index: 5;
+    display: grid;
+    gap: 6px;
+    max-width: min(15rem, calc(100vw - 16px));
+    padding: 8px;
+    border: 1px solid #829466;
+    background: #101913;
+    font-size: 13px;
+    overflow-wrap: anywhere;
+}
+
 .playfield-hud {
     position: absolute;
     inset: 12px auto 12px 12px;

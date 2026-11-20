@@ -12,7 +12,7 @@ test('opening panels releases held movement; Tab, clicks and attack keys stay in
     const field = page.getByRole('region', { name: 'Игровое поле' });
     const inventory = page.getByRole('region', { name: 'Инвентарь' });
     const equipment = page.getByRole('region', { name: 'Экипировка' });
-    const equipmentToggle = page.getByRole('button', { name: 'Экипировка (E)', exact: true });
+    const equipmentToggle = page.getByRole('button', { name: 'Экипировка (Q)', exact: true });
     const canvas = page.locator('canvas');
     const position = async () => Number(await status.getAttribute('data-x-meters'));
     const tick = async () => Number(await status.getAttribute('data-tick'));
@@ -62,7 +62,7 @@ test('opening panels releases held movement; Tab, clicks and attack keys stay in
         await expect(canvas).toHaveAttribute('data-weapon-attack-tick', '-1');
 
         await selector.focus();
-        await page.keyboard.press('e');
+        await page.keyboard.press('q');
         await expect(equipment).toBeFocused();
         await expect(inventory).toBeVisible();
         await page.keyboard.press('Escape');

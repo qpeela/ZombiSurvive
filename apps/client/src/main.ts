@@ -2,6 +2,7 @@ import './style.css';
 
 import {
     itemDefinitions,
+    itemDisplayName,
     meleeWeapons,
     movementSettings,
     pistolSettings,
@@ -32,12 +33,19 @@ import { createEquipmentHud } from './equipment-hud';
 import { createFullscreenControls } from './fullscreen';
 import type { InventoryContextAction } from './inventory-context-menu';
 import { createInventoryGrid } from './inventory-grid';
+import type { LootSource } from './loot-highlight';
 import { createMovementInputController } from './movement-input';
 import { MovementPrediction } from './movement-prediction';
-import { type CorpseLoot, createNearbyLoot } from './nearby-loot';
+import {
+    type CorpseLoot,
+    createNearbyLoot,
+    getPickupReason,
+    isWithinPickupRange,
+} from './nearby-loot';
 import { createPlayerProfileControls } from './player-profile';
 import { formatWorldTime } from './world-clock';
 import { createWorldConnection } from './world-connection';
+import { createWorldContext } from './world-context';
 import { createWorldHud } from './world-hud';
 import { createWorldSession } from './world-session';
 
@@ -101,6 +109,10 @@ const itemDetails = document.querySelector<HTMLElement>('#item-details');
 const inventoryContext = document.querySelector<HTMLElement>('#inventory-context');
 const bandageButton = document.querySelector<HTMLButtonElement>('#use-bandage');
 const corpseItems = document.querySelector<HTMLElement>('#corpse-items');
+const worldContextPanel = document.querySelector<HTMLElement>('#world-context');
+const worldContextTarget = document.querySelector<HTMLElement>('#world-context-target');
+const worldContextAction = document.querySelector<HTMLButtonElement>('#world-context-action');
+const worldContextReason = document.querySelector<HTMLElement>('#world-context-reason');
 const respawnButton = document.querySelector<HTMLButtonElement>('#respawn');
 const deathScreen = document.querySelector<HTMLElement>('#death-screen');
 
@@ -166,6 +178,10 @@ if (
     !bandageButton ||
     !deathScreen ||
     !corpseItems ||
+    !worldContextPanel ||
+    !worldContextTarget ||
+    !worldContextAction ||
+    !worldContextReason ||
     !respawnButton
 ) {
     throw new Error('Game UI is missing.');
@@ -336,6 +352,11 @@ const onFlashlight = (): void => {
     updateFlashlight();
 };
 let corpses: readonly CorpseLoot[] = [];
+const canReachLoot = (from: WorldPosition, to: WorldPosition): boolean =>
+    scene.canReachLoot(from, to);
+const pickUp = (itemId: string): void => {
+    if (lifeState === 'alive') connection.pickUp(itemId);
+};
 const nearbyUi = createNearbyLoot({
     panel: nearbyPanel,
     status: nearbyStatus,
@@ -344,10 +365,8 @@ const nearbyUi = createNearbyLoot({
     groundButton: pickup,
     groundReason,
     corpseList: corpseItems,
-    canReach: (from, to) => scene.canReachLoot(from, to),
-    onPickup: itemId => {
-        if (lifeState === 'alive') connection.pickUp(itemId);
-    },
+    canReach: canReachLoot,
+    onPickup: pickUp,
     onHighlight: source => {
         scene.setLootHighlight(source);
     },
@@ -371,6 +390,73 @@ const updatePickup = (): void => {
         life: lifeState,
     });
 };
+const worldContext = createWorldContext({
+    panel: worldContextPanel,
+    title: worldContextTarget,
+    action: worldContextAction,
+    reason: worldContextReason,
+    playfield: container,
+    getTargets: () => {
+        const position = confirmedPosition;
+        if (position === null || lifeState !== 'alive' || !hasPickupSnapshot) return [];
+
+        const targets: (LootSource & {
+            readonly position: WorldPosition;
+            readonly label: string;
+            readonly item: GroundItem | null;
+        })[] = corpses.map(corpse => ({
+            kind: 'corpse',
+            id: corpse.corpseId,
+            position: corpse.position,
+            label: 'Тело',
+            item: null,
+        }));
+        const ground = receivedGroundItem;
+        if (ground !== null) {
+            targets.push({
+                kind: 'ground',
+                id: ground.itemId,
+                position: ground.position,
+                label: itemDisplayName(ground),
+                item: ground,
+            });
+        }
+
+        return targets.flatMap(({ position: target, item, ...source }) => {
+            if (!isWithinPickupRange(position, target) || !canReachLoot(position, target))
+                return [];
+
+            const point = scene.getLootScreenPoint(target, source.kind);
+            if (point === null) return [];
+
+            const reason =
+                item === null
+                    ? null
+                    : getPickupReason(
+                          { position, life: lifeState, inventory: inventoryItems },
+                          target,
+                          item,
+                          canReachLoot,
+                      );
+
+            return [
+                {
+                    ...point,
+                    ...source,
+                    distance: Math.hypot(
+                        target.xMeters - position.xMeters,
+                        target.yMeters - position.yMeters,
+                    ),
+                    reason,
+                },
+            ];
+        });
+    },
+    onAction: ({ kind, id }) => {
+        if (kind === 'ground') pickUp(id);
+        else nearbyUi.focusCorpse(id);
+    },
+});
 const messages = {
     connecting: 'Подключение к локальному миру…',
     disconnected: 'Связь с хостом потеряна.',
@@ -439,12 +525,14 @@ const controlPanels = createControlPanels({
             },
             onEscape: inventoryUi.dismissContextMenu,
         },
-        { element: equipmentPanel, button: equipmentToggle, shortcut: 'KeyE' },
+        { element: equipmentPanel, button: equipmentToggle, shortcut: 'KeyQ' },
     ],
-    protectedRegions: [nearbyPanel],
+    protectedRegions: [nearbyPanel, worldContextPanel],
+    dismissOverlay: worldContext.close,
     resetInput: input.reset,
 });
 scene.onVisibilityChange = controlPanels.preserveFocus(updatePickup);
+scene.onVisibilityFrame = worldContext.update;
 const gameResize = new ResizeObserver(() => {
     game.scale.getParentBounds();
     game.scale.refresh();
@@ -501,6 +589,7 @@ const connection = createWorldConnection(
         updateWorldTime();
         profileUi.update(null);
         lifeState = null;
+        worldContext.close();
         scene.setAlive(false);
         lifeRevision = null;
         lastMovement = null;
@@ -620,6 +709,7 @@ const connection = createWorldConnection(
         input.setEnabled(isAlive);
 
         if (!isAlive) {
+            worldContext.close();
             prediction.suspend();
             scene.setDestination(null);
             scene.setWeapon(null);
@@ -752,6 +842,18 @@ const onGameActionKey = (event: KeyboardEvent): void => {
         (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName));
     const isModified = event.ctrlKey || event.metaKey || event.altKey;
 
+    if (
+        event.code === 'KeyE' &&
+        (target === container || target === document.body) &&
+        !isModified &&
+        !event.shiftKey
+    ) {
+        event.preventDefault();
+        if (!event.repeat) worldContext.open();
+
+        return;
+    }
+
     if (event.code === 'KeyL' && !isEditing && !isModified) {
         event.preventDefault();
         if (!event.repeat) onFlashlight();
@@ -805,6 +907,7 @@ if (import.meta.hot) {
         input.dispose();
         profileUi.dispose();
         inventoryUi.dispose();
+        worldContext.dispose();
         nearbyUi.dispose();
         nearbyAnchor.remove();
         connection.dispose();
