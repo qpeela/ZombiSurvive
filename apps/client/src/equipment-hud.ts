@@ -71,6 +71,7 @@ export const createEquipmentHud = ({
         const items: readonly InventoryItem[] = equipment?.items ?? [];
         const emptyLabel = equipment === null ? '—' : 'пусто';
         const name = hands === null ? emptyLabel : itemDisplayName(hands);
+        heldItem.toggleAttribute('data-equipped', hands !== null);
         setText(heldItem, `В руках: ${name}`);
         if (hands?.kind !== 'pistol') {
             if (ammunition.hidden !== true) ammunition.hidden = true;

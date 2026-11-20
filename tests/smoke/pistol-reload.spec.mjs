@@ -356,6 +356,7 @@ test('the persistent strip separates an empty magazine from reserve, changes wea
         await expect(page.locator('#unequip-weapon')).toBeEnabled();
         await clickEquipmentAction(page, 'Убрать оружие в сетку');
         await expect(weapon).toHaveText('В руках: пусто');
+        await expect(equipment.locator('..')).toHaveCSS('position', 'absolute');
         await expect(ammo).toBeHidden();
     } finally {
         if (running !== undefined) await stop(running);
