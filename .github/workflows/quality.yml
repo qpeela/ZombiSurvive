@@ -14,8 +14,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quality:
-    name: Style, types, architecture and tests
+  checks:
+    name: Style, types, architecture, builds and non-browser tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -25,5 +25,39 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      - run: npm run check:non-smoke
+
+  smoke:
+    name: Smoke (${{ matrix.shard }}/${{ strategy.job-total }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run check
+      - run: npm run build
+      - run: npm run test:smoke -- --shard=${{ matrix.shard }}/${{ strategy.job-total }}
+
+  quality:
+    # Keep the existing status check name for branch protection.
+    name: Style, types, architecture and tests
+    needs: [checks, smoke]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Require every Quality job to pass
+        env:
+          CHECKS_RESULT: ${{ needs.checks.result }}
+          SMOKE_RESULT: ${{ needs.smoke.result }}
+        run: |
+          echo "Checks result is $CHECKS_RESULT, smoke result is $SMOKE_RESULT."
+          test "$CHECKS_RESULT" = success && test "$SMOKE_RESULT" = success
