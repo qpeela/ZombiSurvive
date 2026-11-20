@@ -173,6 +173,28 @@
                             Перетащите карту или используйте стрелки. Колесо меняет масштаб. Жёлтая
                             точка — игрок.
                         </p>
+                        <form id="map-markers" class="map-markers">
+                            <label for="map-marker-select">Личные метки</label>
+                            <select id="map-marker-select">
+                                <option value="">Новая метка</option>
+                            </select>
+                            <label for="map-marker-label">Название метки</label>
+                            <input
+                                id="map-marker-label"
+                                maxlength="40"
+                                autocomplete="off"
+                                required
+                            />
+                            <div class="map-actions">
+                                <button id="map-marker-save" type="submit" disabled>
+                                    Поставить метку
+                                </button>
+                                <button id="map-marker-remove" type="button" hidden>
+                                    Удалить метку
+                                </button>
+                            </div>
+                            <span id="map-marker-status" aria-live="polite"></span>
+                        </form>
                     </section>
                     <header>
                         <h1>ZombiSurvive</h1>

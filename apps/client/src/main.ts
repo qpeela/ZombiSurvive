@@ -87,6 +87,7 @@ const mapPosition = document.querySelector<HTMLElement>('#map-position');
 const mapZoomIn = document.querySelector<HTMLButtonElement>('#map-zoom-in');
 const mapZoomOut = document.querySelector<HTMLButtonElement>('#map-zoom-out');
 const mapCenter = document.querySelector<HTMLButtonElement>('#map-center');
+const mapMarkers = document.querySelector<HTMLFormElement>('#map-markers');
 const fullscreenButton = document.querySelector<HTMLButtonElement>('#fullscreen');
 const fullscreenMessage = document.querySelector<HTMLElement>('#fullscreen-message');
 const container = document.querySelector<HTMLElement>('#game');
@@ -175,6 +176,7 @@ if (
     !mapZoomIn ||
     !mapZoomOut ||
     !mapCenter ||
+    !mapMarkers ||
     !fullscreenButton ||
     !fullscreenMessage ||
     !weaponOptions ||
@@ -590,6 +592,8 @@ const visitedMap = createVisitedMap({
     zoomIn: mapZoomIn,
     zoomOut: mapZoomOut,
     centerPlayer: mapCenter,
+    markerForm: mapMarkers,
+    host: window.location.origin,
 });
 const nearbyAnchor = document.createComment('nearby panel position');
 nearbyPanel.before(nearbyAnchor);

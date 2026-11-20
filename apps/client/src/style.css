@@ -549,3 +549,20 @@ button:focus-visible {
     gap: 4px;
     margin-top: 6px;
 }
+
+.map-markers {
+    display: grid;
+    gap: 4px;
+    margin-top: 8px;
+}
+
+.map-markers input,
+.map-markers select {
+    min-width: 0;
+    width: 100%;
+    padding: 4px;
+    color: inherit;
+    background: #101913;
+    border: 1px solid #879779;
+    font: inherit;
+}
