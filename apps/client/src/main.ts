@@ -46,6 +46,7 @@ import {
 } from './nearby-loot';
 import { createOutingJournal } from './outing-journal';
 import { createPlayerProfileControls } from './player-profile';
+import { createVisitedMap } from './visited-map';
 import { formatWorldTime } from './world-clock';
 import { createWorldConnection } from './world-connection';
 import { createWorldContext } from './world-context';
@@ -79,6 +80,13 @@ const journalPanel = document.querySelector<HTMLElement>('#journal-panel');
 const journalToggle = document.querySelector<HTMLButtonElement>('#toggle-journal');
 const journalEvents = document.querySelector<HTMLElement>('#journal-events');
 const journalEmpty = document.querySelector<HTMLElement>('#journal-empty');
+const mapPanel = document.querySelector<HTMLElement>('#map-panel');
+const mapToggle = document.querySelector<HTMLButtonElement>('#toggle-map');
+const mapViewport = document.querySelector<HTMLElement>('#map-viewport');
+const mapPosition = document.querySelector<HTMLElement>('#map-position');
+const mapZoomIn = document.querySelector<HTMLButtonElement>('#map-zoom-in');
+const mapZoomOut = document.querySelector<HTMLButtonElement>('#map-zoom-out');
+const mapCenter = document.querySelector<HTMLButtonElement>('#map-center');
 const fullscreenButton = document.querySelector<HTMLButtonElement>('#fullscreen');
 const fullscreenMessage = document.querySelector<HTMLElement>('#fullscreen-message');
 const container = document.querySelector<HTMLElement>('#game');
@@ -160,6 +168,13 @@ if (
     !journalToggle ||
     !journalEvents ||
     !journalEmpty ||
+    !mapPanel ||
+    !mapToggle ||
+    !mapViewport ||
+    !mapPosition ||
+    !mapZoomIn ||
+    !mapZoomOut ||
+    !mapCenter ||
     !fullscreenButton ||
     !fullscreenMessage ||
     !weaponOptions ||
@@ -569,6 +584,13 @@ const fullscreen = createFullscreenControls({
         game.scale.refresh();
     },
 });
+const visitedMap = createVisitedMap({
+    viewport: mapViewport,
+    coordinates: mapPosition,
+    zoomIn: mapZoomIn,
+    zoomOut: mapZoomOut,
+    centerPlayer: mapCenter,
+});
 const nearbyAnchor = document.createComment('nearby panel position');
 nearbyPanel.before(nearbyAnchor);
 const controlPanels = createControlPanels({
@@ -589,6 +611,12 @@ const controlPanels = createControlPanels({
         { element: equipmentPanel, button: equipmentToggle, shortcut: 'KeyQ' },
         { element: healthPanel, button: healthToggle, shortcut: 'KeyH' },
         { element: journalPanel, button: journalToggle, shortcut: 'KeyJ' },
+        {
+            element: mapPanel,
+            button: mapToggle,
+            shortcut: 'KeyM',
+            onVisibilityChange: visitedMap.setOpen,
+        },
     ],
     protectedRegions: [nearbyPanel, worldContextPanel],
     dismissOverlay: worldContext.close,
@@ -627,6 +655,7 @@ const connection = createWorldConnection(
             updateWorldTime(snapshot.worldTimeMs);
             prediction.accept(snapshot, performance.now());
             confirmedPosition = snapshot.player.position;
+            visitedMap.accept(snapshot.worldId, confirmedPosition);
             updateFlashlight();
             updatePickup();
             otherPlayers = snapshot.otherPlayers;
@@ -652,6 +681,7 @@ const connection = createWorldConnection(
         updateWorldTime();
         profileUi.update(null);
         journal.disconnect();
+        visitedMap.disconnect();
         lastHealth = null;
         lifeState = null;
         worldContext.close();
@@ -976,6 +1006,7 @@ if (import.meta.hot) {
         gameResize.disconnect();
         fullscreen.dispose();
         controlPanels.dispose();
+        visitedMap.dispose();
         worldHud.dispose();
         input.dispose();
         profileUi.dispose();

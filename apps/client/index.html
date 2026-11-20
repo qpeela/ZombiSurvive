@@ -54,6 +54,15 @@
                         >
                             Журнал (J)
                         </button>
+                        <button
+                            id="toggle-map"
+                            type="button"
+                            aria-controls="map-panel"
+                            aria-expanded="false"
+                            aria-keyshortcuts="M"
+                        >
+                            Карта (M)
+                        </button>
                     </div>
                 </div>
                 <section
@@ -134,6 +143,36 @@
                         <h2 id="journal-heading">Журнал вылазки</h2>
                         <p id="journal-empty">В журнале пока нет событий.</p>
                         <ul id="journal-events" hidden></ul>
+                    </section>
+                    <section
+                        id="map-panel"
+                        class="map-panel game-panel"
+                        aria-labelledby="map-heading"
+                        tabindex="-1"
+                        hidden
+                    >
+                        <h2 id="map-heading">Карта посещений</h2>
+                        <p id="map-position">Позиция игрока недоступна.</p>
+                        <div
+                            id="map-viewport"
+                            tabindex="0"
+                            role="group"
+                            aria-label="Рельеф посещённых участков"
+                            aria-describedby="map-help"
+                        ></div>
+                        <div class="map-actions">
+                            <button id="map-zoom-in" type="button" aria-label="Увеличить карту">
+                                +
+                            </button>
+                            <button id="map-zoom-out" type="button" aria-label="Уменьшить карту">
+                                −
+                            </button>
+                            <button id="map-center" type="button" disabled>К игроку</button>
+                        </div>
+                        <p id="map-help" class="caption">
+                            Перетащите карту или используйте стрелки. Колесо меняет масштаб. Жёлтая
+                            точка — игрок.
+                        </p>
                     </section>
                     <header>
                         <h1>ZombiSurvive</h1>
