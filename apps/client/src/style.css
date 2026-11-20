@@ -89,7 +89,7 @@ body {
     overscroll-behavior: contain;
 }
 
-#connection-status {
+.connection-panel > p {
     margin: 0;
 }
 

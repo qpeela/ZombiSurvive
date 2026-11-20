@@ -18,7 +18,9 @@ test('production client boots a Phaser scene without browser errors', async ({ p
     await page.goto('/');
     await expect(page).toHaveTitle('ZombiSurvive');
     await expect(page.getByRole('heading', { name: 'ZombiSurvive' })).toBeVisible();
-    await expect(page.getByText(`Версия ${gameVersion}`)).toBeVisible();
+    const versionLabel = page.locator('#game-version');
+    await expect(versionLabel).toContainText(`Версия ${gameVersion}`);
+    await expect(versionLabel).toBeInViewport();
     const canvas = page.locator('#game canvas');
     await expect(canvas).toBeVisible();
     await expect(canvas).toHaveAttribute('data-scene-ready', 'true');
@@ -26,6 +28,10 @@ test('production client boots a Phaser scene without browser errors', async ({ p
     await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
     await expect(page.getByRole('status')).toContainText('Позиция:');
     await expect(canvas).toHaveAttribute('data-player-visible', 'true');
+    await page.locator('.control-scroll').evaluate(element => {
+        element.scrollTop = element.scrollHeight;
+    });
+    await expect(versionLabel).toBeInViewport();
     expect(errors).toEqual([]);
 });
 

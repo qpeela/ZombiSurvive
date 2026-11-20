@@ -2,9 +2,12 @@ import { defineConfig, loadEnv } from 'vite';
 
 import rootPackage from '../../package.json' with { type: 'json' };
 
-const gameVersion = rootPackage.version;
-
 export default defineConfig(({ mode }) => {
+    const revision = process.env['GAME_BUILD_REVISION'];
+    const isGitRevision = revision !== undefined && /^[a-f0-9]{7,64}$/.test(revision);
+    const gameVersion = isGitRevision
+        ? `${rootPackage.version} · ${revision.slice(0, 7)}`
+        : rootPackage.version;
     const env = loadEnv(mode, process.cwd(), 'GAME_SERVER_URL');
     const target =
         process.env['GAME_SERVER_URL'] ?? env['GAME_SERVER_URL'] ?? 'http://127.0.0.1:3001';
