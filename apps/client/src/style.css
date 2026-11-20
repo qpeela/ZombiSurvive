@@ -288,7 +288,8 @@ h1 {
     text-transform: uppercase;
 }
 
-.pickup-panel {
+.pickup-panel,
+.map-panel {
     margin-top: 8px;
     padding: 8px;
     border: 1px solid #394a3c;
@@ -299,7 +300,8 @@ h1 {
     margin-block: 0 8px;
 }
 
-.pickup-panel > p {
+.pickup-panel > p,
+.map-panel > p {
     margin: 4px 0 8px;
 }
 
