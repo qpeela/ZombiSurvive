@@ -11,6 +11,12 @@ export const militaryWarehouse = Object.freeze({
         widthMeters: 10.5,
         heightMeters: 11.5,
     }),
+    stock: Object.freeze([
+        Object.freeze({ id: 'warehouse-pistol-1', kind: 'pistol', xMeters: -1, yMeters: -68 }),
+        Object.freeze({ id: 'warehouse-ammo-1', kind: 'ammo9mm', xMeters: 1, yMeters: -68 }),
+        Object.freeze({ id: 'warehouse-pistol-2', kind: 'pistol', xMeters: -1, yMeters: -63 }),
+        Object.freeze({ id: 'warehouse-ammo-2', kind: 'ammo9mm', xMeters: 1, yMeters: -63 }),
+    ] as const),
 });
 
 export const worldLandmarks = Object.freeze([

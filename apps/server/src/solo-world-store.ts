@@ -30,6 +30,7 @@ import {
 import {
     chunkLootForKey,
     chunkLootKeyFromItemId,
+    isWarehouseLootId,
     readSavedLootChunks,
 } from './saved-chunk-loot.ts';
 import { readSavedCombat, type SavedCombat } from './saved-combat.ts';
@@ -47,6 +48,8 @@ import {
 const pistolManifest = [...initialWorldWeaponLoot, ...initialWorldPistolLoot];
 const ammoManifest = [...pistolManifest, ...initialWorldAmmoLoot];
 const worldItemManifest = [...ammoManifest, ...initialExpandedLoot];
+const warehouseLootSaveVersion = 20;
+const currentSaveVersion = warehouseLootSaveVersion;
 
 export type SavedSoloWorld = {
     readonly worldId: string;
@@ -164,7 +167,8 @@ export class SoloWorldStore {
                 version !== 16 &&
                 version !== 17 &&
                 version !== 18 &&
-                version !== 19
+                version !== 19 &&
+                version !== currentSaveVersion
             ) {
                 throw new Error('Unsupported solo save schema version.');
             }
@@ -224,16 +228,24 @@ export class SoloWorldStore {
                 this.database.exec('PRAGMA user_version = 5');
             }
 
+            const chunkLootAdditions: GroundItem[] = [];
             if (typeof version === 'number' && version >= 13) {
                 this.lootChunks = readSavedLootChunks(
                     this.database
                         .prepare('SELECT loot_chunks FROM solo_world WHERE id = 1')
                         .get()?.['loot_chunks'],
                 );
-                this.worldLoot = [
-                    ...worldItemManifest,
-                    ...this.lootChunks.flatMap(key => chunkLootForKey(key, version >= 19)),
-                ];
+                const savedLoot: GroundItem[] = [];
+                for (const key of this.lootChunks) {
+                    for (const item of chunkLootForKey(key)) {
+                        const isNewBandage = version < 19 && item.kind === 'bandage';
+                        const isNewWarehouseLoot =
+                            version < warehouseLootSaveVersion && isWarehouseLootId(item.itemId);
+                        if (isNewBandage || isNewWarehouseLoot) chunkLootAdditions.push(item);
+                        else savedLoot.push(item);
+                    }
+                }
+                this.worldLoot = [...worldItemManifest, ...savedLoot];
             }
             const priorManifest = version === 10 ? pistolManifest : ammoManifest;
             const firearmManifest =
@@ -427,14 +439,11 @@ export class SoloWorldStore {
                 ],
                 this.lootPoints(),
             );
-            if (typeof version === 'number' && version < 19) {
-                const additions = this.lootChunks.flatMap(key =>
-                    chunkLootForKey(key).filter(item => item.kind === 'bandage'),
-                );
-                this.worldLoot = [...this.worldLoot, ...additions];
+            if (chunkLootAdditions.length > 0) {
+                this.worldLoot = [...this.worldLoot, ...chunkLootAdditions];
                 this.initialItemLocations = [
                     ...this.initialItemLocations,
-                    ...additions.map(item => ({ type: 'ground' as const, item })),
+                    ...chunkLootAdditions.map(item => ({ type: 'ground' as const, item })),
                 ];
                 this.database
                     .prepare('UPDATE solo_world SET item_location = ? WHERE id = 1')
@@ -446,7 +455,9 @@ export class SoloWorldStore {
                         ),
                     );
             }
-            if (version !== 19) this.database.exec('PRAGMA user_version = 19');
+            if (version !== currentSaveVersion) {
+                this.database.exec(`PRAGMA user_version = ${String(currentSaveVersion)}`);
+            }
             this.profile = {
                 displayName: this.initialWorld.displayName,
                 nameRevision: this.initialWorld.nameRevision,

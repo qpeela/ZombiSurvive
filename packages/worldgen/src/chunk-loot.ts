@@ -3,6 +3,7 @@ import {
     chunkLootSettings,
     collisionSettings,
     medicalOutpost,
+    militaryWarehouse,
     pistolSettings,
     weaponLootSites,
 } from '@zombi-survive/content';
@@ -10,6 +11,28 @@ import type { GroundItem, WorldChunkKey } from '@zombi-survive/domain';
 
 import { generateWorldChunk } from './chunk.ts';
 import { generateWorldWeaponLoot } from './weapon-loot.ts';
+
+const chunkLootPrefix = (chunkX: number, chunkY: number): string =>
+    `chunk-loot-v1:${String(chunkX)}:${String(chunkY)}`;
+
+export const warehouseLoot = Object.freeze(
+    militaryWarehouse.stock.map(({ id, kind, xMeters, yMeters }): GroundItem => {
+        const prefix = chunkLootPrefix(militaryWarehouse.chunkX, militaryWarehouse.chunkY);
+        const itemId = `${prefix}:${id}`;
+        const position = Object.freeze({ xMeters, yMeters });
+        if (kind === 'pistol') {
+            return Object.freeze({
+                itemId,
+                kind,
+                position,
+                rounds: pistolSettings.magazineCapacity,
+                magazineCapacity: pistolSettings.magazineCapacity,
+            });
+        }
+
+        return Object.freeze({ itemId, kind, position, quantity: ammoSettings.stackQuantity });
+    }),
+);
 
 /** Add only the layers absent from the original finite overlays. Never a refill. */
 export const generateChunkLoot = (key: WorldChunkKey): readonly GroundItem[] => {
@@ -52,7 +75,7 @@ export const generateChunkLoot = (key: WorldChunkKey): readonly GroundItem[] => 
     );
     if (isBlocked) throw new Error('Chunk loot overlaps world geometry.');
 
-    const prefix = `chunk-loot-v1:${String(key.chunkX)}:${String(key.chunkY)}`;
+    const prefix = chunkLootPrefix(key.chunkX, key.chunkY);
     const weapon: GroundItem =
         kind === 'pistol'
             ? {
@@ -78,6 +101,10 @@ export const generateChunkLoot = (key: WorldChunkKey): readonly GroundItem[] => 
             kind: 'bandage',
             position: { ...medicalOutpost.bandagePosition },
         });
+
+    const isWarehouseColumn = key.chunkX === militaryWarehouse.chunkX;
+    const isWarehouseRow = key.chunkY === militaryWarehouse.chunkY;
+    if (isWarehouseColumn && isWarehouseRow) loot.push(...warehouseLoot);
 
     return loot;
 };
