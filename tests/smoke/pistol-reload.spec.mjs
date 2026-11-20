@@ -386,8 +386,15 @@ test('R and HUD reload share progress across tabs, block shots, retain pack quan
         await expect(tab.locator('#ammo-label')).toHaveText('Патроны: 3/8');
         await page.bringToFront();
         await page.keyboard.down('r');
-        await expect(page.locator('#reload-progress')).toBeVisible();
-        await expect(tab.locator('#reload-progress')).toBeVisible();
+        const progress = page.getByRole('progressbar', { name: 'Перезарядка' });
+        await expect(progress).toBeInViewport();
+        await expect(tab.getByRole('progressbar', { name: 'Перезарядка' })).toBeInViewport();
+        const firstProgress = await progress.evaluate(meter => meter.value);
+        await expect
+            .poll(() => progress.evaluate(meter => meter.value))
+            .toBeGreaterThan(firstProgress);
+        await expect(progress).toHaveAttribute('max', '40');
+        await expect(page.locator('#held-ammo')).toHaveText('Магазин: 3/8 · Запас: 8');
         await expect(page.locator('#pistol-shot')).toBeDisabled();
         await expect(page.locator('#pistol-reload')).toBeDisabled();
         await page.keyboard.down('r');
@@ -397,6 +404,7 @@ test('R and HUD reload share progress across tabs, block shots, retain pack quan
         await page.screenshot({ path: '.cache/t038-reloading.png', fullPage: true });
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
         await expect(tab.locator('#ammo-label')).toHaveText('Патроны: 8/8');
+        await expect(progress).toBeHidden();
         await expect(page.locator('#held-ammo')).toHaveText('Магазин: 8/8 · Запас: 3');
         await expect(tab.locator('#held-ammo')).toHaveText('Магазин: 8/8 · Запас: 3');
         await expect(pack(page)).toContainText('×3');
@@ -443,6 +451,9 @@ test('SIGKILL during progress cancels without spending; a short pack then fills 
         await page.locator('#pistol-reload').click();
         await expect(page.locator('#reload-progress')).toBeVisible();
         await stop(running, 'SIGKILL');
+        await expect(page.getByRole('status')).toHaveAttribute('data-status', 'disconnected');
+        await expect(page.locator('#held-reload')).toBeHidden();
+        await expect(page.locator('#held-ammo')).toBeHidden();
         const cancelled = new SoloWorldStore(path);
         expect(
             cancelled.initialItemLocations.find(

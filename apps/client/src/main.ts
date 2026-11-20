@@ -17,7 +17,7 @@ import {
     type PlayerMovementState,
     type WorldPosition,
 } from '@zombi-survive/domain';
-import type { MovementSnapshot } from '@zombi-survive/protocol';
+import type { FirearmSnapshot, MovementSnapshot } from '@zombi-survive/protocol';
 import {
     equipmentWeightGrams,
     findInventorySpace,
@@ -90,6 +90,7 @@ const weaponStats = document.querySelector<HTMLElement>('#weapon-stats');
 const attack = document.querySelector<HTMLButtonElement>('#melee-attack');
 const shotButton = document.querySelector<HTMLButtonElement>('#pistol-shot');
 const reloadButton = document.querySelector<HTMLButtonElement>('#pistol-reload');
+const heldReload = document.querySelector<HTMLElement>('#held-reload');
 const reloadLabel = document.querySelector<HTMLElement>('#reload-label');
 const reloadProgress = document.querySelector<HTMLProgressElement>('#reload-progress');
 const ammoLabel = document.querySelector<HTMLElement>('#ammo-label');
@@ -168,6 +169,7 @@ if (
     !attack ||
     !shotButton ||
     !reloadButton ||
+    !heldReload ||
     !reloadLabel ||
     !reloadProgress ||
     !weaponLabel ||
@@ -305,12 +307,16 @@ const inventoryUi = createInventoryGrid({
         if (lifeState === 'alive') connection.moveItem(itemId, cell);
     },
 });
-let reloadTicks = 0;
+let reload: FirearmSnapshot['reload'] = null;
 const updateFirearm = (): void => {
     const isAlive = lifeState === 'alive';
     const pistol = hands?.kind === 'pistol' ? hands : null;
     const isPistol = pistol !== null;
-    const isReloading = reloadTicks > 0;
+    const activeReload =
+        isAlive && reload !== null && reload.itemId === pistol?.itemId && reload.remainingTicks > 0
+            ? reload
+            : null;
+    const isReloading = activeReload !== null;
     const rounds = pistol?.rounds ?? 0;
     const isFull = pistol !== null && rounds >= pistol.magazineCapacity;
     const hasAmmo = inventoryItems.some(
@@ -319,12 +325,18 @@ const updateFirearm = (): void => {
 
     shotButton.disabled = !isAlive || !isPistol || rounds <= 0 || isReloading;
     reloadButton.disabled = !isAlive || !isPistol || isFull || !hasAmmo || isReloading;
-    reloadProgress.hidden = !isReloading;
-    reloadProgress.max = pistolSettings.reloadTicks;
-    reloadProgress.value = pistolSettings.reloadTicks - reloadTicks;
-    reloadLabel.textContent = isReloading
-        ? `Перезарядка: ${(reloadTicks / movementSettings.ticksPerSecond).toLocaleString('ru-RU', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} с`
-        : 'Перезарядка: нет';
+    heldReload.hidden = activeReload === null;
+    if (activeReload === null) return;
+
+    const { remainingTicks, totalTicks } = activeReload;
+    reloadProgress.max = totalTicks;
+    reloadProgress.value = totalTicks - remainingTicks;
+    const remainingSeconds = (remainingTicks / movementSettings.ticksPerSecond).toLocaleString(
+        'ru-RU',
+        { minimumFractionDigits: 1, maximumFractionDigits: 1 },
+    );
+    const label = `Перезарядка: ${remainingSeconds} с`;
+    if (reloadLabel.textContent !== label) reloadLabel.textContent = label;
 };
 const updateBandage = (): void => {
     const hasBandage = hasPickupSnapshot
@@ -680,7 +692,7 @@ const connection = createWorldConnection(
             button.setAttribute('aria-pressed', 'false');
         }
         attack.disabled = true;
-        reloadTicks = 0;
+        reload = null;
         updateFirearm();
         scene.setWeapon(null);
         weaponLabel.textContent = 'Оружие: —';
@@ -766,6 +778,8 @@ const connection = createWorldConnection(
         respawnButton.disabled = isAlive;
         input.setEnabled(isAlive);
 
+        if (!isAlive) reload = null;
+
         if (!isAlive) {
             worldContext.close();
             prediction.suspend();
@@ -816,7 +830,7 @@ const connection = createWorldConnection(
         if (lifeState === 'alive') scene.playShot(action);
     },
     snapshot => {
-        reloadTicks = snapshot.reload?.remainingTicks ?? 0;
+        reload = snapshot.reload;
         updateFirearm();
     },
 );
