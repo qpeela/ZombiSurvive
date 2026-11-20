@@ -1,6 +1,16 @@
 # Текущий прогресс
 
-Обновлено: 19 ноября 2026 года.
+Обновлено: 20 ноября 2026 года.
+
+- Ускорение Quality — [PR #86](https://github.com/qpeela/ZombiSurvive/pull/86).
+  Playwright распределяет smoke по файлам между четырьмя
+  раннерами, по одному worker на раннер. Остальные проверки идут параллельно.
+  Итоговый статус Quality требует успеха всех задач. На main 123 smoke заняли
+  18,7 минуты, а весь workflow — 21 минуту 14 секунд.
+  [Базовый запуск Quality](https://github.com/qpeela/ZombiSurvive/actions/runs/44539208691).
+  Локально прошёл `npm run check:non-smoke` с 772 unit, 17 tooling и 20 contract
+  тестами. Списки шардов содержат 31, 32, 30 и 30 тестов без пропусков и дублей.
+  [Проверки PR](https://github.com/qpeela/ZombiSurvive/pull/86/checks).
 
 - T070 «Подсветка источника лута в мире» — [PR #85](https://github.com/qpeela/ZombiSurvive/pull/85),
   версия 0.1.22. DONE после успешного Quality и слияния. Наведение или
