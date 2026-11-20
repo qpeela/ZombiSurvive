@@ -4,7 +4,7 @@ import { once } from 'node:events';
 import { expect, test } from '@playwright/test';
 
 import { activateStartingZombie, distanceToStartingZombie } from '../fixtures/game-controls.mjs';
-import { clickEquipmentAction, openEquipment } from '../fixtures/game-panels.mjs';
+import { clickEquipmentAction, clickGameAction, openEquipment } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3115';
 const cases = [
@@ -65,7 +65,7 @@ for (const weapon of cases) {
             await page.goto(origin);
             const status = page.getByRole('status');
             const label = page.locator('#weapon-label');
-            const attack = page.getByRole('button', { name: 'Ударить (F)' });
+            const attack = page.locator('#melee-attack');
             await expect(status).toHaveAttribute('data-status', 'connected');
             await expect(page.locator('#weapon-options button')).toHaveCount(5);
             await openEquipment(page);
@@ -90,7 +90,7 @@ for (const weapon of cases) {
                 .poll(() => distanceToStartingZombie(page), { timeout: 10000 })
                 .toBeLessThanOrEqual(weapon.range);
             for (let hit = 1; hit <= weapon.hits; hit++) {
-                await attack.click();
+                await clickGameAction(page, attack);
                 const tick = Number(await status.getAttribute('data-tick'));
                 // Server tick is the clock; allow delivery of the command before the next swing.
                 await expect

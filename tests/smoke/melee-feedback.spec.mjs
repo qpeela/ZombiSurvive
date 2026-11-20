@@ -4,7 +4,7 @@ import { once } from 'node:events';
 import { expect, test } from '@playwright/test';
 
 import { activateStartingZombie, distanceToStartingZombie } from '../fixtures/game-controls.mjs';
-import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
+import { clickEquipmentAction, clickGameAction } from '../fixtures/game-panels.mjs';
 
 const effects = page =>
     page.locator('canvas').evaluate(canvas => JSON.parse(canvas.dataset.meleeEffects ?? '[]'));
@@ -33,10 +33,10 @@ test('confirmed miss, damage and kill are distinct, expire and clear on disconne
         await page.goto(origin);
         await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
         const canvas = page.locator('canvas');
-        const attack = page.getByRole('button', { name: 'Ударить (F)', exact: true });
+        const attack = page.locator('#melee-attack');
         await clickEquipmentAction(page, 'Экипировать дубинку');
         await expect(canvas).toHaveAttribute('data-weapon', 'club');
-        await attack.click();
+        await clickGameAction(page, attack);
         await expect
             .poll(async () => (await effects(page)).at(-1)?.impact)
             .toEqual({ outcome: 'miss', position: { xMeters: 0, yMeters: 0 } });
@@ -47,7 +47,7 @@ test('confirmed miss, damage and kill are distinct, expire and clear on disconne
             .poll(() => distanceToStartingZombie(page), { timeout: 10000 })
             .toBeLessThanOrEqual(1.8);
         for (let index = 0; index < 3; index++) {
-            await attack.click();
+            await clickGameAction(page, attack);
             await outcome(page, {
                 outcome: index === 2 ? 'kill' : 'hit',
                 zombieId: 'slow-zombie-1',
@@ -57,7 +57,7 @@ test('confirmed miss, damage and kill are distinct, expire and clear on disconne
             await expect.poll(() => effects(page)).toEqual([]);
         }
         // A new miss creates an effect which must disappear on connection loss.
-        await attack.click();
+        await clickGameAction(page, attack);
         await outcome(page, { outcome: 'miss' });
         await context.setOffline(true);
         await expect(page.getByRole('status')).toHaveAttribute('data-status', 'disconnected');

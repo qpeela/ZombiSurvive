@@ -219,6 +219,7 @@ export const createNearbyLoot = ({
             const ground = state?.ground ?? null;
             const corpses = state?.corpses ?? [];
             const hasSources = ground !== null || corpses.length > 0;
+            panel.toggleAttribute('data-has-sources', hasSources);
             status.hidden = hasSources;
             setText(
                 status,

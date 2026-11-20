@@ -113,10 +113,7 @@ for (const health of [70, 0]) {
             await open(restored);
             await expect(restored.locator('#health-label')).toHaveText(`Здоровье: ${health} / 100`);
             await expect(restored.locator('#weapon-label')).toHaveText('Оружие: топор');
-            if (health === 0)
-                await expect(
-                    restored.getByRole('button', { name: 'Ударить (F)', exact: true }),
-                ).toBeDisabled();
+            if (health === 0) await expect(restored.locator('#melee-attack')).toBeDisabled();
             await restored.screenshot({
                 path: `.cache/t029-restored-${health}-hp.png`,
                 fullPage: true,

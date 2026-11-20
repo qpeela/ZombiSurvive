@@ -93,6 +93,8 @@ const mapCenter = document.querySelector<HTMLButtonElement>('#map-center');
 const mapMarkers = document.querySelector<HTMLFormElement>('#map-markers');
 const settingsPanel = document.querySelector<HTMLElement>('#settings-panel');
 const settingsToggle = document.querySelector<HTMLButtonElement>('#toggle-settings');
+const actionsPanel = document.querySelector<HTMLElement>('#actions-panel');
+const actionsToggle = document.querySelector<HTMLButtonElement>('#toggle-actions');
 const helpPanel = document.querySelector<HTMLElement>('#help-panel');
 const helpToggle = document.querySelector<HTMLButtonElement>('#toggle-help');
 const fullscreenButton = document.querySelector<HTMLButtonElement>('#fullscreen');
@@ -189,6 +191,8 @@ if (
     !mapMarkers ||
     !settingsPanel ||
     !settingsToggle ||
+    !actionsPanel ||
+    !actionsToggle ||
     !helpPanel ||
     !helpToggle ||
     !fullscreenButton ||
@@ -462,10 +466,22 @@ const lootDrag = createLootDrag({
     getReason: nearbyUi.pickupReason,
     onPickup: pickUp,
 });
+const updateNearbyVisibility = (hadFocus = nearbyPanel.contains(document.activeElement)): void => {
+    const isRequested = inventoryPanel.hidden === false || actionsPanel.hidden === false;
+    const hasSources = nearbyPanel.hasAttribute('data-has-sources');
+    const isHidden = !isRequested && !hasSources;
+    nearbyPanel.hidden = isHidden;
+    if (isHidden && hadFocus) container.focus({ preventScroll: true });
+};
+const updateNearby = (state: Parameters<typeof nearbyUi.update>[0]): void => {
+    const hadFocus = nearbyPanel.contains(document.activeElement);
+    nearbyUi.update(state);
+    updateNearbyVisibility(hadFocus);
+    lootDrag.sync();
+};
 const updatePickup = (): void => {
     if (!hasPickupSnapshot || confirmedPosition === null) {
-        nearbyUi.update(null);
-        lootDrag.sync();
+        updateNearby(null);
 
         return;
     }
@@ -474,14 +490,13 @@ const updatePickup = (): void => {
         receivedGroundItem !== null && scene.canSee(receivedGroundItem.position)
             ? receivedGroundItem
             : null;
-    nearbyUi.update({
+    updateNearby({
         ground,
         corpses: corpses.filter(corpse => scene.canSee(corpse.position)),
         position: confirmedPosition,
         inventory: inventoryItems,
         life: lifeState,
     });
-    lootDrag.sync();
 };
 const worldContext = createWorldContext({
     panel: worldContextPanel,
@@ -625,6 +640,7 @@ const controlPanels = createControlPanels({
             onVisibilityChange: isOpen => {
                 if (isOpen) inventoryPanel.append(nearbyPanel);
                 else nearbyAnchor.after(nearbyPanel);
+                updateNearbyVisibility();
                 lootDrag.sync();
             },
             onEscape: inventoryUi.dismissContextMenu,
@@ -637,6 +653,13 @@ const controlPanels = createControlPanels({
             button: mapToggle,
             shortcut: 'KeyM',
             onVisibilityChange: visitedMap.setOpen,
+        },
+        {
+            element: actionsPanel,
+            button: actionsToggle,
+            onVisibilityChange: () => {
+                updateNearbyVisibility();
+            },
         },
         { element: settingsPanel, button: settingsToggle },
         { element: helpPanel, button: helpToggle },
@@ -726,7 +749,7 @@ const connection = createWorldConnection(
         lootDrag.reset();
         receivedGroundItem = null;
         corpses = [];
-        nearbyUi.update(null);
+        updateNearby(null);
         scene.setCorpses([]);
         confirmedPosition = null;
         updateFlashlight();

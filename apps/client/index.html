@@ -20,8 +20,9 @@
                             aria-controls="inventory-panel"
                             aria-expanded="false"
                             aria-keyshortcuts="I"
+                            aria-label="Инвентарь (I)"
                         >
-                            Инвентарь (I)
+                            Инвентарь <kbd aria-hidden="true">I</kbd>
                         </button>
                         <button
                             id="toggle-equipment"
@@ -29,8 +30,9 @@
                             aria-controls="equipment-panel"
                             aria-expanded="false"
                             aria-keyshortcuts="Q"
+                            aria-label="Экипировка (Q)"
                         >
-                            Экипировка (Q)
+                            Экипировка <kbd aria-hidden="true">Q</kbd>
                         </button>
                         <button
                             id="toggle-health"
@@ -38,8 +40,9 @@
                             aria-controls="health-panel"
                             aria-expanded="false"
                             aria-keyshortcuts="H"
+                            aria-label="Здоровье (H)"
                         >
-                            Здоровье (H)
+                            Здоровье <kbd aria-hidden="true">H</kbd>
                         </button>
                         <button
                             id="toggle-journal"
@@ -47,8 +50,9 @@
                             aria-controls="journal-panel"
                             aria-expanded="false"
                             aria-keyshortcuts="J"
+                            aria-label="Журнал (J)"
                         >
-                            Журнал (J)
+                            Журнал <kbd aria-hidden="true">J</kbd>
                         </button>
                         <button
                             id="toggle-map"
@@ -56,8 +60,17 @@
                             aria-controls="map-panel"
                             aria-expanded="false"
                             aria-keyshortcuts="M"
+                            aria-label="Карта (M)"
                         >
-                            Карта (M)
+                            Карта <kbd aria-hidden="true">M</kbd>
+                        </button>
+                        <button
+                            id="toggle-actions"
+                            type="button"
+                            aria-controls="actions-panel"
+                            aria-expanded="false"
+                        >
+                            Действия
                         </button>
                         <button
                             id="toggle-settings"
@@ -293,6 +306,7 @@
                         class="pickup-panel game-panel"
                         aria-labelledby="nearby-heading"
                         tabindex="-1"
+                        hidden
                     >
                         <h2 id="nearby-heading">Рядом</h2>
                         <p id="nearby-state" aria-live="polite">Ожидание данных от хоста…</p>
@@ -304,40 +318,29 @@
                         <div id="corpse-items" aria-label="Вещи в телах"></div>
                         <p id="restock-label">Пополнение рядом: —</p>
                     </section>
-                    <section class="pickup-panel" aria-label="Лечение">
-                        <button id="use-bandage" type="button" disabled>Использовать бинт</button>
-                        <p class="caption">
-                            Бинт из контейнера останавливает кровотечение, но не восстанавливает HP.
-                        </p>
-                    </section>
-                    <section class="pickup-panel" aria-label="Ближний бой">
+                    <section
+                        id="actions-panel"
+                        class="pickup-panel game-panel"
+                        aria-labelledby="actions-heading"
+                        tabindex="-1"
+                        hidden
+                    >
+                        <h2 id="actions-heading">Действия</h2>
                         <p id="weapon-label">Оружие: —</p>
                         <p id="ammo-label">Патроны: —</p>
-                        <button id="pistol-reload" type="button" disabled>Перезарядить (R)</button>
-                        <button id="pistol-shot" type="button" disabled>
-                            Выстрелить (ПКМ / пробел)
-                        </button>
-                        <button id="melee-attack" type="button" disabled>Ударить (F)</button>
-                        <p class="caption">
-                            Дубинка — универсальная, нож — быстрый, лом — дальнобойный, топор —
-                            мощный. F — удар по ближайшему доступному зомби. Смена оружия сохраняет
-                            паузу предыдущего удара. Экипировка сохраняется после перезапуска хоста.
-                        </p>
+                        <div class="action-buttons">
+                            <button id="melee-attack" type="button" disabled>Ударить (F)</button>
+                            <button id="pistol-shot" type="button" disabled>
+                                Выстрелить (ПКМ / пробел)
+                            </button>
+                            <button id="pistol-reload" type="button" disabled>
+                                Перезарядить (R)
+                            </button>
+                            <button id="use-bandage" type="button" disabled>
+                                Использовать бинт
+                            </button>
+                        </div>
                     </section>
-                    <p class="caption">
-                        Клетка: 1 метр · Серые блоки непроходимы. Обходите их WASD или
-                        промежуточными кликами.
-                    </p>
-                    <p class="caption">
-                        Исследуйте мир: соседние участки загружаются при движении, дальние
-                        освобождаются.
-                    </p>
-                    <p class="caption">
-                        В каждом участке карты — девять зомби. Зомби бьёт вблизи раз в секунду.
-                        Здоровье сохраняется после перезапуска хоста. При 0 HP персонаж погибает и
-                        больше не может двигаться или использовать вещи. Нажмите «Возродиться»,
-                        чтобы начать новую жизнь и вернуться к телу.
-                    </p>
                 </section>
             </aside>
             <section id="game" aria-label="Игровое поле" tabindex="0">
