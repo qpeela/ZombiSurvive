@@ -7,8 +7,10 @@ import {
     type WeaponId,
 } from '@zombi-survive/domain';
 import {
+    type DrinkWaterCommand,
     type InventoryMoveCommand,
     inventoryVersion,
+    isDrinkWaterCommand,
     isInventoryMoveCommand,
     isMeleeCommand,
     isPickupCommand,
@@ -38,7 +40,14 @@ type ItemCommand =
     | PickupCommand
     | InventoryMoveCommand
     | UseBandageCommand
+    | DrinkWaterCommand
     | Exclude<MeleeCommand, { type: 'melee-attack' }>;
+
+type UseItem = (input: {
+    readonly snapshot: MovementSnapshot;
+    readonly locations: readonly ItemLocation[];
+    readonly itemId: string;
+}) => readonly ItemLocation[];
 
 export class LocalWorldPickup {
     private locations: readonly ItemLocation[];
@@ -128,6 +137,10 @@ export class LocalWorldPickup {
         }
     }
 
+    receiveDrink(sessionId: string, value: unknown): void {
+        if (isDrinkWaterCommand(value)) this.pending.set(sessionId, value);
+    }
+
     receive(sessionId: string, value: unknown): void {
         if (isPickupCommand(value)) {
             this.pending.set(sessionId, {
@@ -163,11 +176,8 @@ export class LocalWorldPickup {
     step(
         sessions: ReadonlyMap<string, MovementSnapshot>,
         health: (snapshot: MovementSnapshot) => number = () => 100,
-        useBandage: (input: {
-            readonly snapshot: MovementSnapshot;
-            readonly locations: readonly ItemLocation[];
-            readonly itemId: string;
-        }) => readonly ItemLocation[] = input => input.locations,
+        useBandage: UseItem = input => input.locations,
+        drink: UseItem = input => input.locations,
     ): void {
         if (this.pendingSave !== null) return;
 
@@ -186,6 +196,11 @@ export class LocalWorldPickup {
             if (command.type === 'use-bandage') {
                 next = useBandage({ snapshot, locations: next, itemId: command.itemId });
 
+                continue;
+            }
+
+            if (command.type === 'drink-water') {
+                next = drink({ snapshot, locations: next, itemId: command.itemId });
                 continue;
             }
 

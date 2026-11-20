@@ -11,7 +11,9 @@ export const readSavedRestocks = (
     if (typeof value !== 'string') return invalid();
     const parsed: unknown = JSON.parse(value);
     if (!Array.isArray(parsed)) return invalid();
-    const known = new Set(points.map(point => point.itemId));
+    const known = new Set(
+        points.filter(point => point.kind !== 'waterBottle').map(point => point.itemId),
+    );
     const timers = new Map<string, number>();
     for (const entry of parsed as unknown[]) {
         if (!Array.isArray(entry) || entry.length !== 2) return invalid();

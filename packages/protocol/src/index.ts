@@ -38,6 +38,8 @@ export {
     protocolVersion,
 } from './movement.ts';
 export {
+    type DrinkWaterCommand,
+    isDrinkWaterCommand,
     isPickupCommand,
     isPickupSnapshot,
     isUseBandageCommand,

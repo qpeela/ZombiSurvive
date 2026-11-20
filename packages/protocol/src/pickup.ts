@@ -17,6 +17,9 @@ export type UseBandageCommand = {
     readonly inventoryVersion: typeof inventoryVersion;
     readonly itemId: string;
 };
+export type DrinkWaterCommand = Omit<UseBandageCommand, 'type'> & {
+    readonly type: 'drink-water';
+};
 export type InventoryMoveCommand = {
     readonly type: 'inventory-move';
     readonly protocolVersion: typeof protocolVersion;
@@ -66,6 +69,9 @@ const isItem = (value: unknown): value is Item => {
     }
 
     if (!isId(value['itemId'])) return false;
+    if (value['kind'] === 'waterBottle') {
+        return value['servings'] === 0 || value['servings'] === 1;
+    }
     if (value['kind'] === 'ammo9mm') {
         const quantity = value['quantity'];
         return (
@@ -104,6 +110,13 @@ export const isUseBandageCommand = (value: unknown): value is UseBandageCommand 
 
     return isType && isVersion && isId(value['itemId']);
 };
+export const isDrinkWaterCommand = (value: unknown): value is DrinkWaterCommand =>
+    isRecord(value) &&
+    value['type'] === 'drink-water' &&
+    value['protocolVersion'] === protocolVersion &&
+    value['inventoryVersion'] === inventoryVersion &&
+    isId(value['itemId']);
+
 const isCell = (value: unknown): value is InventoryCell => {
     if (!isRecord(value)) {
         return false;

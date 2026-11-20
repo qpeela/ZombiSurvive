@@ -15,10 +15,11 @@ import {
     type GroundItem,
     isDisplayName,
     type ItemLocation,
+    type PlayerNeeds,
     restockPointId,
     type WorldPosition,
 } from '@zombi-survive/domain';
-import { addStarterWeapons, expireCorpses } from '@zombi-survive/simulation';
+import { addStarterWeapons, expireCorpses, initialPlayerNeeds } from '@zombi-survive/simulation';
 import {
     initialExpandedLoot,
     initialWorldAmmoLoot,
@@ -37,7 +38,12 @@ import { readSavedCombat, type SavedCombat } from './saved-combat.ts';
 import { readSavedCorpses } from './saved-corpse.ts';
 import { readSavedItem, readSavedItems, writeSavedItems } from './saved-item.ts';
 import { readSavedRestocks, writeSavedRestocks } from './saved-loot-restock.ts';
-import { readSavedWorldTime, type SavedWorldProgress } from './saved-world-time.ts';
+import {
+    readSavedNeeds,
+    readSavedWorldTime,
+    type SavedWorldProgress,
+    writeSavedNeeds,
+} from './saved-world-time.ts';
 import {
     readSavedZombiePositions,
     readSavedZombies,
@@ -49,7 +55,8 @@ const pistolManifest = [...initialWorldWeaponLoot, ...initialWorldPistolLoot];
 const ammoManifest = [...pistolManifest, ...initialWorldAmmoLoot];
 const worldItemManifest = [...ammoManifest, ...initialExpandedLoot];
 const warehouseLootSaveVersion = 20;
-const currentSaveVersion = warehouseLootSaveVersion;
+const thirstSaveVersion = 21;
+const currentSaveVersion = thirstSaveVersion;
 
 export type SavedSoloWorld = {
     readonly worldId: string;
@@ -88,6 +95,7 @@ const validatePosition = (position: WorldPosition): void => {
 export class SoloWorldStore {
     readonly initialWorld: SavedSoloWorld;
     readonly initialWorldTimeMs: number;
+    readonly initialNeeds: PlayerNeeds;
     readonly initialLootRestocks: ReadonlyMap<string, number>;
     readonly initialItemLocations: readonly ItemLocation[];
     readonly initialCombat: SavedCombat;
@@ -168,6 +176,7 @@ export class SoloWorldStore {
                 version !== 17 &&
                 version !== 18 &&
                 version !== 19 &&
+                version !== warehouseLootSaveVersion &&
                 version !== currentSaveVersion
             ) {
                 throw new Error('Unsupported solo save schema version.');
@@ -241,7 +250,10 @@ export class SoloWorldStore {
                         const isNewBandage = version < 19 && item.kind === 'bandage';
                         const isNewWarehouseLoot =
                             version < warehouseLootSaveVersion && isWarehouseLootId(item.itemId);
-                        if (isNewBandage || isNewWarehouseLoot) chunkLootAdditions.push(item);
+                        const isNewWater =
+                            version < thirstSaveVersion && item.kind === 'waterBottle';
+                        if (isNewBandage || isNewWarehouseLoot || isNewWater)
+                            chunkLootAdditions.push(item);
                         else savedLoot.push(item);
                     }
                 }
@@ -357,6 +369,21 @@ export class SoloWorldStore {
             this.initialWorldTimeMs = readSavedWorldTime(
                 this.database.prepare('SELECT world_time_ms FROM solo_world WHERE id = 1').get()?.[
                     'world_time_ms'
+                ],
+            );
+            if (typeof version === 'number' && version < thirstSaveVersion) {
+                const hasNeeds = this.database
+                    .prepare('PRAGMA table_info(solo_world)')
+                    .all()
+                    .some(column => column['name'] === 'needs_state');
+                if (!hasNeeds)
+                    this.database.exec(
+                        `ALTER TABLE solo_world ADD COLUMN needs_state TEXT NOT NULL DEFAULT '${writeSavedNeeds(initialPlayerNeeds)}'`,
+                    );
+            }
+            this.initialNeeds = readSavedNeeds(
+                this.database.prepare('SELECT needs_state FROM solo_world WHERE id = 1').get()?.[
+                    'needs_state'
                 ],
             );
             // v8 permits only the bandage to be absent. Legacy manifests were validated above.
@@ -495,16 +522,17 @@ export class SoloWorldStore {
         this.profile = { displayName, nameRevision };
     }
 
-    savePosition(position: WorldPosition, worldTimeMs?: number): void {
+    savePosition(position: WorldPosition, worldTimeMs?: number, needs?: PlayerNeeds): void {
         // This state comes from authoritative movement; only load performs geometry validation.
         this.database
             .prepare(
-                'UPDATE solo_world SET x_meters = ?, y_meters = ?, world_time_ms = COALESCE(?, world_time_ms) WHERE id = 1',
+                'UPDATE solo_world SET x_meters = ?, y_meters = ?, world_time_ms = COALESCE(?, world_time_ms), needs_state = COALESCE(?, needs_state) WHERE id = 1',
             )
             .run(
                 position.xMeters,
                 position.yMeters,
                 worldTimeMs === undefined ? null : readSavedWorldTime(worldTimeMs),
+                needs === undefined ? null : writeSavedNeeds(needs),
             );
     }
 
@@ -517,7 +545,7 @@ export class SoloWorldStore {
         // One UPDATE is an atomic, synchronous FULL commit of ground/owner/cell together.
         const result = this.database
             .prepare(
-                'UPDATE solo_world SET item_location = ?, loot_chunks = ?, world_time_ms = COALESCE(?, world_time_ms), loot_restocks = COALESCE(?, loot_restocks) WHERE id = 1',
+                'UPDATE solo_world SET item_location = ?, loot_chunks = ?, world_time_ms = COALESCE(?, world_time_ms), loot_restocks = COALESCE(?, loot_restocks), needs_state = COALESCE(?, needs_state) WHERE id = 1',
             )
             .run(
                 saved.items,
@@ -526,6 +554,7 @@ export class SoloWorldStore {
                 progress?.restocks === undefined
                     ? null
                     : writeSavedRestocks(progress.restocks, [initialGroundItem, ...saved.manifest]),
+                progress?.needs === undefined ? null : writeSavedNeeds(progress.needs),
             );
 
         if (Number(result.changes) !== 1) {
@@ -582,6 +611,10 @@ export class SoloWorldStore {
         if (progress !== undefined) {
             assignments.push('world_time_ms = ?');
             values.push(readSavedWorldTime(progress.worldTimeMs));
+            if (progress.needs !== undefined) {
+                assignments.push('needs_state = ?');
+                values.push(writeSavedNeeds(progress.needs));
+            }
             if (progress.restocks !== undefined) {
                 assignments.push('loot_restocks = ?');
                 values.push(
@@ -606,13 +639,16 @@ export class SoloWorldStore {
         }
     }
 
-    saveRespawn(expectedLifeRevision: number, position: WorldPosition): SavedCombat {
+    saveRespawn(
+        expectedLifeRevision: number,
+        position: WorldPosition,
+        worldTimeMs?: number,
+    ): SavedCombat {
         validatePosition(position);
-        const current = readSavedCombat(
-            this.database.prepare('SELECT combat_state FROM solo_world WHERE id = 1').get()?.[
-                'combat_state'
-            ],
-        );
+        const saved = this.database
+            .prepare('SELECT combat_state, world_time_ms FROM solo_world WHERE id = 1')
+            .get();
+        const current = readSavedCombat(saved?.['combat_state']);
         if (current.health !== 0 || (current.lifeRevision ?? 0) !== expectedLifeRevision)
             throw new Error('Respawn belongs to an obsolete or living player.');
         const lifeRevision = expectedLifeRevision + 1;
@@ -633,7 +669,10 @@ export class SoloWorldStore {
             bleedingTicks: 0,
             lifeRevision,
         };
-        this.saveCombat(next, undefined, position);
+        this.saveCombat(next, undefined, position, undefined, undefined, undefined, {
+            worldTimeMs: worldTimeMs ?? readSavedWorldTime(saved?.['world_time_ms']),
+            needs: initialPlayerNeeds,
+        });
         return next;
     }
 

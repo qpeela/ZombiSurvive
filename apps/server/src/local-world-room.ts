@@ -18,7 +18,10 @@ import {
     pickupStateRequest,
 } from '@zombi-survive/protocol';
 import {
+    advanceNeeds,
+    drinkWater,
     findRespawnPosition,
+    initialPlayerNeeds,
     movementStepSeconds,
     stepWorldClock,
 } from '@zombi-survive/simulation';
@@ -84,6 +87,7 @@ export class LocalWorldRoom extends Room {
             cooldownTicks: 0,
             bleedingTicks: 0,
         };
+        let needs = options.soloStore?.initialNeeds ?? initialPlayerNeeds;
         let lifeRevision = savedCombat.lifeRevision ?? 0;
         let pendingRespawn: number | null = null;
         this.combat = new LocalWorldCombat({
@@ -118,7 +122,7 @@ export class LocalWorldRoom extends Room {
             this.save = logoutVulnerabilityTicks => {
                 try {
                     if (logoutVulnerabilityTicks === undefined) {
-                        store.savePosition(movement.soloPosition(), this.worldTimeMs);
+                        store.savePosition(movement.soloPosition(), this.worldTimeMs, needs);
                     } else {
                         const nextCombat: SavedCombat = {
                             health: savedCombat.health,
@@ -136,7 +140,7 @@ export class LocalWorldRoom extends Room {
                             undefined,
                             undefined,
                             undefined,
-                            { worldTimeMs: this.worldTimeMs },
+                            { worldTimeMs: this.worldTimeMs, needs },
                         );
                         savedCombat = nextCombat;
                     }
@@ -193,6 +197,10 @@ export class LocalWorldRoom extends Room {
             if (isCurrentLifeCommand(value, lifeRevision))
                 this.pickup.receiveUseBandage(client.sessionId, value);
         });
+        this.onMessage<unknown>('drink-water', (client, value) => {
+            if (options.soloStore !== undefined && isCurrentLifeCommand(value, lifeRevision))
+                this.pickup.receiveDrink(client.sessionId, value);
+        });
         this.onMessage<unknown>('movement-input', (client, value) => {
             if (isCurrentLifeCommand(value, lifeRevision))
                 movement.receive(client.sessionId, value);
@@ -211,6 +219,7 @@ export class LocalWorldRoom extends Room {
                 return;
             }
 
+            const previousWorldTimeMs = this.worldTimeMs;
             this.worldTimeMs = stepWorldClock(this.worldTimeMs, movementStepSeconds);
             const nowMs = now();
             const expectedLife = pendingRespawn;
@@ -238,7 +247,12 @@ export class LocalWorldRoom extends Room {
                     const finishRespawn = (): void => {
                         this.pendingStep = null;
                         try {
-                            savedCombat = storeForRespawn.saveRespawn(expectedLife, position);
+                            savedCombat = storeForRespawn.saveRespawn(
+                                expectedLife,
+                                position,
+                                this.worldTimeMs,
+                            );
+                            needs = initialPlayerNeeds;
                             lifeRevision = savedCombat.lifeRevision ?? 0;
                             movement.respawnPlayer(soloPlayerId, position);
                             this.combat.respawnPlayer(soloPlayerId);
@@ -275,10 +289,25 @@ export class LocalWorldRoom extends Room {
                 const offline = movement.disconnectedSoloSnapshot();
                 if (offline !== null) snapshots.set('offline:solo', offline);
             }
+            const isSoloPresent =
+                movement.isPlayerConnected(soloPlayerId) || snapshots.has('offline:solo');
+            if (
+                options.soloStore !== undefined &&
+                isSoloPresent &&
+                this.combat.health(soloPlayerId) > 0
+            )
+                needs = advanceNeeds(needs, this.worldTimeMs - previousWorldTimeMs);
+
             this.pickup.step(
                 snapshots,
                 snapshot => this.combat.snapshot(snapshot).health,
                 input => this.combat.useBandage(input),
+                ({ snapshot, locations, itemId }) => {
+                    if (snapshot.player.playerId !== soloPlayerId) return locations;
+                    const result = drinkWater({ needs, locations, itemId, playerId: soloPlayerId });
+                    needs = result.needs;
+                    return result.locations;
+                },
             );
             if (options.soloStore !== undefined) {
                 for (const { player } of snapshots.values()) {
@@ -407,6 +436,7 @@ export class LocalWorldRoom extends Room {
             this.lootTimers.stage(this.pickup.stagedLocations(), this.worldTimeMs);
             const timerSave = this.lootTimers.pendingSave();
             const worldProgress = {
+                needs,
                 worldTimeMs: this.worldTimeMs,
                 ...(timerSave === null ? {} : { restocks: timerSave }),
             };
@@ -435,6 +465,7 @@ export class LocalWorldRoom extends Room {
                         client.send('health-state', {
                             ...this.combat.snapshot(snapshot),
                             lifeRevision,
+                            ...(store === undefined ? {} : { needs }),
                         });
                         client.send('melee-state', meleeState);
                         client.send('firearm-state', this.reload.snapshot(snapshot));

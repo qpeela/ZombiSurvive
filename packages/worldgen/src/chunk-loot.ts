@@ -6,6 +6,7 @@ import {
     militaryWarehouse,
     pistolSettings,
     weaponLootSites,
+    workshopWater,
 } from '@zombi-survive/content';
 import type { GroundItem, WorldChunkKey } from '@zombi-survive/domain';
 
@@ -105,6 +106,9 @@ export const generateChunkLoot = (key: WorldChunkKey): readonly GroundItem[] => 
     const isWarehouseColumn = key.chunkX === militaryWarehouse.chunkX;
     const isWarehouseRow = key.chunkY === militaryWarehouse.chunkY;
     if (isWarehouseColumn && isWarehouseRow) loot.push(...warehouseLoot);
+
+    if (key.chunkX === workshopWater.chunkX && key.chunkY === workshopWater.chunkY)
+        loot.push(workshopWater.item);
 
     return loot;
 };

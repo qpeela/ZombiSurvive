@@ -18,6 +18,7 @@ export type {
     WorldId,
     WorldPosition,
 } from './movement.ts';
+export type { PlayerNeeds } from './needs.ts';
 export { defaultDisplayName, displayNameMaxLength, isDisplayName } from './player-profile.ts';
 export { isMeleeWeaponId, isWeaponId, type MeleeWeaponId, type WeaponId } from './weapon.ts';
 export type { TerrainKind, TerrainTile, WorldChunk, WorldChunkKey } from './world-chunk.ts';
