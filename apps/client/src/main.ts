@@ -469,8 +469,9 @@ const lootDrag = createLootDrag({
 const updateNearbyVisibility = (hadFocus = nearbyPanel.contains(document.activeElement)): void => {
     const isRequested = inventoryPanel.hidden === false || actionsPanel.hidden === false;
     const hasSources = nearbyPanel.hasAttribute('data-has-sources');
-    const isHidden = !isRequested && !hasSources;
-    nearbyPanel.hidden = isHidden;
+    const hasRestock = restockLabel.hasAttribute('data-point-id');
+    const isHidden = !isRequested && !hasSources && !hasRestock;
+    if (nearbyPanel.hidden !== isHidden) nearbyPanel.hidden = isHidden;
     if (isHidden && hadFocus) container.focus({ preventScroll: true });
 };
 const updateNearby = (state: Parameters<typeof nearbyUi.update>[0]): void => {
@@ -749,7 +750,6 @@ const connection = createWorldConnection(
         lootDrag.reset();
         receivedGroundItem = null;
         corpses = [];
-        updateNearby(null);
         scene.setCorpses([]);
         confirmedPosition = null;
         updateFlashlight();
@@ -758,6 +758,7 @@ const connection = createWorldConnection(
         restockLabel.textContent = 'Пополнение рядом: —';
         delete restockLabel.dataset['pointId'];
         delete restockLabel.dataset['readyAtWorldMs'];
+        updateNearby(null);
         inventoryItems = [];
         isBleeding = false;
         updateBandage();

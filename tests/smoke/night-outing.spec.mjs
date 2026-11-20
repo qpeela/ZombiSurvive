@@ -295,6 +295,7 @@ test('the night outing works through the map, Nearby, health, journal and a relo
         await expect(pickup).toBeEnabled();
         await pickup.click();
         await expect(pickup).toBeHidden();
+        await expect(nearby).toBeVisible();
         await expect(nearby.locator('#restock-label')).toContainText('Бинт');
 
         await movePlayerTo({ page, position: { xMeters: 68, yMeters: 4 } });
