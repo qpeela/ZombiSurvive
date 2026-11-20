@@ -20,12 +20,14 @@ export const createControlPanels = ({
     playfield,
     panels,
     protectedRegions = [],
+    dismissOverlay,
     resetInput,
 }: {
     readonly shell: HTMLElement;
     readonly playfield: HTMLElement;
     readonly panels: readonly ControlPanel[];
     readonly protectedRegions?: readonly HTMLElement[];
+    readonly dismissOverlay?: () => boolean;
     readonly resetInput: () => void;
 }): { preserveFocus: PreserveFocus; dispose: () => void } => {
     const openPanels: OpenPanel[] = [];
@@ -81,6 +83,13 @@ export const createControlPanels = ({
 
     const onShortcut = (event: KeyboardEvent): void => {
         if (event.defaultPrevented || event.isComposing) return;
+
+        if (event.key === 'Escape' && !event.repeat && dismissOverlay?.() === true) {
+            event.preventDefault();
+            event.stopPropagation();
+
+            return;
+        }
 
         if (event.key === 'Escape' && openPanels.length > 0) {
             event.preventDefault();

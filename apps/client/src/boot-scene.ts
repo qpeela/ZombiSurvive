@@ -72,6 +72,7 @@ export class BootScene extends Scene {
     private visibilitySignature = '';
     onVisibilityChange: () => void = () => {};
     onFrame: () => void = () => {};
+    onVisibilityFrame: () => void = () => {};
     onShoot: (aim: ShotAim) => void = () => {};
     onMove: (position: WorldPosition) => void = () => {};
 
@@ -257,6 +258,40 @@ export class BootScene extends Scene {
         return Math.hypot(reached.xMeters - to.xMeters, reached.yMeters - to.yMeters) < 1e-8;
     }
 
+    getLootScreenPoint(
+        position: WorldPosition,
+        kind: LootSource['kind'],
+    ): { x: number; y: number; pointerDistance: number } | null {
+        if (this.terrain === null || !this.canSee(position)) return null;
+
+        const camera = this.cameras.main;
+        const target = {
+            x: 480 + position.xMeters * pixelsPerMeter,
+            y: 270 + position.yMeters * pixelsPerMeter,
+        };
+        if (!isLootInViewport(target, camera)) return null;
+
+        const x = target.x - camera.scrollX;
+        const y = target.y - camera.scrollY;
+        const pointer = this.input.activePointer;
+        const bounds = lootOutlineSizes[kind];
+        const dx = pointer.x - x;
+        const dy = pointer.y - y;
+        const isUnderPointer =
+            this.input.manager.isOver &&
+            dx >= bounds.left &&
+            dx <= bounds.left + bounds.width &&
+            dy >= bounds.top &&
+            dy <= bounds.top + bounds.height;
+        const canvas = this.game.canvas.getBoundingClientRect();
+
+        return {
+            x: canvas.left + (x * canvas.width) / camera.width,
+            y: canvas.top + (y * canvas.height) / camera.height,
+            pointerDistance: isUnderPointer ? Math.hypot(dx, dy) : Infinity,
+        };
+    }
+
     setLootHighlight(source: LootSource | null): void {
         this.highlightedLoot = source;
     }
@@ -327,6 +362,7 @@ export class BootScene extends Scene {
             this.onVisibilityChange();
         }
 
+        this.onVisibilityFrame();
         this.updateLootHighlight(corpseIds, isGroundVisible);
     }
 
