@@ -123,14 +123,6 @@
                     <section class="pickup-panel" aria-label="Ближний бой">
                         <p id="weapon-label">Оружие: —</p>
                         <p id="ammo-label">Патроны: —</p>
-                        <p id="reload-label">Перезарядка: нет</p>
-                        <progress
-                            id="reload-progress"
-                            max="40"
-                            value="0"
-                            aria-label="Перезарядка"
-                            hidden
-                        ></progress>
                         <button id="pistol-reload" type="button" disabled>Перезарядить (R)</button>
                         <button id="pistol-shot" type="button" disabled>
                             Выстрелить (ПКМ / пробел)
@@ -239,16 +231,25 @@
                         </div>
                         <span id="movement-label">Режим: —</span>
                     </div>
-                    <div
-                        id="held-equipment"
-                        class="held-equipment"
-                        role="group"
-                        aria-label="Экипировка в руках"
-                        aria-live="polite"
-                        aria-atomic="true"
-                    >
-                        <span id="held-item">В руках: —</span>
-                        <span id="held-ammo" hidden></span>
+                    <div class="held-equipment">
+                        <div
+                            id="held-equipment"
+                            role="group"
+                            aria-label="Экипировка в руках"
+                            aria-live="polite"
+                            aria-atomic="true"
+                        >
+                            <span id="held-item">В руках: —</span>
+                            <span id="held-ammo" hidden></span>
+                        </div>
+                        <div id="held-reload" hidden>
+                            <span id="reload-label">Перезарядка</span>
+                            <progress
+                                id="reload-progress"
+                                value="0"
+                                aria-label="Перезарядка"
+                            ></progress>
+                        </div>
                     </div>
                 </div>
             </section>
