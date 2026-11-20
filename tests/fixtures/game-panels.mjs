@@ -10,6 +10,13 @@ const openPanel = async (page, panel) => {
 export const openInventory = page => openPanel(page, 'inventory');
 export const openEquipment = page => openPanel(page, 'equipment');
 export const openSettings = page => openPanel(page, 'settings');
+export const openActions = page => openPanel(page, 'actions');
+
+export const clickGameAction = async (page, action) => {
+    await openActions(page);
+    await action.click();
+    await page.locator('#game').focus();
+};
 
 export const clickEquipmentAction = async (page, name) => {
     await openEquipment(page);

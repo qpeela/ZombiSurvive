@@ -48,7 +48,7 @@ test('server attacks reduce shared health on fixed ticks; death blocks movement 
         await page.screenshot({ path: '.cache/t018-zombie-damage.png', fullPage: true });
         await expect(health).toHaveJSProperty('value', 0, { timeout: 16000 });
         await expect(page.locator('#weapon-options button:enabled')).toHaveCount(0);
-        await expect(page.getByRole('button', { name: 'Ударить (F)' })).toBeDisabled();
+        await expect(page.locator('#melee-attack')).toBeDisabled();
         const hits = healthSamples.filter(
             (sample, index) =>
                 index > 0 &&

@@ -14,7 +14,12 @@ import {
 } from '@zombi-survive/protocol';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
-import { clickEquipmentAction, openEquipment, openInventory } from '../fixtures/game-panels.mjs';
+import {
+    clickEquipmentAction,
+    clickGameAction,
+    openEquipment,
+    openInventory,
+} from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3134';
 const start = path => {
@@ -411,11 +416,11 @@ test('R and HUD reload share progress across tabs, block shots, retain pack quan
         await expect(pack(page)).toContainText('×3');
         await expect(pack(page)).toContainText('36 г');
         await expect(page.locator('#pistol-reload')).toBeDisabled();
-        await page.locator('#pistol-shot').click();
+        await clickGameAction(page, page.locator('#pistol-shot'));
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 7/8');
         await expect(page.locator('#held-ammo')).toHaveText('Магазин: 7/8 · Запас: 3');
         await openEquipment(page);
-        await page.locator('#pistol-reload').click();
+        await clickGameAction(page, page.locator('#pistol-reload'));
         await expect(page.locator('#reload-progress')).toBeVisible();
         await clickEquipmentAction(page, 'Экипировать топор');
         await expect(page.locator('#weapon-label')).toHaveText('Оружие: топор');
@@ -423,7 +428,7 @@ test('R and HUD reload share progress across tabs, block shots, retain pack quan
         await clickEquipmentAction(page, 'Экипировать пистолет');
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 7/8');
         await expect(pack(page)).toContainText('×3');
-        await page.locator('#pistol-reload').click();
+        await clickGameAction(page, page.locator('#pistol-reload'));
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 8/8');
         await expect(pack(page)).toContainText('×2');
         await expect(tab.locator('#ammo-label')).toHaveText('Патроны: 8/8');
@@ -449,7 +454,7 @@ test('SIGKILL during progress cancels without spending; a short pack then fills 
         await expect.poll(running.output).toContain('Local world ready');
         await page.goto(origin);
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 0/8');
-        await page.locator('#pistol-reload').click();
+        await clickGameAction(page, page.locator('#pistol-reload'));
         await expect(page.locator('#reload-progress')).toBeVisible();
         await stop(running, 'SIGKILL');
         await expect(page.getByRole('status')).toHaveAttribute('data-status', 'disconnected');
@@ -656,7 +661,7 @@ test('world ammo pickup preserves a partial quantity through inventory and reloa
         await expect(pack(page)).toContainText('×3');
         await expect(pack(page)).toContainText('36 г');
         await page.screenshot({ path: '.cache/t038-ammo-loot.png', fullPage: true });
-        await page.locator('#pistol-reload').click();
+        await clickGameAction(page, page.locator('#pistol-reload'));
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 3/8');
         await expect(pack(page)).toHaveCount(0);
         await page.reload();

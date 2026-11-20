@@ -8,7 +8,7 @@ import { expect, test } from '@playwright/test';
 import { firearmVersion, localWorldRoomId, protocolVersion } from '@zombi-survive/protocol';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
-import { openSettings } from '../fixtures/game-panels.mjs';
+import { clickGameAction, openSettings } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3133';
 const start = path => {
@@ -112,7 +112,7 @@ test('RMB, Space and HUD each shoot once; typing and key repeat do not shoot, em
         await waitCooldown(page);
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 1/8');
         await page.locator('#toggle-settings').click();
-        await page.locator('#pistol-shot').click();
+        await clickGameAction(page, page.locator('#pistol-shot'));
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 0/8');
         await expect(tab.locator('#ammo-label')).toHaveText('Патроны: 0/8');
         await expect(page.locator('#equipment-weight')).toContainText('2700 г');

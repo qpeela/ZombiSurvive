@@ -37,7 +37,7 @@ body {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    width: min(calc(18rem * var(--ui-scale)), calc(22vw * var(--ui-scale)));
+    width: min(calc(17rem * var(--ui-scale)), calc(48vw - 12px));
     font-size: calc(13px * var(--ui-scale));
     line-height: 1.4;
     pointer-events: none;
@@ -48,7 +48,7 @@ body {
     min-width: 0;
     padding: 8px;
     border: 1px solid #536344;
-    background: #101913f5;
+    background: #101913ed;
     pointer-events: auto;
     overflow-wrap: anywhere;
 }
@@ -59,9 +59,39 @@ body {
 }
 
 .panel-toggles {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 4px;
+}
+
+.panel-toggles button {
+    padding-inline: 4px;
+}
+
+.panel-toggles kbd {
+    margin-inline-start: 2px;
+    color: #b4caa4;
+    font-size: 0.85em;
+}
+
+@media (max-width: 600px) {
+    .game-controls {
+        inset: 8px 8px 8px auto;
+        gap: 6px;
+    }
+
+    .connection-panel,
+    .control-scroll {
+        padding: 6px;
+    }
+
+    .panel-toggles button {
+        padding-block: 3px;
+    }
+
+    .panel-toggles kbd {
+        display: none;
+    }
 }
 
 .panel-toggles button[aria-expanded='true'] {
@@ -89,10 +119,20 @@ body {
 }
 
 .control-scroll {
-    flex: 1;
+    flex: 0 1 auto;
     min-height: 0;
     overflow: auto;
     overscroll-behavior: contain;
+}
+
+.control-scroll:not(:has(> .game-panel:not([hidden]))) {
+    display: none;
+}
+
+.action-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
 }
 
 .connection-panel > p {
@@ -174,6 +214,12 @@ h1 {
     overflow: auto;
     overscroll-behavior: contain;
     background: #0b100ed9;
+}
+
+@media (max-width: 600px) {
+    .stamina-hud {
+        max-width: calc(50vw - 16px);
+    }
 }
 
 @media (max-height: 480px) {
@@ -518,6 +564,15 @@ button:focus-visible {
 
 #nearby-panel {
     margin-top: 8px;
+}
+
+.control-scroll > #nearby-panel {
+    margin-top: 0;
+}
+
+#restock-label:not([data-point-id]),
+#ground-item:has(+ #ground-row[hidden]) {
+    display: none;
 }
 
 .loot-group {

@@ -9,7 +9,12 @@ import { firearmVersion, localWorldRoomId, protocolVersion } from '@zombi-surviv
 import { initialExpandedLoot } from '@zombi-survive/worldgen';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
-import { clickEquipmentAction, openEquipment, openInventory } from '../fixtures/game-panels.mjs';
+import {
+    clickEquipmentAction,
+    clickGameAction,
+    openEquipment,
+    openInventory,
+} from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3135';
 const gunId = 'pistol-v1:0:0';
@@ -201,7 +206,7 @@ test('extra map pistol and ammo can be picked up; same-kind swaps preserve separ
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 7/8');
         await select(extraId);
         await openEquipment(page);
-        await page.locator('#pistol-reload').click();
+        await clickGameAction(page, page.locator('#pistol-reload'));
         await expect(page.locator('#reload-progress')).toBeVisible();
         await equip();
         await expect(page.locator('#reload-progress')).toBeHidden();
@@ -211,7 +216,7 @@ test('extra map pistol and ammo can be picked up; same-kind swaps preserve separ
         await expect(
             page.locator(`#inventory-items button[data-item-id="${ammoId}"]`),
         ).toContainText('×8');
-        await page.locator('#pistol-shot').click();
+        await clickGameAction(page, page.locator('#pistol-shot'));
         await expect(page.locator('#ammo-label')).toHaveText('Патроны: 6/8');
         await select(extraId);
         await equip();

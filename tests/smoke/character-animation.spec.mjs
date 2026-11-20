@@ -4,7 +4,7 @@ import { once } from 'node:events';
 import { expect, test } from '@playwright/test';
 
 import { activateStartingZombie, distanceToStartingZombie } from '../fixtures/game-controls.mjs';
-import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
+import { clickEquipmentAction, clickGameAction } from '../fixtures/game-panels.mjs';
 
 const character = page =>
     page.locator('canvas').evaluate(canvas => JSON.parse(canvas.dataset.playerCharacter ?? 'null'));
@@ -128,13 +128,13 @@ test('articulated figures walk, crouch, run, hold weapons and shuffle; removal a
         await expect
             .poll(() => distanceToStartingZombie(page), { timeout: 10000 })
             .toBeLessThanOrEqual(1.6);
-        const attack = page.getByRole('button', { name: 'Ударить (F)', exact: true });
-        await attack.click();
+        const attack = page.locator('#melee-attack');
+        await clickGameAction(page, attack);
         await expect(canvas).not.toHaveAttribute('data-weapon-animation', 'idle');
         await assertGrip(page);
         await canvas.screenshot({ path: '.cache/t041-swing.png' });
         await expect(canvas).toHaveAttribute('data-weapon-animation', 'idle');
-        await attack.click();
+        await clickGameAction(page, attack);
         await expect.poll(async () => (await zombie(page)) === undefined).toBe(true);
         await context.setOffline(true);
         await expect(page.getByRole('status')).toHaveAttribute('data-status', 'disconnected');

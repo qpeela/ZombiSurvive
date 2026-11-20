@@ -8,7 +8,12 @@ import { expect, test } from '@playwright/test';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
 import { activateStartingZombie, clickWorld, movePlayerTo } from '../fixtures/game-controls.mjs';
-import { clickEquipmentAction, openInventory, openSettings } from '../fixtures/game-panels.mjs';
+import {
+    clickEquipmentAction,
+    clickGameAction,
+    openInventory,
+    openSettings,
+} from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3136';
 const gunId = 'pistol-v1:0:0';
@@ -123,7 +128,7 @@ test('complete solo cycle uses real UI, retains one life and finite items across
         await expect.poll(() => health(page), { timeout: 10000 }).toBeLessThan(100);
         await expect(page.locator('#bleeding-label')).toContainText('есть');
         for (const damage of [60, 40]) {
-            await page.locator('#melee-attack').click();
+            await clickGameAction(page, page.locator('#melee-attack'));
             await expect
                 .poll(() =>
                     canvas.evaluate(
@@ -137,7 +142,7 @@ test('complete solo cycle uses real UI, retains one life and finite items across
             }
         }
         const woundedHealth = await health(page);
-        await page.locator('#use-bandage').click();
+        await clickGameAction(page, page.locator('#use-bandage'));
         await expect(page.locator('#bleeding-label')).toHaveText('Кровотечение: нет');
         expect(await health(page)).toBeLessThanOrEqual(woundedHealth);
         await page.screenshot({ path: '.cache/t040-bandaged.png', fullPage: true });

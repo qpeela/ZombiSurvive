@@ -4,7 +4,7 @@ import { once } from 'node:events';
 import { expect, test } from '@playwright/test';
 import { combatSettings } from '@zombi-survive/content';
 
-import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
+import { clickEquipmentAction, clickGameAction } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3132';
 
@@ -26,17 +26,17 @@ test('accepted swings show combat, extend it, and quiet steps clear the HUD', as
         await page.goto(origin);
         await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
         const indicator = page.locator('#combat-status');
-        const attack = page.getByRole('button', { name: 'Ударить (F)' });
+        const attack = page.locator('#melee-attack');
         await expect(indicator).toBeHidden();
         await clickEquipmentAction(page, 'Экипировать дубинку');
         await expect(attack).toBeEnabled();
-        await attack.click();
+        await clickGameAction(page, attack);
         await expect(indicator).toBeVisible();
         await expect(indicator).toHaveText('В бою');
         await expect
             .poll(async () => Number(await indicator.getAttribute('data-remaining-ticks')))
             .toBeLessThan(combatSettings.combatDurationTicks - 20);
-        await attack.click();
+        await clickGameAction(page, attack);
         await expect
             .poll(async () => Number(await indicator.getAttribute('data-remaining-ticks')))
             .toBeGreaterThan(combatSettings.combatDurationTicks - 20);

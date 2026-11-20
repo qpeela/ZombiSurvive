@@ -13,7 +13,12 @@ import {
     distanceToStartingZombie,
     movePlayerTo,
 } from '../fixtures/game-controls.mjs';
-import { clickEquipmentAction, openInventory, openSettings } from '../fixtures/game-panels.mjs';
+import {
+    clickEquipmentAction,
+    clickGameAction,
+    openInventory,
+    openSettings,
+} from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3154';
 const route = [
@@ -89,7 +94,7 @@ const defeatStartingZombie = async page => {
     await expect.poll(() => distanceToStartingZombie(page), { timeout: 10000 }).toBeLessThan(1.1);
     await expect.poll(() => health(page)).toBeLessThan(100);
     for (const damage of [34, 34, 32]) {
-        await page.locator('#melee-attack').click();
+        await clickGameAction(page, page.locator('#melee-attack'));
         await expect
             .poll(() =>
                 canvas.evaluate(
@@ -156,7 +161,7 @@ test('depart at dusk, find the medical bandage by torch at night, survive combat
         expect(woundedHealth).toBeGreaterThan(0);
         const use = page.locator('#use-bandage');
         if (await use.isEnabled()) {
-            await use.click();
+            await clickGameAction(page, use);
         }
         await expect(page.locator('#bleeding-label')).toHaveText('Кровотечение: нет');
         expect(await health(page)).toBeLessThanOrEqual(woundedHealth);
@@ -290,6 +295,7 @@ test('the night outing works through the map, Nearby, health, journal and a relo
         await expect(pickup).toBeEnabled();
         await pickup.click();
         await expect(pickup).toBeHidden();
+        await expect(nearby).toBeVisible();
         await expect(nearby.locator('#restock-label')).toContainText('Бинт');
 
         await movePlayerTo({ page, position: { xMeters: 68, yMeters: 4 } });

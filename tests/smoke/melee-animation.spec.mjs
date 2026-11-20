@@ -4,7 +4,7 @@ import { once } from 'node:events';
 import { expect, test } from '@playwright/test';
 import { meleeWeapons } from '@zombi-survive/content';
 
-import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
+import { clickEquipmentAction, clickGameAction } from '../fixtures/game-panels.mjs';
 
 test('server-confirmed swings animate all weapons; refusal, switching and reconnect cannot replay them', async ({
     page,
@@ -45,7 +45,7 @@ test('server-confirmed swings animate all weapons; refusal, switching and reconn
         ]) {
             await clickEquipmentAction(page, `Экипировать ${label}`);
             await expect(canvas).toHaveAttribute('data-weapon', weapon);
-            await page.getByRole('button', { name: 'Ударить (F)', exact: true }).click();
+            await clickGameAction(page, page.locator('#melee-attack'));
             await expect
                 .poll(async () => Number(await canvas.getAttribute('data-weapon-attack-tick')))
                 .toBeGreaterThan(lastTick);
@@ -66,7 +66,7 @@ test('server-confirmed swings animate all weapons; refusal, switching and reconn
         }
         host.send({ type: 'arm-manual-melee-ticks' });
         await expect.poll(() => isArmed).toBe(true);
-        await page.getByRole('button', { name: 'Ударить (F)', exact: true }).click();
+        await clickGameAction(page, page.locator('#melee-attack'));
         await expect
             .poll(async () => Number(await canvas.getAttribute('data-weapon-attack-tick')))
             .toBeGreaterThan(lastTick);

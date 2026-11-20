@@ -14,7 +14,7 @@ import { generateChunkLoot } from '@zombi-survive/worldgen';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
 import { movePlayerTo } from '../fixtures/game-controls.mjs';
-import { clickEquipmentAction, openInventory } from '../fixtures/game-panels.mjs';
+import { clickEquipmentAction, clickGameAction, openInventory } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3152';
 const start = path => {
@@ -217,9 +217,9 @@ test('using the medical bandage stops bleeding without healing and its consumed 
     try {
         await expect.poll(running.output).toContain('Local world ready');
         await open(page);
-        const use = page.getByRole('button', { name: 'Использовать бинт', exact: true });
+        const use = page.locator('#use-bandage');
         await expect(use).toBeEnabled();
-        await use.click();
+        await clickGameAction(page, use);
         await expect(page.locator('#bleeding-label')).toHaveText('Кровотечение: нет');
         await expect(use).toBeDisabled();
         const health = Number(await page.locator('#health').getAttribute('value'));

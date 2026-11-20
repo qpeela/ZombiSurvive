@@ -9,7 +9,7 @@ import { expect, test } from '@playwright/test';
 import { localWorldRoomId, protocolVersion } from '@zombi-survive/protocol';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
-import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
+import { clickEquipmentAction, clickGameAction } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3126';
 const command = {
@@ -205,22 +205,16 @@ test('inventory bandage confirms in both tabs, survives reload/retry and SIGKILL
         await open(page);
         tab = await context.newPage();
         await open(tab);
-        await expect(
-            page.getByRole('button', { name: 'Использовать бинт', exact: true }),
-        ).toBeEnabled();
-        await expect(
-            tab.getByRole('button', { name: 'Использовать бинт', exact: true }),
-        ).toBeEnabled();
+        await expect(page.locator('#use-bandage')).toBeEnabled();
+        await expect(tab.locator('#use-bandage')).toBeEnabled();
         await expect(page.locator('#equipment-weight')).toContainText('2000 г');
         await page.screenshot({ path: '.cache/t031-before-bandage.png', fullPage: true });
-        await page.getByRole('button', { name: 'Использовать бинт', exact: true }).click();
+        await clickGameAction(page, page.locator('#use-bandage'));
         for (const current of [page, tab]) {
             await expect(current.locator('#bleeding-label')).toHaveText('Кровотечение: нет');
             await expect(current.locator('#inventory')).toHaveText('Контейнер: предметов 4');
             await expect(current.locator('#equipment-weight')).toContainText('1900 г');
-            await expect(
-                current.getByRole('button', { name: 'Использовать бинт', exact: true }),
-            ).toBeDisabled();
+            await expect(current.locator('#use-bandage')).toBeDisabled();
         }
         const healedHealth = Number(await page.locator('#health').getAttribute('value'));
         expect(healedHealth).toBeGreaterThan(0);
@@ -303,7 +297,7 @@ test('real failed consumption commit stops host without a healed or consumed sna
         room.onMessage('pickup-state', state => pickups.push(state));
         await expect.poll(() => health.length).toBeGreaterThan(0);
         await expect.poll(() => pickups.length).toBeGreaterThan(0);
-        await page.getByRole('button', { name: 'Использовать бинт', exact: true }).click();
+        await clickGameAction(page, page.locator('#use-bandage'));
         expect(await running.exited).toEqual({ code: 1, signal: null });
         await expect(page.getByRole('status')).toHaveAttribute('data-status', 'disconnected');
         await expect(page.locator('#use-bandage')).toBeDisabled();

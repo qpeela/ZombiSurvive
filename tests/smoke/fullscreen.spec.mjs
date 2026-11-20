@@ -1,6 +1,6 @@
 import { expect } from '@playwright/test';
 
-import { openInventory, openSettings } from '../fixtures/game-panels.mjs';
+import { openActions, openInventory, openSettings } from '../fixtures/game-panels.mjs';
 import { isolatedHostOrigin, test } from '../fixtures/isolated-host.mjs';
 
 test.use({ baseURL: isolatedHostOrigin });
@@ -8,12 +8,12 @@ test.use({ baseURL: isolatedHostOrigin });
 const open = async page => {
     await page.goto('/');
     await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
-    await expect(page.locator('canvas')).toHaveAttribute('data-player-visible', 'true');
+    await expect(page.locator('#game canvas')).toHaveAttribute('data-player-visible', 'true');
     await expect(page.locator('#health')).toHaveAttribute('value', '100');
     await expect(page.locator('#death-screen')).toBeHidden();
 };
 const assertPointer = async page => {
-    const canvas = page.locator('canvas');
+    const canvas = page.locator('#game canvas');
     const status = page.getByRole('status');
     // Cancel prior intent and wait for its authoritative stop before measuring the origin.
     await page.evaluate(() => globalThis.dispatchEvent(new Event('blur')));
@@ -24,7 +24,7 @@ const assertPointer = async page => {
     await expect
         .poll(() =>
             page.evaluate(() => {
-                const field = globalThis.document.querySelector('canvas');
+                const field = globalThis.document.querySelector('#game canvas');
                 const connection = globalThis.document.querySelector('#connection-status');
                 return Math.hypot(
                     (Number(field.dataset.playerX) - 480) / 24 - Number(connection.dataset.xMeters),
@@ -93,7 +93,7 @@ for (const viewport of [
     }) => {
         await page.setViewportSize(viewport);
         await open(page);
-        const canvas = page.locator('canvas');
+        const canvas = page.locator('#game canvas');
         const expectedBounds = { x: 0, y: 0, ...viewport };
         await expect.poll(() => canvas.boundingBox()).toEqual(expectedBounds);
         const settingsToggle = page.locator('#toggle-settings');
@@ -105,6 +105,9 @@ for (const viewport of [
         await openSettings(page);
         await page.getByRole('button', { name: 'Справка', exact: true }).click();
         await openInventory(page);
+        await page.locator('#toggle-equipment').click();
+        await page.locator('#toggle-map').click();
+        await openActions(page);
         const controls = page.getByRole('region', { name: 'Настройки и игровые действия' });
         await controls.focus();
         await controls.evaluate(element => {
@@ -132,7 +135,7 @@ for (const viewport of [
 test('resizing the viewport updates the aim under a stationary mouse', async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 720 });
     await open(page);
-    const canvas = page.locator('canvas');
+    const canvas = page.locator('#game canvas');
     await expect.poll(() => canvas.boundingBox()).toEqual({ x: 0, y: 0, width: 1280, height: 720 });
     const cursor = { x: 770, y: 140 };
     await page.mouse.move(cursor.x, cursor.y);
@@ -168,8 +171,10 @@ test('fullscreen includes HTML UI, preserves pointer coordinates and exits with 
     await expect(page.locator('#inventory-grid')).toBeInViewport();
     await page.locator('#toggle-inventory').click();
     await expect(page.locator('#inventory-panel')).toBeHidden();
+    await openActions(page);
     await page.locator('#melee-attack').scrollIntoViewIfNeeded();
     await expect(page.locator('#melee-attack')).toBeInViewport();
+    await page.locator('#toggle-actions').click();
     await assertPointer(page);
     await page.screenshot({ path: '.cache/t021-fullscreen.png' });
     await page.getByRole('button', { name: 'Выйти из полного экрана' }).click();
@@ -178,7 +183,7 @@ test('fullscreen includes HTML UI, preserves pointer coordinates and exits with 
         .toBe(true);
     // Chromium requires restoring its native window before setViewportSize.
     await page.setViewportSize({ width: 1100, height: 850 });
-    await page.locator('canvas').scrollIntoViewIfNeeded();
+    await page.locator('#game canvas').scrollIntoViewIfNeeded();
     await assertPointer(page);
     await enter.click();
     await expect(enter).toHaveAttribute('aria-pressed', 'true');
@@ -191,7 +196,7 @@ test('fullscreen includes HTML UI, preserves pointer coordinates and exits with 
     await expect(enter).toHaveAttribute('aria-pressed', 'true');
     await page.evaluate(() => globalThis.document.exitFullscreen());
     await expect(enter).toHaveAttribute('aria-pressed', 'false');
-    await page.locator('canvas').scrollIntoViewIfNeeded();
+    await page.locator('#game canvas').scrollIntoViewIfNeeded();
     await assertPointer(page);
 });
 
@@ -210,7 +215,7 @@ test('fullscreen denial and unsupported browsers leave the game usable', async (
     await page.getByRole('textbox', { name: 'Имя игрока' }).fill('');
     await page.getByRole('button', { name: 'Сохранить имя', exact: true }).click();
     await expect(page.locator('#profile-message')).toContainText('1–24');
-    await page.locator('canvas').scrollIntoViewIfNeeded();
+    await page.locator('#game canvas').scrollIntoViewIfNeeded();
     await assertPointer(page);
     await page.addInitScript(() => {
         Object.defineProperty(globalThis.document, 'fullscreenEnabled', { value: false });
@@ -232,7 +237,7 @@ test('interface scale persists and keeps keyboard targets and world coordinates 
     const icon = page.locator('.status-icon').first();
     const fullscreen = page.locator('#fullscreen');
     await openSettings(page);
-    const bounds = await page.locator('canvas').boundingBox();
+    const bounds = await page.locator('#game canvas').boundingBox();
     const normalHeight = (await fullscreen.boundingBox()).height;
     const expectScale = async mode => {
         const fontSize = mode === 'large' ? '15px' : '12px';
@@ -248,7 +253,7 @@ test('interface scale persists and keeps keyboard targets and world coordinates 
     await expect
         .poll(async () => (await fullscreen.boundingBox()).height)
         .toBeGreaterThan(normalHeight);
-    await expect.poll(() => page.locator('canvas').boundingBox()).toEqual(bounds);
+    await expect.poll(() => page.locator('#game canvas').boundingBox()).toEqual(bounds);
     await assertPointer(page);
     await page.reload();
     await expect(page.locator('#connection-status')).toHaveAttribute('data-status', 'connected');
@@ -263,17 +268,16 @@ test('interface scale persists and keeps keyboard targets and world coordinates 
     await equipmentToggle.click();
     await page.getByRole('button', { name: 'Экипировать дубинку', exact: true }).click();
     await equipmentToggle.click();
-    const attack = page.locator('#melee-attack');
+    await openActions(page);
+    const actions = page.getByRole('region', { name: 'Действия', exact: true });
+    const attack = actions.getByRole('button', { name: 'Ударить (F)', exact: true });
     await expect(attack).toBeEnabled();
-    const controls = page.getByRole('region', { name: 'Настройки и игровые действия' });
-    await scale.focus();
-    for (let index = 0; index < 10; index++) {
-        await page.keyboard.press('Tab');
-        if (await attack.evaluate(element => element === globalThis.document.activeElement)) break;
-    }
+    await expect(actions).toBeFocused();
+    await page.keyboard.press('Tab');
     await expect(attack).toBeFocused();
     await expect(attack).toBeInViewport();
-    await expect.poll(() => controls.evaluate(element => element.scrollTop)).toBeGreaterThan(0);
+    await page.keyboard.press('Escape');
+    await expect(actions).toBeHidden();
 
     await scale.selectOption('normal');
     await expectScale('normal');

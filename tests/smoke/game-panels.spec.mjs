@@ -1,7 +1,7 @@
 import { expect } from '@playwright/test';
 
 import { movePlayerTo } from '../fixtures/game-controls.mjs';
-import { openSettings } from '../fixtures/game-panels.mjs';
+import { openActions, openSettings } from '../fixtures/game-panels.mjs';
 import { isolatedHostOrigin, test } from '../fixtures/isolated-host.mjs';
 
 test.use({ baseURL: isolatedHostOrigin });
@@ -147,4 +147,40 @@ test('in-game help explains inventory actions, world actions and map markers', a
     await map.getByLabel('Название метки').fill('У входа');
     await map.getByRole('button', { name: 'Поставить метку' }).click();
     await expect(map.getByText('Метка поставлена.')).toBeVisible();
+});
+
+test('the narrow playfield keeps actions folded and restores focus after asking for them', async ({
+    page,
+}) => {
+    const viewport = { width: 400, height: 300 };
+    await page.setViewportSize(viewport);
+    await page.goto('/');
+    const field = page.getByRole('region', { name: 'Игровое поле' });
+    const canvas = field.locator('canvas');
+    const actions = page.getByRole('region', { name: 'Действия', exact: true });
+    const toggle = page.getByRole('button', { name: 'Действия', exact: true });
+    const settings = page.getByRole('button', { name: 'Настройки', exact: true });
+    await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
+    await expect(canvas).toHaveAttribute('data-player-visible', 'true');
+    const initialCanvas = await canvas.boundingBox();
+    await expect(actions).toBeHidden();
+    await expect(toggle).toBeInViewport({ ratio: 1 });
+    await expect(settings).toBeInViewport({ ratio: 1 });
+
+    await openActions(page);
+    await expect(actions).toBeFocused();
+    await expect(actions.getByRole('button', { name: 'Использовать бинт' })).toBeDisabled();
+    await page.keyboard.press('Escape');
+    await expect(actions).toBeHidden();
+    await expect(toggle).toBeFocused();
+
+    await field.focus();
+    await page.keyboard.press('i');
+    await expect(page.getByRole('region', { name: 'Инвентарь' })).toBeFocused();
+    await expect(page.getByRole('region', { name: 'Рядом', exact: true })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(field).toBeFocused();
+    await expect.poll(() => field.boundingBox()).toEqual({ x: 0, y: 0, ...viewport });
+    await expect.poll(() => canvas.boundingBox()).toEqual(initialCanvas);
+    await page.screenshot({ path: '.cache/t084-compact-hud.png' });
 });

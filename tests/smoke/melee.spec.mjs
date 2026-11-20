@@ -4,7 +4,7 @@ import { once } from 'node:events';
 import { expect, test } from '@playwright/test';
 
 import { activateStartingZombie, distanceToStartingZombie } from '../fixtures/game-controls.mjs';
-import { clickEquipmentAction } from '../fixtures/game-panels.mjs';
+import { clickEquipmentAction, clickGameAction } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3114';
 const zombies = page =>
@@ -33,7 +33,7 @@ test('equip club, kill with three swings, reconnect and meet zombies in a new ma
         await expect.poll(() => output).toContain('Local world ready');
         await page.goto(origin);
         const status = page.getByRole('status');
-        const attack = page.getByRole('button', { name: 'Ударить (F)' });
+        const attack = page.locator('#melee-attack');
         await expect(status).toHaveAttribute('data-status', 'connected');
         await expect(attack).toBeDisabled();
         await clickEquipmentAction(page, 'Экипировать дубинку');
@@ -43,7 +43,7 @@ test('equip club, kill with three swings, reconnect and meet zombies in a new ma
         await expect
             .poll(() => distanceToStartingZombie(page), { timeout: 10000 })
             .toBeLessThanOrEqual(1.8);
-        await attack.click();
+        await clickGameAction(page, attack);
         expect(await hasStarter(page)).toBe(true);
         const tick = Number(await status.getAttribute('data-tick'));
         await expect
@@ -55,7 +55,7 @@ test('equip club, kill with three swings, reconnect and meet zombies in a new ma
         await expect
             .poll(async () => Number(await status.getAttribute('data-tick')))
             .toBeGreaterThanOrEqual(secondTick + 13);
-        await attack.click();
+        await clickGameAction(page, attack);
         await expect.poll(() => hasStarter(page)).toBe(false);
         await page.screenshot({ path: '.cache/t019-melee-kill.png', fullPage: true });
         await context.setOffline(true);

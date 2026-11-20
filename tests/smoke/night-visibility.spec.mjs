@@ -71,6 +71,7 @@ test('the same distant zombie and bandage are visible by day, hidden at night wi
         await expect.poll(() => zombieVisible(page)).toBe(false);
         await expect(page.locator('canvas')).toHaveAttribute('data-ground-item-visible', 'false');
         await expect(page.locator('#ground-item')).toHaveText('На земле: пусто');
+        await expect(page.locator('#nearby-panel')).toBeHidden();
         await expect(bandage(page)).toBeHidden();
         await expect(page.locator('#pickup')).not.toHaveAttribute('title', /Бинт/);
         await expect(page.locator('canvas')).toHaveAttribute('data-zombies', /slow-zombie-1/);
@@ -84,6 +85,7 @@ test('the same distant zombie and bandage are visible by day, hidden at night wi
         await movePlayerTo({ page, position: { xMeters: 2, yMeters: 1.5 } });
         await expect(page.locator('canvas')).toHaveAttribute('data-ground-item-visible', 'true');
         await expect(bandage(page)).toBeEnabled();
+        await expect(page.locator('#nearby-panel')).toBeVisible();
         await page.locator('canvas').screenshot({ path: '.cache/t055-near.png' });
         await movePlayerTo({ page, position: { xMeters: 0, yMeters: -4 } });
         await expect(page.locator('canvas')).toHaveAttribute('data-ground-item-visible', 'false');
