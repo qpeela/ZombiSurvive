@@ -1,4 +1,4 @@
-import { medicalOutpost, worldLandmarks } from '@zombi-survive/content';
+import { medicalOutpost, workshopBench, worldLandmarks } from '@zombi-survive/content';
 import type { WorldChunk, WorldObstacle, WorldPosition } from '@zombi-survive/domain';
 import { loadWorldChunks } from '@zombi-survive/worldgen';
 import type { GameObjects, Scene } from 'phaser';
@@ -243,6 +243,17 @@ export class WorldTerrain {
                 height: floor.heightMeters * pixelsPerMeter,
                 entranceX: 480 + entrance.xMeters * pixelsPerMeter,
             });
+            if (landmark.id === 'repair-workshop') {
+                const benchX = 480 + workshopBench.position.xMeters * pixelsPerMeter;
+                const benchY = 270 + workshopBench.position.yMeters * pixelsPerMeter;
+                graphics
+                    .fillStyle(0x313a31)
+                    .fillRect(benchX - 16, benchY - 8, 32, 16)
+                    .fillStyle(0xb28258)
+                    .fillRect(benchX - 14, benchY - 6, 28, 12)
+                    .lineStyle(2, 0x624d3b)
+                    .lineBetween(benchX - 14, benchY, benchX + 14, benchY);
+            }
             this.drawLabel({
                 chunk,
                 x: x + (floor.widthMeters * pixelsPerMeter) / 2,

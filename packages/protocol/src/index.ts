@@ -63,6 +63,13 @@ export {
     type RenamePlayerCommand,
 } from './profile.ts';
 export {
+    isRestCommand,
+    isRestState,
+    type RestCancellation,
+    type RestCommand,
+    type RestState,
+} from './rest.ts';
+export {
     isZombieSnapshot,
     type ZombieSnapshot,
     zombieSnapshotLimit,

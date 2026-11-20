@@ -19,6 +19,11 @@ export const militaryWarehouse = Object.freeze({
     ] as const),
 });
 
+export const workshopBench = Object.freeze({
+    id: 'workshop-bench',
+    position: Object.freeze({ xMeters: -63, yMeters: -8 }),
+});
+
 export const worldLandmarks = Object.freeze([
     militaryWarehouse,
     Object.freeze({

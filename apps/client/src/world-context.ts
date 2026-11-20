@@ -1,6 +1,14 @@
 import type { LootSource } from './loot-highlight';
 
-type Target = LootSource & {
+export type WorldContextSource = LootSource | { readonly kind: 'bench'; readonly id: string };
+
+const actionLabels = {
+    ground: 'Взять',
+    corpse: 'Открыть вещи',
+    bench: 'Передохнуть',
+};
+
+type Target = WorldContextSource & {
     readonly x: number;
     readonly y: number;
     readonly pointerDistance: number;
@@ -24,14 +32,14 @@ export const createWorldContext = ({
     readonly reason: HTMLElement;
     readonly playfield: HTMLElement;
     readonly getTargets: () => readonly Target[];
-    readonly onAction: (target: LootSource) => void;
+    readonly onAction: (target: WorldContextSource) => void;
 }): {
     open: () => void;
     close: () => boolean;
     update: () => void;
     dispose: () => void;
 } => {
-    let selected: LootSource | null = null;
+    let selected: WorldContextSource | null = null;
     const readSelected = (): Target | undefined =>
         getTargets().find(target => target.kind === selected?.kind && target.id === selected.id);
 
@@ -47,7 +55,7 @@ export const createWorldContext = ({
     };
     const render = (target: Target): void => {
         if (title.textContent !== target.label) title.textContent = target.label;
-        const label = target.kind === 'ground' ? 'Взять' : 'Открыть вещи';
+        const label = actionLabels[target.kind];
         if (action.textContent !== label) action.textContent = label;
         const message = target.reason ?? '';
         if (reason.textContent !== message) reason.textContent = message;

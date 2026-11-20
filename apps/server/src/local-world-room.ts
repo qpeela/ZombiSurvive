@@ -5,6 +5,7 @@ import {
     combatSettings,
     corpseSettings,
     movementSettings,
+    restSettings,
     worldGenerationSettings,
 } from '@zombi-survive/content';
 import type { Corpse } from '@zombi-survive/domain';
@@ -12,6 +13,7 @@ import {
     initialStateRequest,
     isCurrentLifeCommand,
     isRespawnCommand,
+    isRestCommand,
     localWorldRoomId,
     type MovementSnapshot,
     type PickupSnapshot,
@@ -37,6 +39,7 @@ import { LocalWorldMovement } from './local-world-movement.ts';
 import { LocalWorldPickup } from './local-world-pickup.ts';
 import { createLocalWorldProfile } from './local-world-profile.ts';
 import { LocalWorldReload } from './local-world-reload.ts';
+import { LocalWorldRest } from './local-world-rest.ts';
 import { LocalWorldZombie } from './local-world-zombie.ts';
 import type { SavedCombat } from './saved-combat.ts';
 import type { SoloWorldStore } from './solo-world-store.ts';
@@ -44,6 +47,7 @@ import type { WorldAccess } from './world-access.ts';
 
 export class LocalWorldRoom extends Room {
     private readonly reload = new LocalWorldReload();
+    private readonly rest = new LocalWorldRest();
     private readonly visitedLootChunks = new Set<string>();
     private readonly firearm = new LocalWorldFirearm();
     private pickup = new LocalWorldPickup();
@@ -206,6 +210,20 @@ export class LocalWorldRoom extends Room {
                     this.pickup.receiveSupplyUse(client.sessionId, value);
             });
         }
+        for (const type of ['rest-at-bench', 'cancel-rest']) {
+            this.onMessage<unknown>(type, (client, value) => {
+                if (options.soloStore === undefined || client.auth !== soloPlayerId) return;
+                if (
+                    !isRestCommand(value) ||
+                    value.type !== type ||
+                    !isCurrentLifeCommand(value, lifeRevision)
+                )
+                    return;
+
+                if (value.type === 'rest-at-bench') this.rest.request(client.sessionId);
+                else this.rest.loseControl(client.sessionId, this.worldTimeMs);
+            });
+        }
         this.onMessage<unknown>('movement-input', (client, value) => {
             if (isCurrentLifeCommand(value, lifeRevision))
                 movement.receive(client.sessionId, value);
@@ -258,6 +276,7 @@ export class LocalWorldRoom extends Room {
                                 this.worldTimeMs,
                             );
                             this.needs = initialPlayerNeeds;
+                            this.rest.reset();
                             lifeRevision = savedCombat.lifeRevision ?? 0;
                             movement.respawnPlayer(soloPlayerId, position);
                             this.combat.respawnPlayer(soloPlayerId);
@@ -380,6 +399,22 @@ export class LocalWorldRoom extends Room {
             });
             const living = zombie.zombies.filter(state => this.zombie.isAlive(state.zombieId));
             this.combat.step({ ...zombie, zombies: living, snapshots });
+            const didRest =
+                options.soloStore !== undefined &&
+                this.rest.step({
+                    worldTimeMs: this.worldTimeMs,
+                    fatigueMs: this.needs.fatigueMs,
+                    playerFor: sessionId => {
+                        const snapshot = snapshots.get(sessionId);
+                        return snapshot === undefined
+                            ? undefined
+                            : {
+                                  position: snapshot.player.position,
+                                  health: this.combat.health(snapshot.player.playerId),
+                              };
+                    },
+                });
+            if (didRest) this.needs = { ...this.needs, fatigueMs: restSettings.restedFatigueMs };
             for (const snapshot of snapshots.values()) {
                 const acceptedAttack =
                     this.melee.action(snapshot) !== null || this.firearm.action(snapshot) !== null;
@@ -480,7 +515,12 @@ export class LocalWorldRoom extends Room {
                         client.send('health-state', {
                             ...this.combat.snapshot(snapshot),
                             lifeRevision,
-                            ...(store === undefined ? {} : { needs: worldProgress.needs }),
+                            ...(store === undefined
+                                ? {}
+                                : {
+                                      needs: worldProgress.needs,
+                                      rest: this.rest.snapshot(worldProgress.worldTimeMs),
+                                  }),
                         });
                         client.send('melee-state', meleeState);
                         client.send('firearm-state', this.reload.snapshot(snapshot));
@@ -506,7 +546,8 @@ export class LocalWorldRoom extends Room {
 
             if (
                 store === undefined ||
-                (!isCombatChanged &&
+                (!didRest &&
+                    !isCombatChanged &&
                     itemSave === null &&
                     zombieSave === null &&
                     positionSave === null &&
@@ -522,6 +563,7 @@ export class LocalWorldRoom extends Room {
                 this.pendingStep = null;
                 try {
                     if (
+                        didRest ||
                         isDying ||
                         expiredCorpses !== null ||
                         zombieSave !== null ||
@@ -597,6 +639,7 @@ export class LocalWorldRoom extends Room {
     }
 
     override onLeave(client: Client): void {
+        this.rest.loseControl(client.sessionId, this.worldTimeMs);
         this.movement?.leave(client.sessionId);
         this.pickup.leave(client.sessionId);
         this.melee.leave(client.sessionId);
