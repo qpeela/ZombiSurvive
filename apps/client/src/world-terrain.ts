@@ -1,7 +1,9 @@
-import { medicalOutpost } from '@zombi-survive/content';
+import { medicalOutpost, worldLandmarks } from '@zombi-survive/content';
 import type { WorldChunk, WorldObstacle, WorldPosition } from '@zombi-survive/domain';
 import { loadWorldChunks } from '@zombi-survive/worldgen';
 import type { GameObjects, Scene } from 'phaser';
+
+import { drawLandmarkFloor } from './landmark-floor.js';
 
 const pixelsPerMeter = 24;
 const chunkId = (chunk: WorldChunk): string => `${String(chunk.chunkX)},${String(chunk.chunkY)}`;
@@ -130,6 +132,29 @@ export class WorldTerrain {
         );
     }
 
+    private drawLabel({
+        chunk,
+        x,
+        y,
+        name,
+    }: {
+        readonly chunk: WorldChunk;
+        readonly x: number;
+        readonly y: number;
+        readonly name: string;
+    }): void {
+        const label = this.scene.add
+            .text(x, y, name, {
+                fontFamily: 'monospace',
+                fontSize: '12px',
+                color: '#e8dcb8',
+                backgroundColor: '#202b25',
+            })
+            .setOrigin(0.5)
+            .setDepth(-1);
+        this.labels.set(chunkId(chunk), label);
+    }
+
     private drawChunk(chunk: WorldChunk): GameObjects.Graphics {
         const graphics = this.scene.add.graphics().setDepth(-1);
         const terrainColors = { grass: 0x23372a, dirt: 0x3d392b, gravel: 0x38413b };
@@ -195,18 +220,35 @@ export class WorldTerrain {
                 .lineBetween(entranceX, entranceY, entranceX, entranceY - 20);
             graphics.lineBetween(entranceX, entranceY - 20, entranceX - 7, entranceY - 13);
             graphics.lineBetween(entranceX, entranceY - 20, entranceX + 7, entranceY - 13);
-            this.labels.set(
-                chunkId(chunk),
-                this.scene.add
-                    .text(x + 100, y - 18, 'Заброшенный медпункт', {
-                        fontFamily: 'monospace',
-                        fontSize: '12px',
-                        color: '#e8dcb8',
-                        backgroundColor: '#202b25',
-                    })
-                    .setOrigin(0.5)
-                    .setDepth(-1),
-            );
+            this.drawLabel({ chunk, x: x + 100, y: y - 18, name: 'Заброшенный медпункт' });
+        }
+
+        const landmark = worldLandmarks.find(site => {
+            const isSameColumn = site.chunkX === chunk.chunkX;
+            const isSameRow = site.chunkY === chunk.chunkY;
+
+            return isSameColumn && isSameRow;
+        });
+
+        if (landmark !== undefined) {
+            const { floor, entrance } = landmark;
+            const x = 480 + floor.minXMeters * pixelsPerMeter;
+            const y = 270 + floor.minYMeters * pixelsPerMeter;
+            drawLandmarkFloor({
+                graphics,
+                landmark,
+                x,
+                y,
+                width: floor.widthMeters * pixelsPerMeter,
+                height: floor.heightMeters * pixelsPerMeter,
+                entranceX: 480 + entrance.xMeters * pixelsPerMeter,
+            });
+            this.drawLabel({
+                chunk,
+                x: x + (floor.widthMeters * pixelsPerMeter) / 2,
+                y: y - 22,
+                name: landmark.name,
+            });
         }
 
         for (const obstacle of chunk.obstacles) {

@@ -1,0 +1,31 @@
+/** New uses for existing ruins. Floors and markings leave collision geometry intact. */
+export const militaryWarehouse = Object.freeze({
+    id: 'military-warehouse',
+    name: 'Военный склад',
+    chunkX: 0,
+    chunkY: -1,
+    entrance: Object.freeze({ xMeters: -1, yMeters: -72 }),
+    floor: Object.freeze({
+        minXMeters: -5,
+        minYMeters: -70,
+        widthMeters: 10.5,
+        heightMeters: 11.5,
+    }),
+});
+
+export const worldLandmarks = Object.freeze([
+    militaryWarehouse,
+    Object.freeze({
+        id: 'repair-workshop',
+        name: 'Ремонтная мастерская',
+        chunkX: -1,
+        chunkY: 0,
+        entrance: Object.freeze({ xMeters: -65, yMeters: -6 }),
+        floor: Object.freeze({
+            minXMeters: -69,
+            minYMeters: -4,
+            widthMeters: 10.5,
+            heightMeters: 9.5,
+        }),
+    }),
+] as const);

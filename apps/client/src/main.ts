@@ -86,6 +86,7 @@ const mapPanel = document.querySelector<HTMLElement>('#map-panel');
 const mapToggle = document.querySelector<HTMLButtonElement>('#toggle-map');
 const mapViewport = document.querySelector<HTMLElement>('#map-viewport');
 const mapPosition = document.querySelector<HTMLElement>('#map-position');
+const mapLandmarks = document.querySelector<HTMLElement>('#map-landmarks');
 const mapZoomIn = document.querySelector<HTMLButtonElement>('#map-zoom-in');
 const mapZoomOut = document.querySelector<HTMLButtonElement>('#map-zoom-out');
 const mapCenter = document.querySelector<HTMLButtonElement>('#map-center');
@@ -178,6 +179,7 @@ if (
     !mapToggle ||
     !mapViewport ||
     !mapPosition ||
+    !mapLandmarks ||
     !mapZoomIn ||
     !mapZoomOut ||
     !mapCenter ||
@@ -597,6 +599,7 @@ const fullscreen = createFullscreenControls({
 const visitedMap = createVisitedMap({
     viewport: mapViewport,
     coordinates: mapPosition,
+    landmarks: mapLandmarks,
     zoomIn: mapZoomIn,
     zoomOut: mapZoomOut,
     centerPlayer: mapCenter,

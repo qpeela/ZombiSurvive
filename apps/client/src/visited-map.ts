@@ -1,4 +1,4 @@
-import { medicalOutpost, worldGenerationSettings } from '@zombi-survive/content';
+import { medicalOutpost, worldGenerationSettings, worldLandmarks } from '@zombi-survive/content';
 import type { WorldChunk, WorldPosition } from '@zombi-survive/domain';
 import { generateWorldChunk } from '@zombi-survive/worldgen';
 
@@ -22,6 +22,7 @@ const panDirections = new Map<string, readonly [number, number]>([
 export const createVisitedMap = ({
     viewport,
     coordinates,
+    landmarks,
     zoomIn,
     zoomOut,
     centerPlayer,
@@ -30,6 +31,7 @@ export const createVisitedMap = ({
 }: {
     readonly viewport: HTMLElement;
     readonly coordinates: HTMLElement;
+    readonly landmarks: HTMLElement;
     readonly zoomIn: HTMLButtonElement;
     readonly zoomOut: HTMLButtonElement;
     readonly centerPlayer: HTMLButtonElement;
@@ -110,6 +112,29 @@ export const createVisitedMap = ({
                         (obstacle.maxYMeters - obstacle.minYMeters) * pixelsPerMeter,
                     );
                 }
+                const landmark = worldLandmarks.find(
+                    site => chunkId(site.chunkX, site.chunkY) === id,
+                );
+                if (landmark !== undefined) {
+                    const { floor } = landmark;
+                    const x = (floor.minXMeters - left) * pixelsPerMeter;
+                    const y = (floor.minYMeters - top) * pixelsPerMeter;
+                    context.strokeStyle =
+                        landmark.id === 'military-warehouse' ? '#c9d99d' : '#efbd8b';
+                    context.lineWidth = 2;
+                    context.strokeRect(
+                        x,
+                        y,
+                        floor.widthMeters * pixelsPerMeter,
+                        floor.heightMeters * pixelsPerMeter,
+                    );
+                    context.font = '11px monospace';
+                    context.strokeStyle = '#0b100e';
+                    context.fillStyle = '#f5ecd8';
+                    context.strokeText(landmark.name, x, y - 4);
+                    context.fillText(landmark.name, x, y - 4);
+                }
+
                 if (chunkX === medicalOutpost.chunkX && chunkY === medicalOutpost.chunkY) {
                     const { floor } = medicalOutpost;
                     const x = (floor.minXMeters + floor.widthMeters / 2 - left) * pixelsPerMeter;
@@ -260,6 +285,18 @@ export const createVisitedMap = ({
     viewport.addEventListener('pointerdown', onPointerDown, { signal });
     viewport.addEventListener('pointermove', onPointerMove, { signal });
     viewport.addEventListener('lostpointercapture', onLostCapture, { signal });
+    const updateLandmarks = (): void => {
+        const names = worldLandmarks
+            .filter(site => visited.has(chunkId(site.chunkX, site.chunkY)))
+            .map(site => {
+                const entry = document.createElement('li');
+                entry.textContent = site.name;
+
+                return entry;
+            });
+        landmarks.replaceChildren(...names);
+        landmarks.hidden = names.length === 0;
+    };
     const updatePositionLabel = (): void => {
         const label =
             position === null
@@ -320,6 +357,7 @@ export const createVisitedMap = ({
             position = nextPosition;
             center ??= position;
             centerPlayer.disabled = false;
+            if (isNewWorld || isNewVisit) updateLandmarks();
             if (canvas.isConnected && (isNewWorld || hasPositionChanged)) {
                 markerControls.updateTarget();
                 updatePositionLabel();
