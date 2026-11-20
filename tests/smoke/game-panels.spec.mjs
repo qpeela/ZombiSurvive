@@ -1,5 +1,6 @@
 import { expect } from '@playwright/test';
 
+import { movePlayerTo } from '../fixtures/game-controls.mjs';
 import { isolatedHostOrigin, test } from '../fixtures/isolated-host.mjs';
 
 test.use({ baseURL: isolatedHostOrigin });
@@ -86,4 +87,54 @@ test('opening panels releases held movement; Tab, clicks and attack keys stay in
     }
     await page.keyboard.press('f');
     await expect(canvas).toHaveAttribute('data-weapon-attack-tick', /^\d+$/);
+});
+
+test('in-game help explains inventory actions, world actions and map markers', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('#connection-status')).toHaveAttribute('data-status', 'connected');
+    const field = page.getByRole('region', { name: 'Игровое поле' });
+    const toggle = page.getByRole('button', { name: 'Справка', exact: true });
+    const help = page.getByRole('region', { name: 'Управление' });
+    await toggle.press('Enter');
+    await expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    await expect(help).toBeFocused();
+    await expect(help.locator('dt')).toHaveText([
+        'Движение',
+        'Бой и обзор',
+        'Взаимодействие',
+        'Инвентарь',
+        'Карта',
+    ]);
+    await expect(help).toContainText('Поставить метку');
+    await expect(help).toContainText('Shift+F10');
+    await page.keyboard.press('Escape');
+    await expect(help).toBeHidden();
+    await expect(toggle).toBeFocused();
+
+    await field.focus();
+    await page.keyboard.press('i');
+    const inventory = page.getByRole('region', { name: 'Инвентарь' });
+    const item = inventory.getByRole('button', { name: /^Переместить: Дубинка/ });
+    await item.press('Enter');
+    await expect(item).toHaveAttribute('aria-pressed', 'true');
+    await item.press('Shift+F10');
+    const actions = inventory.getByRole('menu');
+    await expect(actions.getByRole('menuitem', { name: 'Взять в руки' })).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(actions).toBeHidden();
+    await page.keyboard.press('Escape');
+    await expect(field).toBeFocused();
+
+    await movePlayerTo({ page, position: { xMeters: 1, yMeters: 2 } });
+    await field.press('e');
+    const nearby = page.getByRole('region', { name: 'Действия рядом' });
+    await expect(nearby.getByRole('button', { name: 'Взять', exact: true })).toBeEnabled();
+    await page.keyboard.press('Escape');
+    await expect(nearby).toBeHidden();
+
+    await field.press('m');
+    const map = page.getByRole('region', { name: 'Карта посещений' });
+    await map.getByLabel('Название метки').fill('У входа');
+    await map.getByRole('button', { name: 'Поставить метку' }).click();
+    await expect(map.getByText('Метка поставлена.')).toBeVisible();
 });

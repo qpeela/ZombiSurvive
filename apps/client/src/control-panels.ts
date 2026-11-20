@@ -1,7 +1,7 @@
 type ControlPanel = {
     readonly element: HTMLElement;
     readonly button: HTMLButtonElement;
-    readonly shortcut: string;
+    readonly shortcut?: string;
     readonly onVisibilityChange?: (isOpen: boolean) => void;
     readonly onEscape?: () => boolean;
 };

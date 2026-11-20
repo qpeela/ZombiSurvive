@@ -90,6 +90,8 @@ const mapZoomIn = document.querySelector<HTMLButtonElement>('#map-zoom-in');
 const mapZoomOut = document.querySelector<HTMLButtonElement>('#map-zoom-out');
 const mapCenter = document.querySelector<HTMLButtonElement>('#map-center');
 const mapMarkers = document.querySelector<HTMLFormElement>('#map-markers');
+const helpPanel = document.querySelector<HTMLElement>('#help-panel');
+const helpToggle = document.querySelector<HTMLButtonElement>('#toggle-help');
 const fullscreenButton = document.querySelector<HTMLButtonElement>('#fullscreen');
 const fullscreenMessage = document.querySelector<HTMLElement>('#fullscreen-message');
 const container = document.querySelector<HTMLElement>('#game');
@@ -180,6 +182,8 @@ if (
     !mapZoomOut ||
     !mapCenter ||
     !mapMarkers ||
+    !helpPanel ||
+    !helpToggle ||
     !fullscreenButton ||
     !fullscreenMessage ||
     !weaponOptions ||
@@ -625,6 +629,7 @@ const controlPanels = createControlPanels({
             shortcut: 'KeyM',
             onVisibilityChange: visitedMap.setOpen,
         },
+        { element: helpPanel, button: helpToggle },
     ],
     protectedRegions: [nearbyPanel, worldContextPanel],
     dismissOverlay: worldContext.close,

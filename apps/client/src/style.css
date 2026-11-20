@@ -295,7 +295,8 @@ h1 {
 }
 
 .pickup-panel,
-.map-panel {
+.map-panel,
+.help-panel {
     margin-top: 8px;
     padding: 8px;
     border: 1px solid #394a3c;
@@ -557,6 +558,24 @@ button:focus-visible {
     flex-wrap: wrap;
     gap: 4px;
     margin-top: 6px;
+}
+
+.help-panel dl {
+    display: grid;
+    gap: 4px;
+    margin-block: 8px;
+}
+
+.help-panel dt {
+    font-weight: bold;
+}
+
+.help-panel dd {
+    margin: 0 0 4px;
+}
+
+.help-panel kbd {
+    color: #e3cb91;
 }
 
 .map-markers {
