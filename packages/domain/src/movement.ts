@@ -21,6 +21,7 @@ export type MovementDirection = {
 export type StaminaEffects = {
     readonly isRecoverySlowed: boolean;
     readonly isDrainIncreased: boolean;
+    readonly maximumStamina?: number;
 };
 
 export type PlayerMovementState = {

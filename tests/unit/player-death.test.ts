@@ -227,7 +227,7 @@ test('dead tabs cannot move, loot, rearrange, equip, attack or use their retaine
         undefined,
         {
             worldTimeMs: 3000,
-            needs: { thirstMs: 0, hungerMs: 0 },
+            needs: { thirstMs: 0, hungerMs: 0, fatigueMs: 0 },
             restocks: new Map([['starter-bandage', 3000 + lootRestockSettings.periodWorldMs]]),
         },
     );

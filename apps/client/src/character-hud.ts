@@ -1,4 +1,9 @@
-import { hungerSettings, movementSettings, thirstSettings } from '@zombi-survive/content';
+import {
+    fatigueSettings,
+    hungerSettings,
+    movementSettings,
+    thirstSettings,
+} from '@zombi-survive/content';
 import type { PlayerMovementState } from '@zombi-survive/domain';
 import { sprintDrainMultiplier, staminaEffectsFromNeeds } from '@zombi-survive/simulation';
 
@@ -11,6 +16,7 @@ type HealthStatus = {
     readonly combatTicks: number;
     readonly thirstMs: number | undefined;
     readonly hungerMs: number | undefined;
+    readonly fatigueMs: number | undefined;
 };
 const recoveryPercent = Math.round(movementSettings.sprintRecoveryThreshold * 100);
 
@@ -18,13 +24,19 @@ const setText = (element: HTMLElement, text: string): void => {
     if (element.textContent !== text) element.textContent = text;
 };
 
-const updateNeed = (
-    label: HTMLElement,
-    name: string,
-    currentMs: number,
-    { maximumMs, noticeableMs }: { readonly maximumMs: number; readonly noticeableMs: number },
-    effect?: string,
-): void => {
+const updateNeed = ({
+    label,
+    name,
+    currentMs,
+    settings: { maximumMs, noticeableMs },
+    effect,
+}: {
+    readonly label: HTMLElement;
+    readonly name: string;
+    readonly currentMs: number;
+    readonly settings: { readonly maximumMs: number; readonly noticeableMs: number };
+    readonly effect: string | undefined;
+}): void => {
     label.hidden = currentMs < noticeableMs;
     if (!label.hidden) {
         const percentage = Math.min(100, Math.floor((currentMs * 100) / maximumMs));
@@ -39,6 +51,7 @@ export const createCharacterHud = ({
     combatIdle,
     thirstLabel,
     hungerLabel,
+    fatigueLabel,
     stamina,
     staminaLabel,
     loadLabel,
@@ -48,6 +61,7 @@ export const createCharacterHud = ({
     readonly combatIdle: HTMLElement;
     readonly thirstLabel: HTMLElement;
     readonly hungerLabel: HTMLElement;
+    readonly fatigueLabel: HTMLElement;
     readonly stamina: HTMLProgressElement;
     readonly staminaLabel: HTMLElement;
     readonly loadLabel: HTMLElement;
@@ -76,25 +90,36 @@ export const createCharacterHud = ({
             `Нагрузка: ${String(carriedWeightGrams)} г · Расход спринта: ×${multiplier}`,
         );
     },
-    setHealth: ({ isBleeding, combatTicks, thirstMs = 0, hungerMs = 0 }) => {
-        const { isDrainIncreased, isRecoverySlowed } = staminaEffectsFromNeeds({
+    setHealth: ({ isBleeding, combatTicks, thirstMs = 0, hungerMs = 0, fatigueMs = 0 }) => {
+        const { isDrainIncreased, isRecoverySlowed, maximumStamina } = staminaEffectsFromNeeds({
             thirstMs,
             hungerMs,
+            fatigueMs,
         });
-        updateNeed(
-            thirstLabel,
-            'Жажда',
-            thirstMs,
-            thirstSettings,
-            isDrainIncreased ? 'Спринт быстрее тратит выносливость' : undefined,
-        );
-        updateNeed(
-            hungerLabel,
-            'Голод',
-            hungerMs,
-            hungerSettings,
-            isRecoverySlowed ? 'Выносливость восстанавливается медленнее' : undefined,
-        );
+        updateNeed({
+            label: thirstLabel,
+            name: 'Жажда',
+            currentMs: thirstMs,
+            settings: thirstSettings,
+            effect: isDrainIncreased ? 'Спринт быстрее тратит выносливость' : undefined,
+        });
+        updateNeed({
+            label: hungerLabel,
+            name: 'Голод',
+            currentMs: hungerMs,
+            settings: hungerSettings,
+            effect: isRecoverySlowed ? 'Выносливость восстанавливается медленнее' : undefined,
+        });
+        updateNeed({
+            label: fatigueLabel,
+            name: 'Усталость',
+            currentMs: fatigueMs,
+            settings: fatigueSettings,
+            effect:
+                maximumStamina === undefined
+                    ? undefined
+                    : `Максимум выносливости ${String(Math.round(maximumStamina * 100))}%`,
+        });
         setText(bleedingLabel, isBleeding ? 'Кровотечение: есть' : 'Кровотечение: нет');
         bleedingLabel.dataset['bleeding'] = String(isBleeding);
         const isInCombat = combatTicks > 0;
@@ -106,6 +131,7 @@ export const createCharacterHud = ({
     reset: () => {
         thirstLabel.hidden = true;
         hungerLabel.hidden = true;
+        fatigueLabel.hidden = true;
         setText(bleedingLabel, 'Кровотечение: —');
         delete bleedingLabel.dataset['bleeding'];
         combatStatus.hidden = true;

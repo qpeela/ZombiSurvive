@@ -4,7 +4,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
 import { expect, test } from '@playwright/test';
-import { hungerSettings, rationLoot, thirstSettings, workshopWater } from '@zombi-survive/content';
+import {
+    fatigueSettings,
+    hungerSettings,
+    rationLoot,
+    thirstSettings,
+    workshopWater,
+} from '@zombi-survive/content';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
 import { openInventory } from '../fixtures/game-panels.mjs';
@@ -39,7 +45,11 @@ test('drinking workshop water from inventory clears the thirst warning and survi
     const directory = mkdtempSync(join(tmpdir(), 'zombi-water-smoke-'));
     const path = join(directory, 'world.sqlite');
     const store = new SoloWorldStore(path);
-    store.savePosition(workshopWater.item.position, 0, { thirstMs: 5 * 3_600_000, hungerMs: 0 });
+    store.savePosition(workshopWater.item.position, 0, {
+        thirstMs: 5 * 3_600_000,
+        hungerMs: 0,
+        fatigueMs: 0,
+    });
     store.close();
     let host = startHost(path);
     try {
@@ -85,6 +95,7 @@ test('one ready ration reduces hunger independently of thirst and stays consumed
     store.savePosition(rationLoot.item.position, 0, {
         thirstMs: 5 * 3_600_000,
         hungerMs: 8 * 3_600_000,
+        fatigueMs: 0,
     });
     store.close();
     const host = startHost(path);
@@ -146,6 +157,7 @@ for (const { supply, pickUpName, selector, action, affected, other } of [
         store.savePosition(supply.item.position, 0, {
             thirstMs: thirstSettings.maximumMs,
             hungerMs: hungerSettings.maximumMs,
+            fatigueMs: 0,
         });
         store.close();
         const host = startHost(path);
@@ -175,3 +187,38 @@ for (const { supply, pickUpName, selector, action, affected, other } of [
         }
     });
 }
+
+test('high awake fatigue limits stamina after reconnect and host restart', async ({ page }) => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-fatigue-smoke-'));
+    const path = join(directory, 'world.sqlite');
+    const store = new SoloWorldStore(path);
+    store.savePosition(store.initialWorld.position, 0, {
+        thirstMs: 0,
+        hungerMs: 0,
+        fatigueMs: 18 * 3_600_000,
+    });
+    store.close();
+    let host = startHost(path);
+    const fatigue = page.locator('#fatigue-status');
+    const meter = page.locator('#stamina');
+    const checkCap = async () => {
+        await expect(fatigue).toHaveText(/^Усталость: 7[5-9]% · Максимум выносливости 65%$/);
+        await expect(fatigue).toBeVisible();
+        await expect(meter).toHaveJSProperty('value', fatigueSettings.maximumStamina);
+    };
+    try {
+        await expect.poll(host.output).toContain('Local world ready');
+        await page.goto(origin);
+        await checkCap();
+        await page.reload();
+        await checkCap();
+        await host.stop('SIGTERM');
+        host = startHost(path);
+        await expect.poll(host.output).toContain('Local world ready');
+        await page.goto(origin);
+        await checkCap();
+    } finally {
+        await host.stop('SIGTERM');
+        rmSync(directory, { recursive: true, force: true });
+    }
+});

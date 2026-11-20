@@ -122,7 +122,11 @@ export class LocalWorldMovement {
         const input = this.players.get(playerId);
         if (input === undefined) throw new Error('Cannot update stamina for an unknown player.');
 
-        input.player = { ...input.player, staminaEffects: effects };
+        input.player = {
+            ...input.player,
+            stamina: Math.min(input.player.stamina, effects.maximumStamina ?? 1),
+            staminaEffects: effects,
+        };
     }
 
     leave(sessionId: string): void {

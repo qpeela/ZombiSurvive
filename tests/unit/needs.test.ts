@@ -3,7 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-import { hungerSettings, rationLoot, thirstSettings, workshopWater } from '@zombi-survive/content';
+import {
+    fatigueSettings,
+    hungerSettings,
+    rationLoot,
+    thirstSettings,
+    workshopWater,
+} from '@zombi-survive/content';
 import { copyItem, type ItemLocation } from '@zombi-survive/domain';
 import { advanceNeeds, drinkWater, eatRation, initialPlayerNeeds } from '@zombi-survive/simulation';
 import { expect, test } from 'vitest';
@@ -118,7 +124,7 @@ test('hunger follows the same game clock and a ration reduces only hunger once',
 
     const eaten = eatRation(input);
     expect(eaten.needs).toEqual({
-        thirstMs: needs.thirstMs,
+        ...needs,
         hungerMs: needs.hungerMs - hungerSettings.rationReliefMs,
     });
     expect(eaten.locations).toEqual([{ type: 'consumed', item }]);
@@ -160,7 +166,7 @@ test('v21 worlds preserve thirst, start with zero hunger and reset needs on resp
         }
 
         const migrated = open();
-        expect(migrated.initialNeeds).toEqual({ thirstMs: 6000, hungerMs: 0 });
+        expect(migrated.initialNeeds).toEqual({ thirstMs: 6000, hungerMs: 0, fatigueMs: 0 });
         expect(migrated.initialItemLocations).toEqual([
             ...oldLocations,
             { type: 'ground', item: rationLoot.item },
@@ -179,7 +185,7 @@ test('v21 worlds preserve thirst, start with zero hunger and reset needs on resp
             undefined,
             {
                 worldTimeMs: 12_000,
-                needs: { thirstMs: 6000, hungerMs: hungerSettings.noticeableMs },
+                needs: { thirstMs: 6000, hungerMs: hungerSettings.noticeableMs, fatigueMs: 0 },
             },
         );
         migrated.saveRespawn(0, { xMeters: 0, yMeters: 0 });
@@ -191,6 +197,33 @@ test('v21 worlds preserve thirst, start with zero hunger and reset needs on resp
         expect(restored.initialWorldTimeMs).toBe(12_000);
     } finally {
         for (const store of stores) store.close();
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
+
+test('awake fatigue accumulates by elapsed world time, saturates and keeps its stored value', () => {
+    const elapsedWorldMs = 18 * 3_600_000;
+    const half = elapsedWorldMs / 2;
+    const needs = advanceNeeds(initialPlayerNeeds, elapsedWorldMs);
+    expect(needs.fatigueMs).toBe(elapsedWorldMs);
+    expect(advanceNeeds(advanceNeeds(initialPlayerNeeds, half), half)).toEqual(needs);
+    expect(advanceNeeds(needs, elapsedWorldMs).fatigueMs).toBe(fatigueSettings.maximumMs);
+
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-fatigue-'));
+    const path = join(directory, 'world.sqlite');
+    try {
+        const store = new SoloWorldStore(path);
+        store.savePosition(store.initialWorld.position, elapsedWorldMs, needs);
+        store.close();
+
+        const restored = new SoloWorldStore(path);
+        try {
+            expect(restored.initialNeeds).toEqual(needs);
+            expect(restored.initialWorldTimeMs).toBe(elapsedWorldMs);
+        } finally {
+            restored.close();
+        }
+    } finally {
         rmSync(directory, { recursive: true, force: true });
     }
 });
