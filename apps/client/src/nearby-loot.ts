@@ -3,6 +3,7 @@ import {
     itemDisplayName,
     itemWeightGrams,
     pickupSettings,
+    workshopCrate,
 } from '@zombi-survive/content';
 import type {
     Corpse,
@@ -12,6 +13,7 @@ import type {
     PlayerLifeState,
     WorldPosition,
 } from '@zombi-survive/domain';
+import type { StorageLoot } from '@zombi-survive/protocol';
 import { findInventorySpace } from '@zombi-survive/simulation';
 
 import type { LootSource } from './loot-highlight';
@@ -25,7 +27,14 @@ type LootRow = {
     readonly reason: HTMLElement;
 };
 
-type CorpseGroup = {
+type GroupSource = {
+    readonly id: string;
+    readonly position: WorldPosition;
+    readonly items: readonly Item[];
+    readonly kind: 'corpse' | 'storage';
+};
+
+type LootGroup = {
     readonly element: HTMLElement;
     readonly empty: HTMLElement;
     readonly rows: Map<string, LootRow>;
@@ -34,6 +43,7 @@ type CorpseGroup = {
 type NearbyState = {
     readonly ground: GroundItem | null;
     readonly corpses: readonly CorpseLoot[];
+    readonly storage: StorageLoot | null;
     readonly position: WorldPosition;
     readonly inventory: readonly InventoryItem[];
     readonly life: PlayerLifeState | null;
@@ -100,20 +110,37 @@ const createRow = (): LootRow => {
     return { element, name, button, reason };
 };
 
-const createGroup = (corpse: Corpse): CorpseGroup => {
+const createGroup = (source: GroupSource): LootGroup => {
     const element = document.createElement('section');
     element.className = 'loot-group';
-    element.dataset['corpseId'] = corpse.corpseId;
+    const isCorpse = source.kind === 'corpse';
+    element.dataset[isCorpse ? 'corpseId' : 'storageId'] = source.id;
     const heading = document.createElement('h3');
-    const { xMeters, yMeters } = corpse.position;
-    heading.textContent = `Тело · ${xMeters.toFixed(1)}, ${yMeters.toFixed(1)} м`;
+    const { xMeters, yMeters } = source.position;
+    heading.textContent = isCorpse
+        ? `Тело · ${xMeters.toFixed(1)}, ${yMeters.toFixed(1)} м`
+        : workshopCrate.name;
     element.setAttribute('aria-label', heading.textContent);
     const empty = document.createElement('p');
-    empty.textContent = 'В теле ничего нет.';
+    empty.textContent = isCorpse ? 'В теле ничего нет.' : 'Ящик пуст.';
     element.append(heading, empty);
 
     return { element, empty, rows: new Map() };
 };
+
+const getGroupSources = ({ corpses, storage }: NearbyState): GroupSource[] => {
+    const sources: GroupSource[] = corpses.map(({ corpseId, position, items }) => ({
+        id: corpseId,
+        position,
+        items,
+        kind: 'corpse',
+    }));
+    if (storage !== null) sources.push({ ...storage, id: storage.storageId, kind: 'storage' });
+
+    return sources;
+};
+
+const groupKey = ({ kind, id }: Pick<GroupSource, 'kind' | 'id'>): string => `${kind}:${id}`;
 
 export const createNearbyLoot = ({
     panel,
@@ -123,6 +150,7 @@ export const createNearbyLoot = ({
     groundButton: initialGroundButton,
     groundReason,
     corpseList,
+    storageList,
     canReach,
     onPickup,
     onHighlight,
@@ -134,16 +162,17 @@ export const createNearbyLoot = ({
     readonly groundButton: HTMLButtonElement;
     readonly groundReason: HTMLElement;
     readonly corpseList: HTMLElement;
+    readonly storageList: HTMLElement;
     readonly canReach: (from: WorldPosition, to: WorldPosition) => boolean;
     readonly onPickup: (itemId: string) => void;
     readonly onHighlight: (source: LootSource | null) => void;
 }): {
     update: (state: NearbyState | null) => void;
-    focusCorpse: (id: string) => void;
+    focusGroup: (source: Pick<GroupSource, 'kind' | 'id'>) => void;
     pickupReason: (itemId: string) => string | null;
     dispose: () => void;
 } => {
-    const groups = new Map<string, CorpseGroup>();
+    const groups = new Map<string, LootGroup>();
     let groundButton = initialGroundButton;
     let latestState: NearbyState | null = null;
     groundRow.setAttribute('role', 'group');
@@ -160,6 +189,9 @@ export const createNearbyLoot = ({
 
             return id === undefined ? null : { kind: 'ground', id };
         }
+
+        const storageId = target.closest<HTMLElement>('[data-storage-id]')?.dataset['storageId'];
+        if (storageId !== undefined) return { kind: 'storage', id: storageId };
 
         const corpse = target.closest<HTMLElement>('[data-corpse-id]');
         const corpseId = corpse?.dataset['corpseId'];
@@ -206,10 +238,10 @@ export const createNearbyLoot = ({
             if (ground?.itemId === itemId)
                 return getPickupReason(state, ground.position, ground, canReach);
 
-            for (const corpse of state.corpses) {
-                const item = corpse.items.find(candidate => candidate.itemId === itemId);
+            for (const source of getGroupSources(state)) {
+                const item = source.items.find(candidate => candidate.itemId === itemId);
                 if (item !== undefined)
-                    return getPickupReason(state, corpse.position, item, canReach);
+                    return getPickupReason(state, source.position, item, canReach);
             }
 
             return 'Источник больше недоступен.';
@@ -217,8 +249,8 @@ export const createNearbyLoot = ({
         update: state => {
             latestState = state;
             const ground = state?.ground ?? null;
-            const corpses = state?.corpses ?? [];
-            const hasSources = ground !== null || corpses.length > 0;
+            const sources = state === null ? [] : getGroupSources(state);
+            const hasSources = ground !== null || sources.length > 0;
             panel.toggleAttribute('data-has-sources', hasSources);
             status.hidden = hasSources;
             setText(
@@ -262,7 +294,7 @@ export const createNearbyLoot = ({
                 setText(groundReason, reason ?? '');
             }
 
-            const visibleIds = new Set(corpses.map(corpse => corpse.corpseId));
+            const visibleIds = new Set(sources.map(groupKey));
             for (const [id, group] of groups) {
                 if (visibleIds.has(id)) continue;
 
@@ -276,18 +308,20 @@ export const createNearbyLoot = ({
                 return;
             }
 
-            for (const corpse of corpses) {
-                let group = groups.get(corpse.corpseId);
+            for (const source of sources) {
+                const key = groupKey(source);
+                let group = groups.get(key);
                 if (group === undefined) {
-                    group = createGroup(corpse);
-                    groups.set(corpse.corpseId, group);
-                    corpseList.append(group.element);
+                    group = createGroup(source);
+                    groups.set(key, group);
+                    const list = source.kind === 'corpse' ? corpseList : storageList;
+                    list.append(group.element);
                 }
 
-                const isEmpty = corpse.items.length === 0;
+                const isEmpty = source.items.length === 0;
                 group.empty.hidden = !isEmpty;
                 group.element.tabIndex = isEmpty ? 0 : -1;
-                const itemIds = new Set(corpse.items.map(item => item.itemId));
+                const itemIds = new Set(source.items.map(item => item.itemId));
                 for (const [id, row] of group.rows) {
                     if (itemIds.has(id)) continue;
 
@@ -295,7 +329,7 @@ export const createNearbyLoot = ({
                     group.rows.delete(id);
                 }
 
-                for (const item of corpse.items) {
+                for (const item of source.items) {
                     let row = group.rows.get(item.itemId);
                     if (row === undefined) {
                         row = createRow();
@@ -303,7 +337,7 @@ export const createNearbyLoot = ({
                         group.element.append(row.element);
                     }
 
-                    const reason = getPickupReason(state, corpse.position, item, canReach);
+                    const reason = getPickupReason(state, source.position, item, canReach);
                     setText(row.name, itemDisplayName(item));
                     row.name.dataset['lootDragId'] = item.itemId;
                     setText(row.reason, reason ?? '');
@@ -314,7 +348,7 @@ export const createNearbyLoot = ({
             }
             updateHighlight();
         },
-        focusCorpse: id => groups.get(id)?.element.focus(),
+        focusGroup: source => groups.get(groupKey(source))?.element.focus(),
         dispose: () => {
             panel.removeEventListener('click', onClick);
             panel.removeEventListener('pointerover', onPointerChange);
@@ -322,6 +356,7 @@ export const createNearbyLoot = ({
             panel.removeEventListener('focusin', onFocusChange);
             panel.removeEventListener('focusout', onFocusChange);
             corpseList.replaceChildren();
+            storageList.replaceChildren();
             onHighlight(null);
         },
     };

@@ -44,6 +44,7 @@ import { createLocalWorldProfile } from './local-world-profile.ts';
 import { LocalWorldReload } from './local-world-reload.ts';
 import { LocalWorldRest } from './local-world-rest.ts';
 import { LocalWorldZombie } from './local-world-zombie.ts';
+import { initialChunkLootLocation } from './saved-chunk-loot.ts';
 import type { SavedCombat } from './saved-combat.ts';
 import type { SoloWorldStore } from './solo-world-store.ts';
 import type { WorldAccess } from './world-access.ts';
@@ -379,7 +380,7 @@ export class LocalWorldRoom extends Room {
                     if (loot.length > 0)
                         this.pickup.stageLocations([
                             ...locations,
-                            ...loot.map(item => ({ type: 'ground' as const, item })),
+                            ...loot.map(initialChunkLootLocation),
                         ]);
                     this.visitedLootChunks.add(id);
                 }

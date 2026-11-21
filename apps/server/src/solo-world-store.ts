@@ -8,6 +8,7 @@ import {
     combatSettings,
     corpseSettings,
     initialGroundItem,
+    workshopCrate,
     worldGenerationSettings,
 } from '@zombi-survive/content';
 import {
@@ -31,6 +32,7 @@ import {
 import {
     chunkLootForKey,
     chunkLootKeyFromItemId,
+    initialChunkLootLocation,
     isWarehouseLootId,
     readSavedLootChunks,
 } from './saved-chunk-loot.ts';
@@ -57,7 +59,8 @@ const worldItemManifest = [...ammoManifest, ...initialExpandedLoot];
 const warehouseLootSaveVersion = 20;
 const thirstSaveVersion = 21;
 const hungerSaveVersion = 22;
-const currentSaveVersion = hungerSaveVersion;
+const workshopCrateSaveVersion = 23;
+const currentSaveVersion = workshopCrateSaveVersion;
 
 export type SavedSoloWorld = {
     readonly worldId: string;
@@ -179,6 +182,7 @@ export class SoloWorldStore {
                 version !== 19 &&
                 version !== warehouseLootSaveVersion &&
                 version !== thirstSaveVersion &&
+                version !== hungerSaveVersion &&
                 version !== currentSaveVersion
             ) {
                 throw new Error('Unsupported solo save schema version.');
@@ -255,8 +259,16 @@ export class SoloWorldStore {
                         const isNewWater =
                             version < thirstSaveVersion && item.kind === 'waterBottle';
                         const isNewRation = version < hungerSaveVersion && item.kind === 'ration';
-                        if (isNewBandage || isNewWarehouseLoot || isNewWater || isNewRation)
-                            chunkLootAdditions.push(item);
+                        const isNewCrateStock =
+                            version < workshopCrateSaveVersion &&
+                            item.itemId === workshopCrate.stock.itemId;
+                        const isNewLoot =
+                            isNewBandage ||
+                            isNewWarehouseLoot ||
+                            isNewWater ||
+                            isNewRation ||
+                            isNewCrateStock;
+                        if (isNewLoot) chunkLootAdditions.push(item);
                         else savedLoot.push(item);
                     }
                 }
@@ -473,7 +485,7 @@ export class SoloWorldStore {
                 this.worldLoot = [...this.worldLoot, ...chunkLootAdditions];
                 this.initialItemLocations = [
                     ...this.initialItemLocations,
-                    ...chunkLootAdditions.map(item => ({ type: 'ground' as const, item })),
+                    ...chunkLootAdditions.map(initialChunkLootLocation),
                 ];
                 this.database
                     .prepare('UPDATE solo_world SET item_location = ? WHERE id = 1')

@@ -1,4 +1,4 @@
-import { worldLootSettings } from '@zombi-survive/content';
+import { workshopCrate, worldLootSettings } from '@zombi-survive/content';
 import type { GroundItem, ItemLocation, WorldPosition } from '@zombi-survive/domain';
 import type { LootRestock } from '@zombi-survive/protocol';
 import { replenishLoot, updateLootRestockTimers } from '@zombi-survive/simulation';
@@ -18,7 +18,11 @@ export class LocalWorldLootTimers {
 
     register(points: readonly GroundItem[]): void {
         for (const point of points) {
-            if (point.kind === 'waterBottle' || point.kind === 'ration') continue;
+            const isFiniteSupply =
+                point.kind === 'waterBottle' ||
+                point.kind === 'ration' ||
+                point.itemId === workshopCrate.stock.itemId;
+            if (isFiniteSupply) continue;
             if (!this.points.has(point.itemId))
                 this.points.set(point.itemId, { ...point, position: { ...point.position } });
         }

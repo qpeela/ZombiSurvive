@@ -25,6 +25,7 @@ export {
     militaryWarehouse,
     workshopBench,
     workshopCanopy,
+    workshopCrate,
     worldLandmarks,
 } from './world-landmarks.ts';
 export {

@@ -50,6 +50,7 @@ export {
     type PickupCommand,
     type PickupSnapshot,
     pickupStateRequest,
+    type StorageLoot,
     type UseBandageCommand,
 } from './pickup.ts';
 export { type InventoryMoveCommand, inventoryVersion, isInventoryMoveCommand } from './pickup.ts';

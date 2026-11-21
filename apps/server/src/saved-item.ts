@@ -1,4 +1,9 @@
-import { ammoSettings, initialGroundItem, pistolSettings } from '@zombi-survive/content';
+import {
+    ammoSettings,
+    initialGroundItem,
+    pistolSettings,
+    workshopCrate,
+} from '@zombi-survive/content';
 import {
     copyItem,
     type GroundItem,
@@ -102,7 +107,7 @@ export const copyItemLocation = (location: ItemLocation): ItemLocation => {
     if (location.type === 'consumed') return { ...location, item: { ...location.item } };
     if (location.type === 'expired') return { ...location, item: { ...location.item } };
 
-    if (location.type === 'corpse') {
+    if (location.type === 'corpse' || location.type === 'storage') {
         return { ...location, item: { ...location.item } };
     }
 
@@ -201,7 +206,8 @@ export const readSavedItems = (
         if (pointId === null) continue;
 
         const point = originalItems.get(pointId);
-        if (point?.kind !== 'ammo9mm' && point?.kind !== 'bandage') return invalidItem();
+        const isRestockable = point?.kind === 'ammo9mm' || point?.kind === 'bandage';
+        if (!isRestockable || pointId === workshopCrate.stock.itemId) return invalidItem();
 
         restocked.push({ ...point, itemId });
     }
@@ -255,13 +261,25 @@ export const readSavedItems = (
                 if (corpseId !== undefined) return invalidItem();
                 location = { type: 'expired', item };
             }
+        } else if (entry['type'] === 'storage') {
+            const isCrateStock = item.itemId === workshopCrate.stock.itemId;
+            const isKnownStorage = entry['storageId'] === workshopCrate.id;
+            const isUnowned =
+                entry['playerId'] === undefined &&
+                entry['cell'] === undefined &&
+                entry['corpseId'] === undefined &&
+                rawItem['position'] === undefined;
+            if (!isCrateStock || !isKnownStorage || !isUnowned) return invalidItem();
+            location = { type: 'storage', item, storageId: workshopCrate.id };
         } else if (item.itemId === initialGroundItem.itemId) {
             location = readSavedItem(JSON.stringify(entry), playerId);
         } else if (entry['type'] === 'ground') {
             const spawn = worldItems.get(item.itemId);
             const position = rawItem['position'];
             const isUnowned = entry['playerId'] === undefined && entry['cell'] === undefined;
-            if (spawn === undefined || !isUnowned || !isRecord(position)) return invalidItem();
+            const isCrateStock = item.itemId === workshopCrate.stock.itemId;
+            if (spawn === undefined || !isUnowned || !isRecord(position) || isCrateStock)
+                return invalidItem();
             const isSpawn =
                 position['xMeters'] === spawn.position.xMeters &&
                 position['yMeters'] === spawn.position.yMeters;

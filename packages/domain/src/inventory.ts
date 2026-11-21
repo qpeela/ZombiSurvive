@@ -12,6 +12,7 @@ export type InventorySettings = {
 export type ItemLocation =
     | { readonly type: 'consumed'; readonly item: AmmoStack | BandageItem | RationItem }
     | { readonly type: 'expired'; readonly item: Item }
+    | { readonly type: 'storage'; readonly item: Item; readonly storageId: string }
     | { readonly type: 'corpse'; readonly item: Item; readonly corpseId: string }
     | { readonly type: 'hands'; readonly item: Item; readonly playerId: PlayerId }
     | { readonly type: 'ground'; readonly item: GroundItem }

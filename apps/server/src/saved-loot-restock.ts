@@ -1,3 +1,4 @@
+import { workshopCrate } from '@zombi-survive/content';
 import type { GroundItem } from '@zombi-survive/domain';
 
 const invalid = (): never => {
@@ -13,7 +14,12 @@ export const readSavedRestocks = (
     if (!Array.isArray(parsed)) return invalid();
     const known = new Set(
         points
-            .filter(point => point.kind !== 'waterBottle' && point.kind !== 'ration')
+            .filter(
+                point =>
+                    point.kind !== 'waterBottle' &&
+                    point.kind !== 'ration' &&
+                    point.itemId !== workshopCrate.stock.itemId,
+            )
             .map(point => point.itemId),
     );
     const timers = new Map<string, number>();

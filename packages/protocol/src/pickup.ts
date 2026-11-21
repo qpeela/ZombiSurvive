@@ -44,6 +44,12 @@ export type LootRestock = {
     readonly readyAtWorldMs: number;
 };
 
+export type StorageLoot = {
+    readonly storageId: string;
+    readonly position: WorldPosition;
+    readonly items: readonly Item[];
+};
+
 export type PickupSnapshot = {
     readonly type: 'pickup-state';
     readonly restocks?: readonly LootRestock[];
@@ -55,6 +61,7 @@ export type PickupSnapshot = {
     readonly groundItem: GroundItem | null;
     readonly items: readonly InventoryItem[];
     readonly hands: Item | null;
+    readonly storage?: StorageLoot;
     readonly corpses?: readonly (Corpse & { readonly items: readonly Item[] })[];
 };
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -251,6 +258,21 @@ export const isPickupSnapshot = (value: unknown): value is PickupSnapshot => {
             corpseIds.add(corpse['corpseId']);
             ids.push(...loot.map((item: Item) => item.itemId));
         }
+    }
+
+    const storage = value['storage'];
+    if (storage !== undefined) {
+        if (!isRecord(storage) || !isId(storage['storageId'])) return false;
+        const position = storage['position'];
+        const loot: unknown = storage['items'];
+        if (
+            !isRecord(position) ||
+            !Number.isFinite(position['xMeters']) ||
+            !Number.isFinite(position['yMeters'])
+        )
+            return false;
+        if (!Array.isArray(loot) || loot.length > 128 || !loot.every(isItem)) return false;
+        ids.push(...loot.map((item: Item) => item.itemId));
     }
 
     if (new Set(ids).size !== ids.length) {
