@@ -27,6 +27,7 @@ export const fatigueSettings = Object.freeze({
 export const wetnessSettings = Object.freeze({
     maximumMs: worldHourMs,
     noticeableMs: 5 * 60 * 1000,
+    shelteredDryingMultiplier: 2,
 });
 
 export const coldSettings = Object.freeze({
