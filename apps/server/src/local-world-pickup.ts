@@ -7,8 +7,12 @@ import {
     type WeaponId,
 } from '@zombi-survive/domain';
 import {
+    type DrinkWaterCommand,
+    type EatRationCommand,
     type InventoryMoveCommand,
     inventoryVersion,
+    isDrinkWaterCommand,
+    isEatRationCommand,
     isInventoryMoveCommand,
     isMeleeCommand,
     isPickupCommand,
@@ -38,7 +42,15 @@ type ItemCommand =
     | PickupCommand
     | InventoryMoveCommand
     | UseBandageCommand
+    | DrinkWaterCommand
+    | EatRationCommand
     | Exclude<MeleeCommand, { type: 'melee-attack' }>;
+
+type UseItem = (input: {
+    readonly snapshot: MovementSnapshot;
+    readonly locations: readonly ItemLocation[];
+    readonly itemId: string;
+}) => readonly ItemLocation[];
 
 export class LocalWorldPickup {
     private locations: readonly ItemLocation[];
@@ -128,6 +140,11 @@ export class LocalWorldPickup {
         }
     }
 
+    receiveSupplyUse(sessionId: string, value: unknown): void {
+        if (isDrinkWaterCommand(value) || isEatRationCommand(value))
+            this.pending.set(sessionId, value);
+    }
+
     receive(sessionId: string, value: unknown): void {
         if (isPickupCommand(value)) {
             this.pending.set(sessionId, {
@@ -163,11 +180,12 @@ export class LocalWorldPickup {
     step(
         sessions: ReadonlyMap<string, MovementSnapshot>,
         health: (snapshot: MovementSnapshot) => number = () => 100,
-        useBandage: (input: {
-            readonly snapshot: MovementSnapshot;
-            readonly locations: readonly ItemLocation[];
-            readonly itemId: string;
-        }) => readonly ItemLocation[] = input => input.locations,
+        useBandage: UseItem = input => input.locations,
+        consume: (
+            input: Parameters<UseItem>[0] & {
+                readonly kind: DrinkWaterCommand['type'] | EatRationCommand['type'];
+            },
+        ) => readonly ItemLocation[] = input => input.locations,
     ): void {
         if (this.pendingSave !== null) return;
 
@@ -186,6 +204,16 @@ export class LocalWorldPickup {
             if (command.type === 'use-bandage') {
                 next = useBandage({ snapshot, locations: next, itemId: command.itemId });
 
+                continue;
+            }
+
+            if (command.type === 'drink-water' || command.type === 'eat-ration') {
+                next = consume({
+                    snapshot,
+                    locations: next,
+                    itemId: command.itemId,
+                    kind: command.type,
+                });
                 continue;
             }
 

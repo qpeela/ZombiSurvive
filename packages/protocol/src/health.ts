@@ -3,9 +3,11 @@ import {
     type PlayerHealth,
     type PlayerLifeState,
     playerLifeState,
+    type PlayerNeeds,
 } from '@zombi-survive/domain';
 
 import { protocolVersion } from './movement.ts';
+import { isRestState, type RestState } from './rest.ts';
 
 export const healthVersion = 4;
 export type HealthSnapshot = PlayerHealth &
@@ -19,6 +21,9 @@ export type HealthSnapshot = PlayerHealth &
         readonly lifeState: PlayerLifeState;
         readonly combatTicks: number;
         readonly lifeRevision?: number;
+        readonly rest?: RestState;
+        readonly needs?: Pick<PlayerNeeds, 'thirstMs'> &
+            Partial<Pick<PlayerNeeds, 'hungerMs' | 'fatigueMs'>>;
     };
 const isId = (value: unknown): value is string => {
     if (typeof value !== 'string') {
@@ -67,7 +72,22 @@ export const isHealthSnapshot = (value: unknown): value is HealthSnapshot => {
         revision === undefined ||
         (typeof revision === 'number' && Number.isSafeInteger(revision) && revision >= 0);
 
+    const needs = record['needs'];
+    const isNeedTime = (time: unknown): boolean =>
+        typeof time === 'number' && Number.isSafeInteger(time) && time >= 0;
+    const isNeeds =
+        needs === undefined ||
+        (isRecord(needs) &&
+            isNeedTime(needs['thirstMs']) &&
+            (needs['hungerMs'] === undefined || isNeedTime(needs['hungerMs'])) &&
+            (needs['fatigueMs'] === undefined || isNeedTime(needs['fatigueMs'])));
+
+    const rest = record['rest'];
+    const isRest = rest === undefined || isRestState(rest);
+
     return (
+        isNeeds &&
+        isRest &&
         isRevision &&
         isType &&
         isVersion &&

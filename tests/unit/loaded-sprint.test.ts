@@ -1,8 +1,10 @@
+import { fatigueSettings, hungerSettings, thirstSettings } from '@zombi-survive/content';
 import type { PlayerMovementState } from '@zombi-survive/domain';
 import { isMovementSnapshot, protocolVersion } from '@zombi-survive/protocol';
 import {
     movementStepSeconds,
     sprintDrainMultiplier,
+    staminaEffectsFromNeeds,
     stepPlayerMovement,
     stepPlayerToward,
 } from '@zombi-survive/simulation';
@@ -131,3 +133,98 @@ test.each([-1, 0.5, NaN, Infinity, '2000', null])(
         ).toBe(false);
     },
 );
+
+test('strong thirst increases sprint cost at the same load and strong hunger only slows recovery', () => {
+    const base = { ...player(2000), stamina: 0.5 };
+    const { staminaPenaltyAtMs: thirstMs } = thirstSettings;
+    const { staminaPenaltyAtMs: hungerMs } = hungerSettings;
+    const neutral = staminaEffectsFromNeeds({
+        fatigueMs: 0,
+        thirstMs: thirstMs - 1,
+        hungerMs: hungerMs - 1,
+    });
+    const hungry = staminaEffectsFromNeeds({ fatigueMs: 0, thirstMs: thirstMs - 1, hungerMs });
+    const thirsty = staminaEffectsFromNeeds({ fatigueMs: 0, thirstMs, hungerMs: hungerMs - 1 });
+    const both = staminaEffectsFromNeeds({ fatigueMs: 0, thirstMs, hungerMs });
+
+    for (const [staminaEffects, sprint, recovery] of [
+        [neutral, 0.48, 0.505],
+        [hungry, 0.48, 0.5025],
+        [thirsty, 0.47, 0.505],
+        [both, 0.47, 0.5025],
+    ] as const) {
+        const state = { ...base, staminaEffects };
+        expect(
+            stepPlayerMovement(state, { x: 0, y: -1 }, movementStepSeconds, modifiers).stamina,
+        ).toBeCloseTo(sprint);
+        expect(
+            stepPlayerToward(state, { xMeters: 0, yMeters: -7 }, movementStepSeconds, modifiers)
+                .stamina,
+        ).toBeCloseTo(sprint);
+        expect(stepPlayerMovement(state, { x: 0, y: 0 }, movementStepSeconds).stamina).toBeCloseTo(
+            recovery,
+        );
+    }
+});
+
+test('confirmed stamina effects survive both adapters and drive client prediction', () => {
+    const staminaEffects = { isRecoverySlowed: true, isDrainIncreased: true };
+    const state = { ...player(2000), staminaEffects };
+    const hostSnapshot = createMovementSnapshot('world', 1, state, null);
+    const parsed = readMovementSnapshot(hostSnapshot);
+    if (parsed === null) throw new Error('Expected a valid movement state.');
+    expect(parsed.player.staminaEffects).toEqual(staminaEffects);
+    expect(parsed.player.staminaEffects).not.toBe(hostSnapshot.player.staminaEffects);
+    expect(hostSnapshot.player.staminaEffects).not.toBe(staminaEffects);
+
+    const prediction = new MovementPrediction();
+    prediction.accept(parsed, 0);
+    prediction.setIntent({ type: 'direction', direction: { x: 0, y: -1 }, ...modifiers }, 0);
+    expect(prediction.sample(200)?.stamina).toBeCloseTo(0.88);
+    expect(
+        isMovementSnapshot({
+            ...hostSnapshot,
+            player: {
+                ...hostSnapshot.player,
+                staminaEffects: { ...staminaEffects, isDrainIncreased: 1 },
+            },
+        }),
+    ).toBe(false);
+});
+
+test('fatigue caps the available reserve while weight, hunger and thirst keep their own effects', () => {
+    const fatigueMs = fatigueSettings.staminaPenaltyAtMs;
+    const highHunger = hungerSettings.staminaPenaltyAtMs;
+    const highThirst = thirstSettings.staminaPenaltyAtMs;
+    const below = staminaEffectsFromNeeds({ fatigueMs: fatigueMs - 1, hungerMs: 0, thirstMs: 0 });
+    expect(below.maximumStamina).toBeUndefined();
+
+    const staminaEffects = staminaEffectsFromNeeds({
+        fatigueMs,
+        hungerMs: highHunger,
+        thirstMs: highThirst,
+    });
+    const state = { ...player(2000), staminaEffects };
+    const { maximumStamina } = fatigueSettings;
+    expect(staminaEffects.maximumStamina).toBe(maximumStamina);
+    const sprint = stepPlayerMovement(state, { x: 0, y: -1 }, movementStepSeconds, modifiers);
+    expect(sprint.stamina).toBeCloseTo(maximumStamina - 0.03);
+    const tired = { ...state, stamina: 0.6 };
+    expect(stepPlayerMovement(tired, { x: 0, y: 0 }, movementStepSeconds).stamina).toBeCloseTo(
+        0.6025,
+    );
+    expect(stepPlayerMovement(state, { x: 0, y: 0 }, movementStepSeconds).stamina).toBe(
+        maximumStamina,
+    );
+
+    const remote = createMovementSnapshot('world', 1, { ...state, stamina: maximumStamina }, null);
+    expect(readMovementSnapshot(remote)?.player.staminaEffects?.maximumStamina).toBe(
+        maximumStamina,
+    );
+    expect(
+        isMovementSnapshot({
+            ...remote,
+            player: { ...remote.player, staminaEffects: { ...staminaEffects, maximumStamina: -1 } },
+        }),
+    ).toBe(false);
+});

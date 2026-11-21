@@ -1,5 +1,6 @@
 import type { MovementDirection, MovementModifiers, WorldPosition } from '@zombi-survive/domain';
 import {
+    copyMovementPlayer,
     isMovementInputCommand,
     isMovementSnapshot,
     isMovementTargetCommand,
@@ -62,31 +63,8 @@ export const readMovementSnapshot = (value: unknown): MovementSnapshot | null =>
         worldId: value.worldId,
         tick: value.tick,
         ...(value.worldTimeMs === undefined ? {} : { worldTimeMs: value.worldTimeMs }),
-        player: {
-            playerId: value.player.playerId,
-            stamina: value.player.stamina,
-            ...(value.player.carriedWeightGrams === undefined
-                ? {}
-                : { carriedWeightGrams: value.player.carriedWeightGrams }),
-            isExhausted: value.player.isExhausted,
-            isSneaking: value.player.isSneaking,
-            noiseRadiusMeters: value.player.noiseRadiusMeters,
-            position: {
-                xMeters: value.player.position.xMeters,
-                yMeters: value.player.position.yMeters,
-            },
-        },
-        otherPlayers: value.otherPlayers.map(player => ({
-            playerId: player.playerId,
-            stamina: player.stamina,
-            ...(player.carriedWeightGrams === undefined
-                ? {}
-                : { carriedWeightGrams: player.carriedWeightGrams }),
-            isExhausted: player.isExhausted,
-            isSneaking: player.isSneaking,
-            noiseRadiusMeters: player.noiseRadiusMeters,
-            position: { ...player.position },
-        })),
+        player: copyMovementPlayer(value.player),
+        otherPlayers: value.otherPlayers.map(copyMovementPlayer),
         lastProcessedInputSequence: value.lastProcessedInputSequence,
     };
 };

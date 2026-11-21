@@ -16,8 +16,16 @@ export type AmmoStack = {
 };
 
 export type BandageItem = { readonly itemId: string; readonly kind: 'bandage' };
+export type WaterBottle = {
+    readonly itemId: string;
+    readonly kind: 'waterBottle';
+    readonly servings: 0 | 1;
+};
+export type RationItem = { readonly itemId: string; readonly kind: 'ration' };
 export type Item =
     | BandageItem
+    | RationItem
+    | WaterBottle
     | { readonly itemId: string; readonly kind: MeleeWeaponId }
     | PistolItem
     | AmmoStack;
@@ -27,6 +35,7 @@ export type GroundItem = Item & { readonly position: WorldPosition };
 export const copyItem = (item: Item): Item => {
     const base = { itemId: item.itemId, kind: item.kind };
 
+    if (item.kind === 'waterBottle') return { ...base, kind: item.kind, servings: item.servings };
     if (item.kind === 'ammo9mm')
         return { itemId: item.itemId, kind: item.kind, quantity: item.quantity };
     if (item.kind === 'pistol')

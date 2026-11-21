@@ -20,6 +20,13 @@ export {
     stepPlayerMovement,
     stepPlayerToward,
 } from './movement.ts';
+export {
+    advanceNeeds,
+    drinkWater,
+    eatRation,
+    initialPlayerNeeds,
+    staminaEffectsFromNeeds,
+} from './needs.ts';
 export { obstacleRayDistance } from './obstacle-ray.ts';
 export { pickUpItem } from './pickup.ts';
 export { spendPistolRound, tracePistolShot } from './pistol.ts';

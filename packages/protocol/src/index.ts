@@ -28,6 +28,7 @@ export {
     meleeVersion,
 } from './melee.ts';
 export {
+    copyMovementPlayer,
     isMovementInputCommand,
     isMovementSnapshot,
     isMovementTargetCommand,
@@ -38,6 +39,10 @@ export {
     protocolVersion,
 } from './movement.ts';
 export {
+    type DrinkWaterCommand,
+    type EatRationCommand,
+    isDrinkWaterCommand,
+    isEatRationCommand,
     isPickupCommand,
     isPickupSnapshot,
     isUseBandageCommand,
@@ -57,6 +62,13 @@ export {
     profileVersion,
     type RenamePlayerCommand,
 } from './profile.ts';
+export {
+    isRestCommand,
+    isRestState,
+    type RestCancellation,
+    type RestCommand,
+    type RestState,
+} from './rest.ts';
 export {
     isZombieSnapshot,
     type ZombieSnapshot,

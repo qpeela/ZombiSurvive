@@ -120,7 +120,12 @@ test('night HUD shows bleeding and combat together, confirms bandaging and reset
         const status = page.getByRole('status');
         await expect(canvas).toHaveAttribute('data-daylight-phase', 'night');
         await expect(hud).toBeInViewport();
-        await expect(hud.locator('.status-icon[aria-hidden="true"]')).toHaveCount(3);
+        for (const chip of ['.bleeding-chip', '.combat-chip', '.status-chip:has(#stamina)']) {
+            await expect(hud.locator(`${chip} .status-icon`)).toHaveAttribute(
+                'aria-hidden',
+                'true',
+            );
+        }
         await expect(idle).toHaveText('Вне боя');
         const combatChip = hud.locator('.combat-chip');
         const bleedingChip = hud.locator('.bleeding-chip');

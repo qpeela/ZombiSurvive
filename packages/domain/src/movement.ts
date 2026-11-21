@@ -18,6 +18,12 @@ export type MovementDirection = {
     readonly y: MovementAxis;
 };
 
+export type StaminaEffects = {
+    readonly isRecoverySlowed: boolean;
+    readonly isDrainIncreased: boolean;
+    readonly maximumStamina?: number;
+};
+
 export type PlayerMovementState = {
     readonly playerId: PlayerId;
     readonly position: WorldPosition;
@@ -25,6 +31,7 @@ export type PlayerMovementState = {
     readonly stamina: number;
     /** Authoritative carried mass; absent in legacy snapshots means zero. */
     readonly carriedWeightGrams?: number;
+    readonly staminaEffects?: StaminaEffects;
     readonly isExhausted: boolean;
     readonly isSneaking: boolean;
     /** Current movement noise radius; zero while idle. */

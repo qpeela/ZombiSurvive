@@ -258,9 +258,9 @@ export class BootScene extends Scene {
         return Math.hypot(reached.xMeters - to.xMeters, reached.yMeters - to.yMeters) < 1e-8;
     }
 
-    getLootScreenPoint(
+    getContextScreenPoint(
         position: WorldPosition,
-        kind: LootSource['kind'],
+        kind: LootSource['kind'] | 'bench',
     ): { x: number; y: number; pointerDistance: number } | null {
         if (this.terrain === null || !this.canSee(position)) return null;
 
@@ -274,7 +274,10 @@ export class BootScene extends Scene {
         const x = target.x - camera.scrollX;
         const y = target.y - camera.scrollY;
         const pointer = this.input.activePointer;
-        const bounds = lootOutlineSizes[kind];
+        const bounds =
+            kind === 'bench'
+                ? { left: -16, top: -10, width: 32, height: 20 }
+                : lootOutlineSizes[kind];
         const dx = pointer.x - x;
         const dy = pointer.y - y;
         const isUnderPointer =

@@ -282,6 +282,16 @@ h1 {
     padding: 2px 0;
 }
 
+#rest-chip[hidden] {
+    display: none;
+}
+
+#rest-progress:not([hidden]) {
+    display: block;
+    width: 100%;
+    accent-color: #a2c878;
+}
+
 .status-icon {
     color: #b4caa4;
     text-align: center;
@@ -302,6 +312,9 @@ h1 {
 
 .bleeding-chip:not(:has([data-bleeding='true'])),
 .combat-chip:has(#combat-status[hidden]),
+.thirst-chip:has(#thirst-status[hidden]),
+.hunger-chip:has(#hunger-status[hidden]),
+.fatigue-chip:has(#fatigue-status[hidden]),
 .held-equipment:not(:has(#held-item[data-equipped])) {
     position: absolute;
     width: 1px;

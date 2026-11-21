@@ -5,7 +5,9 @@ import {
     medicalOutpost,
     militaryWarehouse,
     pistolSettings,
+    rationLoot,
     weaponLootSites,
+    workshopWater,
 } from '@zombi-survive/content';
 import type { GroundItem, WorldChunkKey } from '@zombi-survive/domain';
 
@@ -105,6 +107,12 @@ export const generateChunkLoot = (key: WorldChunkKey): readonly GroundItem[] => 
     const isWarehouseColumn = key.chunkX === militaryWarehouse.chunkX;
     const isWarehouseRow = key.chunkY === militaryWarehouse.chunkY;
     if (isWarehouseColumn && isWarehouseRow) loot.push(...warehouseLoot);
+
+    if (key.chunkX === workshopWater.chunkX && key.chunkY === workshopWater.chunkY)
+        loot.push(workshopWater.item);
+
+    if (key.chunkX === rationLoot.chunkX && key.chunkY === rationLoot.chunkY)
+        loot.push(rationLoot.item);
 
     return loot;
 };

@@ -409,6 +409,29 @@
                                     <progress id="stamina" max="1" value="0" hidden></progress>
                                 </div>
                             </div>
+                            <div class="status-chip thirst-chip">
+                                <span class="status-icon" aria-hidden="true">◈</span>
+                                <span id="thirst-status" hidden>Жажда</span>
+                            </div>
+                            <div class="status-chip hunger-chip">
+                                <span class="status-icon" aria-hidden="true">▰</span>
+                                <span id="hunger-status" hidden>Голод</span>
+                            </div>
+                            <div class="status-chip fatigue-chip">
+                                <span class="status-icon" aria-hidden="true">◒</span>
+                                <span id="fatigue-status" hidden>Усталость</span>
+                            </div>
+                            <div id="rest-chip" class="status-chip" hidden>
+                                <span class="status-icon" aria-hidden="true">▪</span>
+                                <div>
+                                    <span id="rest-status" aria-live="polite"></span>
+                                    <progress
+                                        id="rest-progress"
+                                        aria-label="Передышка"
+                                        hidden
+                                    ></progress>
+                                </div>
+                            </div>
                             <div class="status-chip combat-chip">
                                 <span class="status-icon" aria-hidden="true">!</span>
                                 <span aria-live="polite">

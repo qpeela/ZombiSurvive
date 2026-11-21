@@ -122,7 +122,11 @@ test('last safe disconnect checkpoints position and a returning tab keeps the sa
         room.clients.splice(room.clients.indexOf(second), 1);
         room.onLeave(second);
         expect(save).toHaveBeenCalledOnce();
-        expect(save).toHaveBeenCalledWith({ xMeters: 0.2, yMeters: 0 }, 3000);
+        expect(save).toHaveBeenCalledWith({ xMeters: 0.2, yMeters: 0 }, 3000, {
+            thirstMs: 3000,
+            hungerMs: 3000,
+            fatigueMs: 3000,
+        });
         const returningSend = vi.fn<(type: string, value: unknown) => void>();
         const returning = makeClient('return', returningSend);
         room.clients.push(returning);
@@ -216,7 +220,11 @@ test('a restored world stays saved without clients and shutdown cancels the peri
         vi.advanceTimersByTime(999);
         expect(save).not.toHaveBeenCalled();
         vi.advanceTimersByTime(1);
-        expect(save).toHaveBeenLastCalledWith({ xMeters: 64, yMeters: -64 }, 0);
+        expect(save).toHaveBeenLastCalledWith({ xMeters: 64, yMeters: -64 }, 0, {
+            thirstMs: 0,
+            hungerMs: 0,
+            fatigueMs: 0,
+        });
         room.onBeforeShutdown();
         vi.advanceTimersByTime(3000);
         expect(save).toHaveBeenCalledTimes(2);

@@ -13,6 +13,8 @@ export const ammoSettings = Object.freeze({ stackQuantity: 8, roundWeightGrams: 
 export const itemDefinitions = Object.freeze({
     ammo9mm: Object.freeze({ name: 'Патроны 9 мм', columns: 1, rows: 1, weightGrams: 12 }),
     pistol: Object.freeze({ name: 'Пистолет 9 мм', columns: 2, rows: 1, weightGrams: 800 }),
+    waterBottle: Object.freeze({ name: 'Бутылка воды', columns: 1, rows: 1, weightGrams: 100 }),
+    ration: Object.freeze({ name: 'Готовый паёк', columns: 1, rows: 1, weightGrams: 80 }),
     bandage: Object.freeze({ name: 'Бинт', columns: 2, rows: 1, weightGrams: 100 }),
     club: Object.freeze({ name: 'Дубинка', columns: 1, rows: 1, weightGrams: 400 }),
     knife: Object.freeze({ name: 'Нож', columns: 1, rows: 1, weightGrams: 100 }),
@@ -20,11 +22,14 @@ export const itemDefinitions = Object.freeze({
     axe: Object.freeze({ name: 'Топор', columns: 1, rows: 1, weightGrams: 800 }),
 });
 
-export const itemWeightGrams = (item: Item): number =>
-    item.kind === 'ammo9mm'
-        ? ammoSettings.roundWeightGrams * item.quantity
-        : itemDefinitions[item.kind].weightGrams;
-export const itemDisplayName = (item: Item): string =>
-    item.kind === 'ammo9mm'
-        ? `${itemDefinitions[item.kind].name} ×${String(item.quantity)}`
-        : itemDefinitions[item.kind].name;
+export const itemWeightGrams = (item: Item): number => {
+    if (item.kind === 'ammo9mm') return ammoSettings.roundWeightGrams * item.quantity;
+    if (item.kind === 'waterBottle' && item.servings === 0) return 20;
+    return itemDefinitions[item.kind].weightGrams;
+};
+export const itemDisplayName = (item: Item): string => {
+    const { name } = itemDefinitions[item.kind];
+    if (item.kind === 'ammo9mm') return `${name} ×${String(item.quantity)}`;
+    if (item.kind === 'waterBottle' && item.servings === 0) return 'Пустая бутылка';
+    return name;
+};

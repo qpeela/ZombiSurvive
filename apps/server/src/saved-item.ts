@@ -121,6 +121,16 @@ const readKnownItem = (
     const kind = item['kind'];
     const itemId = item['itemId'];
     if (typeof itemId !== 'string') return invalidItem();
+    if (kind === 'ration') {
+        if (worldLoot.get(itemId)?.kind !== kind) return invalidItem();
+        return { itemId, kind };
+    }
+    if (kind === 'waterBottle') {
+        const servings = item['servings'];
+        if (worldLoot.get(itemId)?.kind !== kind || (servings !== 0 && servings !== 1))
+            return invalidItem();
+        return { itemId, kind, servings };
+    }
     if (kind === 'bandage') {
         const isStarter = itemId === initialGroundItem.itemId;
         const isWorld = worldLoot.get(itemId)?.kind === kind;
@@ -220,7 +230,8 @@ export const readSavedItems = (
             if (
                 !(
                     (item.kind === 'ammo9mm' && item.quantity === 0) ||
-                    (item.kind === 'bandage' && worldItems.has(item.itemId))
+                    ((item.kind === 'bandage' || item.kind === 'ration') &&
+                        worldItems.has(item.itemId))
                 ) ||
                 entry['playerId'] !== undefined ||
                 entry['cell'] !== undefined ||
@@ -254,7 +265,8 @@ export const readSavedItems = (
             const isSpawn =
                 position['xMeters'] === spawn.position.xMeters &&
                 position['yMeters'] === spawn.position.yMeters;
-            if (!isSpawn) return invalidItem();
+            if (!isSpawn || (item.kind === 'waterBottle' && item.servings !== 1))
+                return invalidItem();
             location = { type: 'ground', item: { ...item, position: { ...spawn.position } } };
         } else {
             const isOwner = entry['playerId'] === playerId;

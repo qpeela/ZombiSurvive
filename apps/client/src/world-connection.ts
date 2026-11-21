@@ -35,6 +35,7 @@ import {
     type ProfileSnapshot,
     profileVersion,
     protocolVersion,
+    type RestCommand,
     type ShotAction,
     type ShotAim,
     type ZombieSnapshot,
@@ -96,7 +97,10 @@ export const createWorldConnection = (
     sendTarget: (target: WorldPosition, modifiers?: MovementModifiers) => void;
     pickUp: (itemId: string) => void;
     moveItem: (itemId: string, cell: InventoryCell) => void;
+    drinkWater: (itemId: string) => void;
+    eatRation: (itemId: string) => void;
     useBandage: (itemId: string) => void;
+    sendRest: (type: RestCommand['type']) => void;
     respawn: () => void;
     disconnect: () => void;
     dispose: () => void;
@@ -574,17 +578,31 @@ export const createWorldConnection = (
         }
     };
 
-    const useBandage = (itemId: string): void => {
+    const useInventoryItem = (
+        type: 'drink-water' | 'eat-ration' | 'use-bandage',
+        itemId: string,
+    ): void => {
         if (!isReady || activeRoom === null) return;
 
         try {
-            activeRoom.send('use-bandage', {
-                type: 'use-bandage',
+            activeRoom.send(type, {
+                type,
                 protocolVersion,
                 inventoryVersion,
                 ...lifeFields(),
                 itemId,
             });
+        } catch {
+            closeRoom();
+            onStateChange({ status: 'error' });
+        }
+    };
+
+    const sendRest = (type: RestCommand['type']): void => {
+        if (!isReady || activeRoom === null) return;
+
+        try {
+            activeRoom.send(type, { type, protocolVersion, ...lifeFields() });
         } catch {
             closeRoom();
             onStateChange({ status: 'error' });
@@ -690,7 +708,16 @@ export const createWorldConnection = (
         sendTarget,
         pickUp,
         moveItem,
-        useBandage,
+        drinkWater: itemId => {
+            useInventoryItem('drink-water', itemId);
+        },
+        eatRation: itemId => {
+            useInventoryItem('eat-ration', itemId);
+        },
+        useBandage: itemId => {
+            useInventoryItem('use-bandage', itemId);
+        },
+        sendRest,
         respawn,
         disconnect,
         dispose,

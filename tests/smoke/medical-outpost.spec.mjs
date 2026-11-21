@@ -46,6 +46,9 @@ const stop = async running => {
 const open = async page => {
     await page.goto(origin);
     await expect(page.locator('#world-time')).toHaveAttribute('data-world-ms', /^\d+$/);
+    await expect(page.getByRole('status')).toHaveAttribute('data-status', 'connected');
+    await expect(page.locator('#health')).toHaveAttribute('value', /^[1-9]\d*$/);
+    await expect(page.locator('canvas')).toHaveAttribute('data-player-visible', 'true');
 };
 
 const enter = async page => {
