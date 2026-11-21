@@ -21,6 +21,7 @@ export {
     stepPlayerToward,
 } from './movement.ts';
 export {
+    advanceCold,
     advanceNeeds,
     advanceWetness,
     drinkWater,

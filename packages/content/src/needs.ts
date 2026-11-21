@@ -29,6 +29,14 @@ export const wetnessSettings = Object.freeze({
     noticeableMs: 5 * 60 * 1000,
 });
 
+export const coldSettings = Object.freeze({
+    maximumMs: 3 * worldHourMs,
+    noticeableMs: 20 * 60 * 1000,
+    walkPenaltyAtMs: 90 * 60 * 1000,
+    wetCoolingMultiplier: 2,
+    walkSpeedMultiplier: 0.7,
+});
+
 export const restSettings = Object.freeze({
     durationWorldMs: 8 * 60 * 1000,
     feedbackWorldMs: 10 * 60 * 1000,

@@ -1,4 +1,5 @@
 import {
+    coldSettings,
     fatigueSettings,
     hungerSettings,
     movementSettings,
@@ -19,6 +20,7 @@ type HealthStatus = {
     readonly hungerMs: number | undefined;
     readonly fatigueMs: number | undefined;
     readonly wetnessMs: number | undefined;
+    readonly coldMs: number | undefined;
 };
 const recoveryPercent = Math.round(movementSettings.sprintRecoveryThreshold * 100);
 
@@ -55,6 +57,7 @@ export const createCharacterHud = ({
     hungerLabel,
     fatigueLabel,
     wetnessLabel,
+    coldLabel,
     stamina,
     staminaLabel,
     loadLabel,
@@ -66,6 +69,7 @@ export const createCharacterHud = ({
     readonly hungerLabel: HTMLElement;
     readonly fatigueLabel: HTMLElement;
     readonly wetnessLabel: HTMLElement;
+    readonly coldLabel: HTMLElement;
     readonly stamina: HTMLProgressElement;
     readonly staminaLabel: HTMLElement;
     readonly loadLabel: HTMLElement;
@@ -101,6 +105,7 @@ export const createCharacterHud = ({
         hungerMs = 0,
         fatigueMs = 0,
         wetnessMs = 0,
+        coldMs = 0,
     }) => {
         const { isDrainIncreased, isRecoverySlowed, maximumStamina } = staminaEffectsFromNeeds({
             thirstMs,
@@ -138,6 +143,13 @@ export const createCharacterHud = ({
             settings: wetnessSettings,
             effect: undefined,
         });
+        updateNeed({
+            label: coldLabel,
+            name: 'Холод',
+            currentMs: coldMs,
+            settings: coldSettings,
+            effect: coldMs >= coldSettings.walkPenaltyAtMs ? 'Ходьба медленнее' : undefined,
+        });
         setText(bleedingLabel, isBleeding ? 'Кровотечение: есть' : 'Кровотечение: нет');
         bleedingLabel.dataset['bleeding'] = String(isBleeding);
         const isInCombat = combatTicks > 0;
@@ -151,6 +163,7 @@ export const createCharacterHud = ({
         hungerLabel.hidden = true;
         fatigueLabel.hidden = true;
         wetnessLabel.hidden = true;
+        coldLabel.hidden = true;
         setText(bleedingLabel, 'Кровотечение: —');
         delete bleedingLabel.dataset['bleeding'];
         combatStatus.hidden = true;

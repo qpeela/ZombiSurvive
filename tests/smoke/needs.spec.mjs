@@ -5,8 +5,10 @@ import { join } from 'node:path';
 
 import { expect, test } from '@playwright/test';
 import {
+    coldSettings,
     fatigueSettings,
     hungerSettings,
+    movementSettings,
     rationLoot,
     restSettings,
     thirstSettings,
@@ -359,6 +361,73 @@ test('rain wets the player outside the workshop canopy and pauses under it', asy
         await page.goto(origin);
         await expect(wetness).toHaveText(shelteredWetness);
         await expect(wetness).toBeVisible();
+    } finally {
+        await host.stop('SIGTERM');
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
+
+test('cold slows confirmed walking and daylight removes the penalty while the cold warning remains', async ({
+    page,
+}) => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-cold-smoke-'));
+    const path = join(directory, 'world.sqlite');
+    const position = { xMeters: 0, yMeters: -10 };
+    const store = new SoloWorldStore(path);
+    store.savePosition(position, 0, {
+        thirstMs: 0,
+        hungerMs: 0,
+        fatigueMs: 0,
+        wetnessMs: 0,
+        coldMs: coldSettings.walkPenaltyAtMs + 8 * 60_000,
+    });
+    store.close();
+    const host = startHost(path);
+    const cold = page.locator('#cold-status');
+    const connection = page.getByRole('status');
+    const canvas = page.locator('canvas');
+    const readMotion = () =>
+        connection.evaluate(element => ({
+            tick: Number(element.dataset.tick),
+            x: Number(element.dataset.xMeters),
+        }));
+    const walk = async (key, multiplier) => {
+        await page.locator('#game').focus();
+        const idle = await readMotion();
+        await page.keyboard.down(key);
+        try {
+            await expect
+                .poll(async () => Math.abs((await readMotion()).x - idle.x))
+                .toBeGreaterThan(0);
+            const start = await readMotion();
+            await expect
+                .poll(async () => (await readMotion()).tick)
+                .toBeGreaterThanOrEqual(start.tick + 4);
+            const end = await readMotion();
+            const speed =
+                (Math.abs(end.x - start.x) * movementSettings.ticksPerSecond) /
+                (end.tick - start.tick);
+            expect(speed).toBeCloseTo(movementSettings.walkSpeedMetersPerSecond * multiplier, 2);
+            await expect
+                .poll(async () => {
+                    const renderedX =
+                        (Number(await canvas.getAttribute('data-player-x')) - 480) / 24;
+                    return Math.abs(renderedX - (await readMotion()).x);
+                })
+                .toBeLessThan(0.5);
+        } finally {
+            await page.keyboard.up(key);
+        }
+    };
+
+    try {
+        await expect.poll(host.output).toContain('Local world ready');
+        await page.goto(origin);
+        await expect(canvas).toHaveAttribute('data-player-visible', 'true');
+        await expect(cold).toContainText('Ходьба медленнее');
+        await walk('a', coldSettings.walkSpeedMultiplier);
+        await expect(cold).toHaveText(/^Холод: \d+%$/, { timeout: 15000 });
+        await walk('d', 1);
     } finally {
         await host.stop('SIGTERM');
         rmSync(directory, { recursive: true, force: true });

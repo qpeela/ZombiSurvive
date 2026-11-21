@@ -159,7 +159,7 @@ test('cooldown commits outside timestep before publication and freezes overlappi
         undefined,
         {
             worldTimeMs: 3000,
-            needs: { thirstMs: 3000, hungerMs: 3000, fatigueMs: 3000, wetnessMs: 0 },
+            needs: { thirstMs: 3000, hungerMs: 3000, fatigueMs: 3000, wetnessMs: 0, coldMs: 0 },
         },
     );
     expect(send).toHaveBeenCalledWith(
@@ -229,7 +229,10 @@ test('graceful shutdown flushes a prepared combat step exactly once', () => {
         undefined,
         undefined,
         undefined,
-        { worldTimeMs: 3000, needs: { thirstMs: 0, hungerMs: 0, fatigueMs: 0, wetnessMs: 0 } },
+        {
+            worldTimeMs: 3000,
+            needs: { thirstMs: 0, hungerMs: 0, fatigueMs: 0, wetnessMs: 0, coldMs: 0 },
+        },
     );
     expect(restored()).toEqual({ health: 0, cooldownTicks: 2, bleedingTicks: 0 });
 });
@@ -249,7 +252,7 @@ test('restored wound commits its countdown and damage before publication, with n
         undefined,
         {
             worldTimeMs: 3000,
-            needs: { thirstMs: 3000, hungerMs: 3000, fatigueMs: 3000, wetnessMs: 0 },
+            needs: { thirstMs: 3000, hungerMs: 3000, fatigueMs: 3000, wetnessMs: 0, coldMs: 0 },
         },
     );
     expect(send).toHaveBeenCalledWith(

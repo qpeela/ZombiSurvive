@@ -1,7 +1,8 @@
+import { coldSettings } from '@zombi-survive/content';
 import type {
     MovementDirection,
     PlayerMovementState,
-    StaminaEffects,
+    PlayerNeeds,
     WorldChunk,
     WorldId,
     WorldPosition,
@@ -15,6 +16,7 @@ import {
 import {
     movementStepSeconds,
     resolveMovement,
+    staminaEffectsFromNeeds,
     stepPlayerMovement,
     stepPlayerToward,
 } from '@zombi-survive/simulation';
@@ -118,14 +120,17 @@ export class LocalWorldMovement {
         input.player = { ...input.player, carriedWeightGrams: weightGrams };
     }
 
-    setStaminaEffects(playerId: string, effects: StaminaEffects): void {
+    setNeedsEffects(playerId: string, needs: PlayerNeeds): void {
         const input = this.players.get(playerId);
-        if (input === undefined) throw new Error('Cannot update stamina for an unknown player.');
+        if (input === undefined)
+            throw new Error('Cannot update needs effects for an unknown player.');
 
+        const effects = staminaEffectsFromNeeds(needs);
         input.player = {
             ...input.player,
             stamina: Math.min(input.player.stamina, effects.maximumStamina ?? 1),
             staminaEffects: effects,
+            isWalkSlowedByCold: needs.coldMs >= coldSettings.walkPenaltyAtMs,
         };
     }
 

@@ -340,3 +340,13 @@ test('v5 validates stealth and noise for self and peers, ignoring client-supplie
         }
     }
 });
+
+test('the host cold walk penalty survives snapshot copying and rejects invalid encodings', () => {
+    const state = { ...player, isWalkSlowedByCold: true };
+    const snapshot = createMovementSnapshot('world-1', 1, state, null);
+    assert.equal(readMovementSnapshot(roundTrip(snapshot)).player.isWalkSlowedByCold, true);
+    assert.equal(
+        isMovementSnapshot({ ...snapshot, player: { ...state, isWalkSlowedByCold: 1 } }),
+        false,
+    );
+});

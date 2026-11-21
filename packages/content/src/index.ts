@@ -6,6 +6,7 @@ export { ammoSettings, itemDisplayName, itemWeightGrams } from './items.ts';
 export { medicalOutpost } from './medical-outpost.ts';
 export { movementSettings } from './movement.ts';
 export {
+    coldSettings,
     fatigueSettings,
     hungerSettings,
     rationLoot,
