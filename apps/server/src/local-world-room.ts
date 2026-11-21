@@ -21,9 +21,11 @@ import {
 } from '@zombi-survive/protocol';
 import {
     advanceNeeds,
+    advanceWetness,
     drinkWater,
     eatRation,
     findRespawnPosition,
+    getWorldWeather,
     initialPlayerNeeds,
     movementStepSeconds,
     staminaEffectsFromNeeds,
@@ -309,7 +311,14 @@ export class LocalWorldRoom extends Room {
                 isSoloPresent &&
                 this.combat.health(soloPlayerId) > 0
             ) {
-                this.needs = advanceNeeds(this.needs, this.worldTimeMs - previousWorldTimeMs);
+                const elapsedWorldMs = this.worldTimeMs - previousWorldTimeMs;
+                const wetnessMs = advanceWetness({
+                    wetnessMs: this.needs.wetnessMs,
+                    elapsedWorldMs,
+                    position: movement.soloPosition(),
+                    weather: getWorldWeather(this.worldTimeMs),
+                });
+                this.needs = { ...advanceNeeds(this.needs, elapsedWorldMs), wetnessMs };
                 movement.setStaminaEffects(soloPlayerId, staminaEffectsFromNeeds(this.needs));
             }
 

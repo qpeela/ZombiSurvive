@@ -1,23 +1,60 @@
-import { fatigueSettings, hungerSettings, thirstSettings } from '@zombi-survive/content';
-import type { ItemLocation, PlayerNeeds, StaminaEffects } from '@zombi-survive/domain';
+import {
+    fatigueSettings,
+    hungerSettings,
+    thirstSettings,
+    wetnessSettings,
+    workshopCanopy,
+    type WorldWeather,
+} from '@zombi-survive/content';
+import type {
+    ItemLocation,
+    PlayerNeeds,
+    StaminaEffects,
+    WorldPosition,
+} from '@zombi-survive/domain';
 
 export const initialPlayerNeeds: PlayerNeeds = Object.freeze({
     thirstMs: 0,
     hungerMs: 0,
     fatigueMs: 0,
+    wetnessMs: 0,
 });
 
 export const advanceNeeds = (needs: PlayerNeeds, elapsedWorldMs: number): PlayerNeeds => ({
+    ...needs,
     thirstMs: Math.min(thirstSettings.maximumMs, needs.thirstMs + elapsedWorldMs),
     hungerMs: Math.min(hungerSettings.maximumMs, needs.hungerMs + elapsedWorldMs),
     fatigueMs: Math.min(fatigueSettings.maximumMs, needs.fatigueMs + elapsedWorldMs),
 });
 
+export const advanceWetness = ({
+    wetnessMs,
+    elapsedWorldMs,
+    position,
+    weather,
+}: {
+    readonly wetnessMs: number;
+    readonly elapsedWorldMs: number;
+    readonly position: WorldPosition;
+    readonly weather: WorldWeather;
+}): number => {
+    const { xMeters, yMeters } = position;
+    const isInsideCanopyX =
+        xMeters >= workshopCanopy.minXMeters && xMeters <= workshopCanopy.maxXMeters;
+    const isInsideCanopyY =
+        yMeters >= workshopCanopy.minYMeters && yMeters <= workshopCanopy.maxYMeters;
+    if (isInsideCanopyX && isInsideCanopyY) return wetnessMs;
+
+    return weather === 'rain'
+        ? Math.min(wetnessSettings.maximumMs, wetnessMs + elapsedWorldMs)
+        : Math.max(0, wetnessMs - elapsedWorldMs);
+};
+
 export const staminaEffectsFromNeeds = ({
     hungerMs,
     thirstMs,
     fatigueMs,
-}: PlayerNeeds): StaminaEffects => ({
+}: Pick<PlayerNeeds, 'hungerMs' | 'thirstMs' | 'fatigueMs'>): StaminaEffects => ({
     isRecoverySlowed: hungerMs >= hungerSettings.staminaPenaltyAtMs,
     isDrainIncreased: thirstMs >= thirstSettings.staminaPenaltyAtMs,
     ...(fatigueMs >= fatigueSettings.staminaPenaltyAtMs

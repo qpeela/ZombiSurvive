@@ -24,6 +24,11 @@ export const fatigueSettings = Object.freeze({
     maximumStamina: 0.65,
 });
 
+export const wetnessSettings = Object.freeze({
+    maximumMs: worldHourMs,
+    noticeableMs: 5 * 60 * 1000,
+});
+
 export const restSettings = Object.freeze({
     durationWorldMs: 8 * 60 * 1000,
     feedbackWorldMs: 10 * 60 * 1000,

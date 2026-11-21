@@ -126,6 +126,7 @@ test('last safe disconnect checkpoints position and a returning tab keeps the sa
             thirstMs: 3000,
             hungerMs: 3000,
             fatigueMs: 3000,
+            wetnessMs: 0,
         });
         const returningSend = vi.fn<(type: string, value: unknown) => void>();
         const returning = makeClient('return', returningSend);
@@ -224,6 +225,7 @@ test('a restored world stays saved without clients and shutdown cancels the peri
             thirstMs: 0,
             hungerMs: 0,
             fatigueMs: 0,
+            wetnessMs: 0,
         });
         room.onBeforeShutdown();
         vi.advanceTimersByTime(3000);

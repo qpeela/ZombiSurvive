@@ -315,6 +315,7 @@ h1 {
 .thirst-chip:has(#thirst-status[hidden]),
 .hunger-chip:has(#hunger-status[hidden]),
 .fatigue-chip:has(#fatigue-status[hidden]),
+.wetness-chip:has(#wetness-status[hidden]),
 .held-equipment:not(:has(#held-item[data-equipped])) {
     position: absolute;
     width: 1px;

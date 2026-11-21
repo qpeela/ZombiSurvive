@@ -24,6 +24,13 @@ export const workshopBench = Object.freeze({
     position: Object.freeze({ xMeters: -63, yMeters: -8 }),
 });
 
+export const workshopCanopy = Object.freeze({
+    minXMeters: -65,
+    maxXMeters: -61,
+    minYMeters: -10,
+    maxYMeters: -7,
+});
+
 export const worldLandmarks = Object.freeze([
     militaryWarehouse,
     Object.freeze({

@@ -23,7 +23,7 @@ export type HealthSnapshot = PlayerHealth &
         readonly lifeRevision?: number;
         readonly rest?: RestState;
         readonly needs?: Pick<PlayerNeeds, 'thirstMs'> &
-            Partial<Pick<PlayerNeeds, 'hungerMs' | 'fatigueMs'>>;
+            Partial<Pick<PlayerNeeds, 'hungerMs' | 'fatigueMs' | 'wetnessMs'>>;
     };
 const isId = (value: unknown): value is string => {
     if (typeof value !== 'string') {
@@ -80,7 +80,8 @@ export const isHealthSnapshot = (value: unknown): value is HealthSnapshot => {
         (isRecord(needs) &&
             isNeedTime(needs['thirstMs']) &&
             (needs['hungerMs'] === undefined || isNeedTime(needs['hungerMs'])) &&
-            (needs['fatigueMs'] === undefined || isNeedTime(needs['fatigueMs'])));
+            (needs['fatigueMs'] === undefined || isNeedTime(needs['fatigueMs'])) &&
+            (needs['wetnessMs'] === undefined || isNeedTime(needs['wetnessMs'])));
 
     const rest = record['rest'];
     const isRest = rest === undefined || isRestState(rest);
