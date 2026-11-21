@@ -8,6 +8,7 @@ import {
     pistolSettings,
     restSettings,
     workshopBench,
+    workshopCrate,
 } from '@zombi-survive/content';
 import {
     type GroundItem,
@@ -19,7 +20,12 @@ import {
     type PlayerMovementState,
     type WorldPosition,
 } from '@zombi-survive/domain';
-import type { FirearmSnapshot, HealthSnapshot, MovementSnapshot } from '@zombi-survive/protocol';
+import type {
+    FirearmSnapshot,
+    HealthSnapshot,
+    MovementSnapshot,
+    StorageLoot,
+} from '@zombi-survive/protocol';
 import {
     equipmentWeightGrams,
     findInventorySpace,
@@ -153,6 +159,7 @@ const inventoryMessage = document.querySelector<HTMLElement>('#inventory-message
 const itemDetails = document.querySelector<HTMLElement>('#item-details');
 const inventoryContext = document.querySelector<HTMLElement>('#inventory-context');
 const bandageButton = document.querySelector<HTMLButtonElement>('#use-bandage');
+const storageItems = document.querySelector<HTMLElement>('#storage-items');
 const corpseItems = document.querySelector<HTMLElement>('#corpse-items');
 const worldContextPanel = document.querySelector<HTMLElement>('#world-context');
 const worldContextTarget = document.querySelector<HTMLElement>('#world-context-target');
@@ -261,6 +268,7 @@ if (
     !bandageButton ||
     !deathScreen ||
     !corpseItems ||
+    !storageItems ||
     !worldContextPanel ||
     !worldContextTarget ||
     !worldContextAction ||
@@ -487,6 +495,7 @@ const onFlashlight = (): void => {
     updateFlashlight();
 };
 let corpses: readonly CorpseLoot[] = [];
+let storage: StorageLoot | null = null;
 const canReachLoot = (from: WorldPosition, to: WorldPosition): boolean =>
     scene.canReachLoot(from, to);
 const pickUp = (itemId: string): void => {
@@ -500,6 +509,7 @@ const nearbyUi = createNearbyLoot({
     groundButton: pickup,
     groundReason,
     corpseList: corpseItems,
+    storageList: storageItems,
     canReach: canReachLoot,
     onPickup: itemId => {
         lootDrag.request(itemId);
@@ -544,6 +554,7 @@ const updatePickup = (): void => {
     updateNearby({
         ground,
         corpses: corpses.filter(corpse => scene.canSee(corpse.position)),
+        storage: storage !== null && scene.canSee(storage.position) ? storage : null,
         position: confirmedPosition,
         inventory: inventoryItems,
         life: lifeState,
@@ -578,6 +589,16 @@ const worldContext = createWorldContext({
                 position: ground.position,
                 label: itemDisplayName(ground),
                 item: ground,
+            });
+        }
+
+        if (storage !== null) {
+            targets.push({
+                kind: 'storage',
+                id: storage.storageId,
+                position: storage.position,
+                label: workshopCrate.name,
+                item: null,
             });
         }
 
@@ -628,7 +649,7 @@ const worldContext = createWorldContext({
     },
     onAction: ({ kind, id }) => {
         if (kind === 'ground') lootDrag.request(id);
-        else if (kind === 'corpse') nearbyUi.focusCorpse(id);
+        else if (kind === 'corpse' || kind === 'storage') nearbyUi.focusGroup({ kind, id });
         else connection.sendRest('rest-at-bench');
     },
 });
@@ -818,6 +839,8 @@ const connection = createWorldConnection(
         receivedGroundItem = null;
         corpses = [];
         scene.setCorpses([]);
+        storage = null;
+        scene.setStorage(null);
         confirmedPosition = null;
         updateFlashlight();
         inventory.textContent = 'Контейнер: —';
@@ -867,6 +890,8 @@ const connection = createWorldConnection(
         hasPickupSnapshot = true;
         corpses = snapshot.corpses ?? [];
         scene.setCorpses(corpses);
+        storage = snapshot.storage ?? null;
+        scene.setStorage(storage);
         receivedGroundItem = snapshot.groundItem;
         scene.setGroundItem(receivedGroundItem);
         inventory.textContent = `Контейнер: предметов ${String(snapshot.items.length)}`;

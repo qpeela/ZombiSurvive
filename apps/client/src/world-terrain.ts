@@ -2,6 +2,7 @@ import {
     medicalOutpost,
     workshopBench,
     workshopCanopy,
+    workshopCrate,
     worldLandmarks,
 } from '@zombi-survive/content';
 import type { WorldChunk, WorldObstacle, WorldPosition } from '@zombi-survive/domain';
@@ -270,6 +271,18 @@ export class WorldTerrain {
                     .fillRect(benchX - 14, benchY - 6, 28, 12)
                     .lineStyle(2, 0x624d3b)
                     .lineBetween(benchX - 14, benchY, benchX + 14, benchY);
+                const crateX = 480 + workshopCrate.position.xMeters * pixelsPerMeter;
+                const crateY = 270 + workshopCrate.position.yMeters * pixelsPerMeter;
+                graphics
+                    .fillStyle(0x30281e)
+                    .fillRect(crateX - 13, crateY - 11, 26, 22)
+                    .fillStyle(0xa1834e)
+                    .fillRect(crateX - 11, crateY - 9, 22, 15)
+                    .lineStyle(2, 0x665138)
+                    .lineBetween(crateX - 6, crateY - 9, crateX - 6, crateY + 6)
+                    .lineBetween(crateX + 6, crateY - 9, crateX + 6, crateY + 6)
+                    .fillStyle(0xd1c4a1)
+                    .fillRect(crateX - 3, crateY + 4, 6, 4);
             }
             this.drawLabel({
                 chunk,

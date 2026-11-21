@@ -1,10 +1,11 @@
-import { initialGroundItem, worldLootSettings } from '@zombi-survive/content';
+import { initialGroundItem, workshopCrate, worldLootSettings } from '@zombi-survive/content';
 import {
     type Corpse,
     isWeaponId,
     type Item,
     type ItemLocation,
     type WeaponId,
+    type WorldPosition,
 } from '@zombi-survive/domain';
 import {
     type DrinkWaterCommand,
@@ -22,12 +23,14 @@ import {
     type PickupCommand,
     type PickupSnapshot,
     protocolVersion,
+    type StorageLoot,
     type UseBandageCommand,
 } from '@zombi-survive/protocol';
 import {
     addStarterWeapons,
     equipmentWeightGrams,
     expireCorpses,
+    isPositionVisible,
     pickUpItem,
     placeInventoryItem,
     playerHands,
@@ -37,6 +40,8 @@ import {
 import { loadWorldChunks } from '@zombi-survive/worldgen';
 
 import { copyItemLocation } from './saved-item.ts';
+
+const crate = { storageId: workshopCrate.id, position: workshopCrate.position };
 
 type ItemCommand =
     | PickupCommand
@@ -266,12 +271,17 @@ export class LocalWorldPickup {
                           return isTarget && isAvailable;
                       })
                     : undefined;
+            const storage =
+                location.type === 'storage' && location.storageId === crate.storageId
+                    ? crate
+                    : undefined;
             const sourcePosition =
                 location.type === 'ground'
                     ? location.item.position
-                    : (corpse?.position ?? snapshot.player.position);
+                    : (corpse?.position ?? storage?.position ?? snapshot.player.position);
             const picked = pickUpItem({
                 ...(corpse === undefined ? {} : { corpse }),
+                ...(storage === undefined ? {} : { storage }),
                 location,
                 player: snapshot.player,
                 itemId: command.itemId,
@@ -335,6 +345,39 @@ export class LocalWorldPickup {
         return hands !== null && isWeaponId(hands.kind) ? hands.kind : null;
     }
 
+    private visibleStorage(position: WorldPosition): StorageLoot | undefined {
+        const distance = Math.hypot(
+            position.xMeters - crate.position.xMeters,
+            position.yMeters - crate.position.yMeters,
+        );
+        if (distance > worldLootSettings.visibilityMeters) return;
+        const isRegistered = this.locations.some(
+            location => location.item.itemId === workshopCrate.stock.itemId,
+        );
+        if (!isRegistered) return;
+
+        const chunks = loadWorldChunks({
+            positions: [position, crate.position],
+            previousChunks: [],
+        });
+        const isVisible = isPositionVisible({
+            observer: position,
+            target: crate.position,
+            phase: null,
+            obstacles: chunks.flatMap(chunk => chunk.obstacles),
+        });
+        if (!isVisible) return;
+
+        return {
+            ...crate,
+            items: this.locations.flatMap(location =>
+                location.type === 'storage' && location.storageId === crate.storageId
+                    ? [{ ...location.item }]
+                    : [],
+            ),
+        };
+    }
+
     snapshot(movement: MovementSnapshot): PickupSnapshot {
         const position = movement.player.position;
         const nowMs = this.now();
@@ -350,8 +393,10 @@ export class LocalWorldPickup {
             .filter(location => distance(location.item) <= worldLootSettings.visibilityMeters)
             .sort((first, second) => distance(first.item) - distance(second.item))[0];
         const playerId = movement.player.playerId;
+        const storage = this.visibleStorage(position);
 
         return {
+            ...(storage === undefined ? {} : { storage }),
             type: 'pickup-state',
             inventoryVersion,
             protocolVersion,

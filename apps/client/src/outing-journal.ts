@@ -7,7 +7,7 @@ type JournalHealth = Pick<
 >;
 type JournalInventory = Pick<
     PickupSnapshot,
-    'tick' | 'worldId' | 'playerId' | 'items' | 'hands' | 'groundItem' | 'corpses'
+    'tick' | 'worldId' | 'playerId' | 'items' | 'hands' | 'groundItem' | 'corpses' | 'storage'
 >;
 
 const eventLimit = 12;
@@ -80,6 +80,12 @@ export const trackOutingEvents = (
                     ) === true
                 ) {
                     newEvents.push(`Подобрано с тела: ${itemDisplayName(item)}.`);
+                } else if (
+                    before.inventory.storage?.items.some(
+                        candidate => candidate.itemId === item.itemId,
+                    ) === true
+                ) {
+                    newEvents.push(`Взято из ящика: ${itemDisplayName(item)}.`);
                 }
             }
         }

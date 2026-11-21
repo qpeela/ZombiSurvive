@@ -5,6 +5,7 @@ import { join } from 'node:path';
 
 import { Client } from '@colyseus/sdk';
 import { expect, test } from '@playwright/test';
+import { workshopCrate } from '@zombi-survive/content';
 import { localWorldRoomId, protocolVersion } from '@zombi-survive/protocol';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
@@ -368,3 +369,56 @@ test('E selects a visible source near the pointer or the nearest source and keep
         rmSync(directory, { recursive: true, force: true });
     }
 });
+
+for (const method of ['mouse', 'keyboard']) {
+    test(`workshop crate opens and transfers supplies with ${method} and stays empty after restart`, async ({
+        page,
+    }) => {
+        const directory = mkdtempSync(join(tmpdir(), 'zombi-crate-'));
+        const path = join(directory, 'world.sqlite');
+        const now = Date.now();
+        const startPosition = { xMeters: workshopCrate.position.xMeters - 0.9, yMeters: 0 };
+        const store = new SoloWorldStore(path);
+        store.savePosition(startPosition);
+        store.close();
+
+        let running = start({ path, now });
+        const crate = page.getByRole('region', { name: workshopCrate.name });
+        const take = crate.getByRole('button', { name: 'Взять: Бинт' });
+        try {
+            await expect.poll(running.output).toContain('Local world ready');
+            await page.goto(origin);
+            await expect(take).toBeEnabled();
+            await expect(page.locator('canvas')).toHaveAttribute('data-player-visible', 'true');
+
+            if (method === 'keyboard') {
+                await aimWorld({ page, position: workshopCrate.position });
+                await page.locator('#game').press('e');
+                const open = page.getByRole('button', { name: 'Открыть ящик' });
+                await expect(open).toBeFocused();
+                await page.keyboard.press('Enter');
+                await expect(crate).toBeFocused();
+                await page.keyboard.press('Tab');
+                await expect(take).toBeFocused();
+                await page.keyboard.press('Enter');
+            } else {
+                await take.click();
+            }
+            await expect(crate).toContainText('Ящик пуст.');
+            await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 5');
+
+            running.host.kill('SIGKILL');
+            await running.exited;
+            running = start({ path, now });
+            await expect.poll(running.output).toContain('Local world ready');
+            await page.goto(origin);
+            await expect(crate).toContainText('Ящик пуст.');
+            await expect(page.locator('#inventory')).toHaveText('Контейнер: предметов 5');
+        } finally {
+            if (running.host.exitCode === null && running.host.signalCode === null)
+                running.host.kill('SIGKILL');
+            await running.exited;
+            rmSync(directory, { recursive: true, force: true });
+        }
+    });
+}

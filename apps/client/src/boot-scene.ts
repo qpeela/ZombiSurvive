@@ -8,7 +8,7 @@ import {
     type WorldPosition,
     type ZombieState,
 } from '@zombi-survive/domain';
-import type { MeleeAction, ShotAction, ShotAim } from '@zombi-survive/protocol';
+import type { MeleeAction, ShotAction, ShotAim, StorageLoot } from '@zombi-survive/protocol';
 import { isPositionVisible, resolveMovement } from '@zombi-survive/simulation';
 import { GameObjects, type Input, Scene } from 'phaser';
 
@@ -26,6 +26,7 @@ const pixelsPerMeter = 24;
 const lootOutlineSizes = {
     ground: { left: -14, top: -10, width: 28, height: 20 },
     corpse: { left: -27, top: -12, width: 47, height: 24 },
+    storage: { left: -15, top: -13, width: 30, height: 26 },
 } as const;
 
 export class BootScene extends Scene {
@@ -58,6 +59,7 @@ export class BootScene extends Scene {
     private terrain: WorldTerrain | null = null;
 
     private corpses: readonly Corpse[] = [];
+    private storage: StorageLoot | null = null;
     private readonly corpseMarkers = new Map<string, GameObjects.Container>();
     private groundItem: GroundItem | null = null;
     private itemMarker: GameObjects.Container | null = null;
@@ -258,6 +260,10 @@ export class BootScene extends Scene {
         return Math.hypot(reached.xMeters - to.xMeters, reached.yMeters - to.yMeters) < 1e-8;
     }
 
+    setStorage(storage: StorageLoot | null): void {
+        this.storage = storage;
+    }
+
     getContextScreenPoint(
         position: WorldPosition,
         kind: LootSource['kind'] | 'bench',
@@ -299,22 +305,37 @@ export class BootScene extends Scene {
         this.highlightedLoot = source;
     }
 
-    private updateLootHighlight(corpseIds: ReadonlySet<string>, isGroundVisible: boolean): void {
+    private updateLootHighlight({
+        corpseIds,
+        isGroundVisible,
+        isStorageVisible,
+    }: {
+        readonly corpseIds: ReadonlySet<string>;
+        readonly isGroundVisible: boolean;
+        readonly isStorageVisible: boolean;
+    }): void {
         const outline = this.lootOutline;
         if (outline === null) return;
 
         const source = this.highlightedLoot;
-        let marker: GameObjects.Container | null = null;
+        let target: { x: number; y: number } | null = null;
         if (source?.kind === 'ground' && isGroundVisible && this.groundItem?.itemId === source.id) {
-            marker = this.itemMarker;
+            target = this.itemMarker;
         } else if (source?.kind === 'corpse' && corpseIds.has(source.id)) {
-            marker = this.corpseMarkers.get(source.id) ?? null;
+            target = this.corpseMarkers.get(source.id) ?? null;
+        } else if (
+            source?.kind === 'storage' &&
+            isStorageVisible &&
+            this.storage?.storageId === source.id
+        ) {
+            target = {
+                x: 480 + this.storage.position.xMeters * pixelsPerMeter,
+                y: 270 + this.storage.position.yMeters * pixelsPerMeter,
+            };
         }
 
-        const target = marker;
-        const isInFrame = target !== null && isLootInViewport(target, this.cameras.main);
         let label = '';
-        if (source !== null && isInFrame) {
+        if (source !== null && target !== null && isLootInViewport(target, this.cameras.main)) {
             const { kind, id } = source;
             if (this.lootOutlineKind !== kind) {
                 const size = lootOutlineSizes[kind];
@@ -359,14 +380,15 @@ export class BootScene extends Scene {
         const canvas = this.game.canvas;
         canvas.dataset['visibleZombies'] = JSON.stringify(visibleZombies);
         canvas.dataset['groundItemVisible'] = String(isGroundVisible);
-        const signature = JSON.stringify([isGroundVisible, ...corpseIds]);
+        const isStorageVisible = this.storage !== null && this.canSee(this.storage.position);
+        const signature = JSON.stringify([isGroundVisible, isStorageVisible, ...corpseIds]);
         if (signature !== this.visibilitySignature) {
             this.visibilitySignature = signature;
             this.onVisibilityChange();
         }
 
         this.onVisibilityFrame();
-        this.updateLootHighlight(corpseIds, isGroundVisible);
+        this.updateLootHighlight({ corpseIds, isGroundVisible, isStorageVisible });
     }
 
     setZombies(zombies: readonly ZombieState[]): void {

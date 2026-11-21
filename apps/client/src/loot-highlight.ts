@@ -1,4 +1,4 @@
-export type LootSource = { readonly kind: 'ground' | 'corpse'; readonly id: string };
+export type LootSource = { readonly kind: 'ground' | 'corpse' | 'storage'; readonly id: string };
 
 export const isLootInViewport = (
     position: { readonly x: number; readonly y: number },

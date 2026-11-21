@@ -1,5 +1,10 @@
-import { rationLoot, workshopWater, worldGenerationSettings } from '@zombi-survive/content';
-import type { GroundItem } from '@zombi-survive/domain';
+import {
+    rationLoot,
+    workshopCrate,
+    workshopWater,
+    worldGenerationSettings,
+} from '@zombi-survive/content';
+import { copyItem, type GroundItem, type ItemLocation } from '@zombi-survive/domain';
 import { generateChunkLoot, warehouseLoot } from '@zombi-survive/worldgen';
 
 const legacyLootKinds = new Set(['weapon', 'ammo', 'bandage']);
@@ -29,13 +34,20 @@ export const chunkLootForKey = (key: string): readonly GroundItem[] => {
     return loot;
 };
 
+export const initialChunkLootLocation = (item: GroundItem): ItemLocation =>
+    item.itemId === workshopCrate.stock.itemId
+        ? { type: 'storage', item: copyItem(item), storageId: workshopCrate.id }
+        : { type: 'ground', item };
+
 export const chunkLootKeyFromItemId = (itemId: string): string | null => {
     if (!itemId.startsWith('chunk-loot-v1:')) return null;
     const match = /^chunk-loot-v1:(-?\d+):(-?\d+):(.+)$/.exec(itemId);
     if (match === null) return invalid();
     const isLegacyKind = legacyLootKinds.has(match[3] ?? '');
     const isSurvivalSupply =
-        itemId === workshopWater.item.itemId || itemId === rationLoot.item.itemId;
+        itemId === workshopWater.item.itemId ||
+        itemId === rationLoot.item.itemId ||
+        itemId === workshopCrate.stock.itemId;
     if (!isLegacyKind && !isWarehouseLootId(itemId) && !isSurvivalSupply) return invalid();
     const key = `${match[1] ?? ''},${match[2] ?? ''}`;
     if (key !== `${String(Number(match[1]))},${String(Number(match[2]))}`) return invalid();

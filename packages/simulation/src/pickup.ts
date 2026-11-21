@@ -6,12 +6,13 @@ import {
     type ItemLocation,
     type PlayerMovementState,
     type WorldObstacle,
+    type WorldPosition,
 } from '@zombi-survive/domain';
 
 import { resolveMovement } from './collisions.ts';
 import { findInventorySpace } from './inventory.ts';
 
-/** A single synchronous transition removes the ground item and assigns its owner. */
+/** A single synchronous transition moves a world item to its owner. */
 export const pickUpItem = ({
     location,
     player,
@@ -19,22 +20,24 @@ export const pickUpItem = ({
     obstacles,
     items = [],
     corpse,
+    storage,
 }: {
     readonly corpse?: Corpse;
+    readonly storage?: { readonly storageId: string; readonly position: WorldPosition };
     readonly location: ItemLocation;
     readonly player: PlayerMovementState;
     readonly itemId: string;
     readonly items?: readonly InventoryItem[];
     readonly obstacles: readonly WorldObstacle[];
 }): ItemLocation => {
-    const isGround = location.type === 'ground';
-    const isCorpse = location.type === 'corpse' && location.corpseId === corpse?.corpseId;
+    if (location.item.itemId !== itemId) return location;
 
-    if ((!isGround && !isCorpse) || location.item.itemId !== itemId) {
-        return location;
-    }
-
-    const position = location.type === 'ground' ? location.item.position : corpse?.position;
+    let position: WorldPosition | undefined;
+    if (location.type === 'ground') position = location.item.position;
+    else if (location.type === 'corpse' && corpse?.corpseId === location.corpseId)
+        position = corpse.position;
+    else if (location.type === 'storage' && storage?.storageId === location.storageId)
+        position = storage.position;
 
     if (position === undefined) return location;
     const distanceMeters = Math.hypot(

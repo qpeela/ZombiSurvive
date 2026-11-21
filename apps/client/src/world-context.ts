@@ -5,6 +5,7 @@ export type WorldContextSource = LootSource | { readonly kind: 'bench'; readonly
 const actionLabels = {
     ground: 'Взять',
     corpse: 'Открыть вещи',
+    storage: 'Открыть ящик',
     bench: 'Передохнуть',
 };
 

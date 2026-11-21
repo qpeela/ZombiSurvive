@@ -189,7 +189,7 @@ test('v13 world adds empty zombie health without changing prior combat', () => {
         expect(restored.initialZombieHealth.size).toBe(0);
         restored.close();
         const migrated = new DatabaseSync(path);
-        expect(migrated.prepare('PRAGMA user_version').get()?.['user_version']).toBe(22);
+        expect(migrated.prepare('PRAGMA user_version').get()?.['user_version']).toBe(23);
         migrated.close();
     } finally {
         rmSync(directory, { recursive: true, force: true });

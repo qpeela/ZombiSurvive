@@ -12,6 +12,7 @@ import {
     wetnessSettings,
     workshopBench,
     workshopCanopy,
+    workshopCrate,
     workshopWater,
 } from '@zombi-survive/content';
 import { copyItem, type ItemLocation } from '@zombi-survive/domain';
@@ -70,7 +71,9 @@ test('v20 visited workshops receive one bottle and saved thirst and empty bottle
     try {
         const first = open();
         const key = '-1,0';
-        const oldLoot = chunkLootForKey(key).filter(item => item.kind !== 'waterBottle');
+        const oldLoot = chunkLootForKey(key).filter(
+            item => item.kind !== 'waterBottle' && item.itemId !== workshopCrate.stock.itemId,
+        );
         const oldLocations = [
             ...first.initialItemLocations,
             ...oldLoot.map(item => ({ type: 'ground' as const, item })),
@@ -93,6 +96,7 @@ test('v20 visited workshops receive one bottle and saved thirst and empty bottle
         expect(migrated.initialItemLocations).toEqual([
             ...oldLocations,
             { type: 'ground', item: workshopWater.item },
+            { type: 'storage', storageId: workshopCrate.id, item: copyItem(workshopCrate.stock) },
         ]);
         const playerId = migrated.initialWorld.playerId;
         const locations = migrated.initialItemLocations.map((location): ItemLocation =>

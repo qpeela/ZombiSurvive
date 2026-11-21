@@ -1,3 +1,5 @@
+import type { GroundItem } from '@zombi-survive/domain';
+
 /** New uses for existing ruins. Floors and markings leave collision geometry intact. */
 export const militaryWarehouse = Object.freeze({
     id: 'military-warehouse',
@@ -29,6 +31,21 @@ export const workshopCanopy = Object.freeze({
     maxXMeters: -61,
     minYMeters: -10,
     maxYMeters: -7,
+});
+
+const workshopCratePosition = Object.freeze({ xMeters: -59.5, yMeters: 0 });
+
+export const workshopCrate = Object.freeze({
+    id: 'workshop-crate',
+    name: 'Ящик мастерской',
+    chunkX: -1,
+    chunkY: 0,
+    position: workshopCratePosition,
+    stock: Object.freeze({
+        itemId: 'chunk-loot-v1:-1:0:crate-bandage',
+        kind: 'bandage',
+        position: workshopCratePosition,
+    } satisfies GroundItem),
 });
 
 export const worldLandmarks = Object.freeze([
