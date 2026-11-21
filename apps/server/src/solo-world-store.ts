@@ -60,7 +60,7 @@ const warehouseLootSaveVersion = 20;
 const thirstSaveVersion = 21;
 const hungerSaveVersion = 22;
 const workshopCrateSaveVersion = 23;
-const currentSaveVersion = workshopCrateSaveVersion;
+const currentSaveVersion = 24;
 
 export type SavedSoloWorld = {
     readonly worldId: string;
@@ -183,6 +183,7 @@ export class SoloWorldStore {
                 version !== warehouseLootSaveVersion &&
                 version !== thirstSaveVersion &&
                 version !== hungerSaveVersion &&
+                version !== workshopCrateSaveVersion &&
                 version !== currentSaveVersion
             ) {
                 throw new Error('Unsupported solo save schema version.');

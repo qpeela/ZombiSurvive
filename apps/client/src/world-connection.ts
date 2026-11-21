@@ -38,6 +38,7 @@ import {
     type RestCommand,
     type ShotAction,
     type ShotAim,
+    type StoreItemCommand,
     type ZombieSnapshot,
 } from '@zombi-survive/protocol';
 import { placeInventoryItem } from '@zombi-survive/simulation';
@@ -97,6 +98,7 @@ export const createWorldConnection = (
     sendTarget: (target: WorldPosition, modifiers?: MovementModifiers) => void;
     pickUp: (itemId: string) => void;
     moveItem: (itemId: string, cell: InventoryCell) => void;
+    storeItem: (target: Pick<StoreItemCommand, 'itemId' | 'storageId'>) => void;
     drinkWater: (itemId: string) => void;
     eatRation: (itemId: string) => void;
     useBandage: (itemId: string) => void;
@@ -562,6 +564,27 @@ export const createWorldConnection = (
         }
     };
 
+    const storeItem = ({
+        itemId,
+        storageId,
+    }: Pick<StoreItemCommand, 'itemId' | 'storageId'>): void => {
+        if (!isReady || activeRoom === null) return;
+
+        try {
+            activeRoom.send('store-item', {
+                type: 'store-item',
+                protocolVersion,
+                inventoryVersion,
+                ...lifeFields(),
+                itemId,
+                storageId,
+            });
+        } catch {
+            closeRoom();
+            onStateChange({ status: 'error' });
+        }
+    };
+
     const sendMelee = (intent: MeleeIntent): void => {
         if (!isReady || activeRoom === null) return;
 
@@ -708,6 +731,7 @@ export const createWorldConnection = (
         sendTarget,
         pickUp,
         moveItem,
+        storeItem,
         drinkWater: itemId => {
             useInventoryItem('drink-water', itemId);
         },

@@ -70,6 +70,11 @@ export const createInventoryContextMenu = ({
         const ids = new Set(actions.map(action => action.id));
         for (const [id, view] of views) {
             if (ids.has(id)) continue;
+            if (view.button === document.activeElement) {
+                close(true);
+
+                return;
+            }
 
             view.row.remove();
             views.delete(id);

@@ -329,7 +329,7 @@ const equipInventoryItem = (itemId: string): void => {
 const useInventoryBandage = (itemId: string): void => {
     if (lifeState === 'alive' && isBleeding) connection.useBandage(itemId);
 };
-const getContextActions = (item: InventoryItem): readonly InventoryContextAction[] => {
+const getItemActions = (item: InventoryItem): readonly InventoryContextAction[] => {
     const { itemId, kind } = item;
     if (isWeaponId(kind)) {
         const remaining = inventoryItems.filter(candidate => candidate.itemId !== itemId);
@@ -388,6 +388,33 @@ const getContextActions = (item: InventoryItem): readonly InventoryContextAction
     }
 
     return [];
+};
+const storageReason = (crate: StorageLoot): string | null => {
+    const position = confirmedPosition;
+    if (lifeState !== 'alive' || position === null) return 'Ящик недоступен.';
+    if (!isWithinPickupRange(position, crate.position)) return 'Подойдите ближе.';
+    if (!canReachLoot(position, crate.position)) return 'Путь к ящику перекрыт.';
+    if (crate.items.length >= workshopCrate.capacity) return 'Ящик заполнен.';
+
+    return null;
+};
+const getContextActions = (item: InventoryItem): readonly InventoryContextAction[] => {
+    const actions = getItemActions(item);
+    const crate = storage;
+    if (crate === null || !scene.canSee(crate.position)) return actions;
+
+    return [
+        ...actions,
+        {
+            id: 'store',
+            label: 'Положить в ящик',
+            unavailable: storageReason(crate),
+            run: () => {
+                if (lifeState === 'alive')
+                    connection.storeItem({ itemId: item.itemId, storageId: crate.storageId });
+            },
+        },
+    ];
 };
 const inventoryUi = createInventoryGrid({
     grid: inventoryGrid,

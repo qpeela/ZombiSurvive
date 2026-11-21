@@ -200,6 +200,11 @@ export class LocalWorldRoom extends Room {
             if (isCurrentLifeCommand(value, lifeRevision))
                 this.pickup.receive(client.sessionId, value);
         });
+        this.onMessage<unknown>('store-item', (client, value) => {
+            if (options.soloStore === undefined || client.auth !== soloPlayerId) return;
+            if (isCurrentLifeCommand(value, lifeRevision))
+                this.pickup.receiveStoreItem(client.sessionId, value);
+        });
         this.onMessage<unknown>('inventory-move', (client, value) => {
             if (isCurrentLifeCommand(value, lifeRevision))
                 this.pickup.receiveMove(client.sessionId, value);

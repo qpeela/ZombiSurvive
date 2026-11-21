@@ -221,6 +221,7 @@ export const readSavedItems = (
     const ids = new Set<string>();
     let items: readonly InventoryItem[] = [];
     let hasHands = false;
+    let itemsInCrate = 0;
     for (const entry of saved as unknown[]) {
         if (!isRecord(entry) || !isRecord(entry['item'])) return invalidItem();
         const rawItem = entry['item'];
@@ -262,14 +263,17 @@ export const readSavedItems = (
                 location = { type: 'expired', item };
             }
         } else if (entry['type'] === 'storage') {
-            const isCrateStock = item.itemId === workshopCrate.stock.itemId;
-            const isKnownStorage = entry['storageId'] === workshopCrate.id;
+            const isKnownStorage =
+                entry['storageId'] === workshopCrate.id &&
+                worldItems.has(workshopCrate.stock.itemId);
             const isUnowned =
                 entry['playerId'] === undefined &&
                 entry['cell'] === undefined &&
                 entry['corpseId'] === undefined &&
                 rawItem['position'] === undefined;
-            if (!isCrateStock || !isKnownStorage || !isUnowned) return invalidItem();
+            if (!isKnownStorage || !isUnowned) return invalidItem();
+            itemsInCrate += 1;
+            if (itemsInCrate > workshopCrate.capacity) return invalidItem();
             location = { type: 'storage', item, storageId: workshopCrate.id };
         } else if (item.itemId === initialGroundItem.itemId) {
             location = readSavedItem(JSON.stringify(entry), playerId);

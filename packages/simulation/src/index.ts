@@ -30,7 +30,7 @@ export {
     staminaEffectsFromNeeds,
 } from './needs.ts';
 export { obstacleRayDistance } from './obstacle-ray.ts';
-export { pickUpItem } from './pickup.ts';
+export { canReachPickupPosition, pickUpItem } from './pickup.ts';
 export { spendPistolRound, tracePistolShot } from './pistol.ts';
 export { reloadPistol } from './reload.ts';
 export { findRespawnPosition } from './respawn.ts';

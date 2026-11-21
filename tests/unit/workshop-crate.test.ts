@@ -3,9 +3,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
-import { workshopCrate } from '@zombi-survive/content';
+import { corpseSettings, workshopCrate } from '@zombi-survive/content';
 import { copyItem, type ItemLocation, type WorldPosition } from '@zombi-survive/domain';
-import { protocolVersion } from '@zombi-survive/protocol';
+import { inventoryVersion, protocolVersion } from '@zombi-survive/protocol';
 import { findInventorySpace, playerInventory } from '@zombi-survive/simulation';
 import { expect, test } from 'vitest';
 
@@ -132,6 +132,132 @@ test('an already visited workshop gains one crate supply on migration and retain
                 location => location.item.itemId === stock.item.itemId,
             ),
         ).toEqual([carried]);
+    } finally {
+        store.close();
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
+
+test('a crate rejects deposits beyond its capacity, through walls, or by a dead or different owner', () => {
+    const bandage: ItemLocation = {
+        type: 'container',
+        playerId,
+        cell: { column: 0, row: 0 },
+        item: { itemId: 'carried-bandage', kind: 'bandage' },
+    };
+    const extraStock: ItemLocation[] = Array.from(
+        { length: workshopCrate.capacity - 1 },
+        (_, index) => ({
+            type: 'storage',
+            storageId: workshopCrate.id,
+            item: { itemId: 'stock-' + String(index), kind: 'bandage' },
+        }),
+    );
+    const receive = (pickup: LocalWorldPickup) => {
+        pickup.receiveStoreItem('session', {
+            type: 'store-item',
+            itemId: bandage.item.itemId,
+            protocolVersion,
+            inventoryVersion,
+            storageId: workshopCrate.id,
+        });
+    };
+    const full = new LocalWorldPickup([stock, bandage, ...extraStock]);
+    receive(full);
+    full.step(new Map([['session', movement(near)]]));
+    expect(full.takePendingSave()).toBeNull();
+
+    const available = new LocalWorldPickup([stock, bandage]);
+    for (const position of [behindWall, outOfReach]) {
+        receive(available);
+        available.step(new Map([['session', movement(position)]]));
+        expect(available.takePendingSave()).toBeNull();
+    }
+    receive(available);
+    available.step(new Map([['session', movement(near)]]), () => 0);
+    expect(available.takePendingSave()).toBeNull();
+
+    const other = movement(near);
+    receive(available);
+    available.step(
+        new Map([['session', { ...other, player: { ...other.player, playerId: 'other' } }]]),
+    );
+    expect(available.takePendingSave()).toBeNull();
+
+    receive(available);
+    available.step(new Map([['session', movement(near)]]));
+    expect(available.snapshot(movement(near)).items).toHaveLength(1);
+    expect(available.takePendingSave()).toEqual([
+        stock,
+        { type: 'storage', storageId: workshopCrate.id, item: bandage.item },
+    ]);
+    available.confirmSave();
+    receive(available);
+    available.step(new Map([['session', movement(near)]]));
+    expect(available.takePendingSave()).toBeNull();
+    expect(available.snapshot(movement(near)).items).toHaveLength(0);
+    expect(available.snapshot(movement(near)).storage?.items).toEqual([stock.item, bandage.item]);
+});
+
+test('a stored pistol keeps its instance and magazine through death, restart and retrieval', () => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-crate-death-'));
+    const path = join(directory, 'world.sqlite');
+    let store = new SoloWorldStore(path);
+    try {
+        const { playerId: owner } = store.initialWorld;
+        const pistol = store.initialItemLocations.find(location => location.item.kind === 'pistol');
+        if (pistol?.item.kind !== 'pistol') throw new Error('Expected the starter world pistol.');
+
+        const { itemId, kind, magazineCapacity } = pistol.item;
+        const weapon = { itemId, kind, magazineCapacity, rounds: 3, revision: 9 };
+        const stored: ItemLocation = { type: 'storage', storageId: workshopCrate.id, item: weapon };
+        const locations = [
+            ...store.initialItemLocations.map(location =>
+                location.item.itemId === weapon.itemId ? stored : location,
+            ),
+            ...chunkLootForKey('-1,0').map(initialChunkLootLocation),
+        ];
+        store.saveItemLocations(locations);
+
+        const pickup = new LocalWorldPickup(locations);
+        const diedAtMs = Date.now();
+        const corpse = {
+            corpseId: 'player-corpse',
+            playerId: owner,
+            position: near,
+            diedAtMs,
+            expiresAtMs: diedAtMs + corpseSettings.lifetimeMs,
+        };
+        pickup.stageDeath(corpse);
+        const pending = pickup.takePendingSave();
+        if (pending === null) throw new Error('Expected an atomic death save.');
+        store.saveCombat({ health: 0, cooldownTicks: 0, bleedingTicks: 0 }, pending, near, [
+            corpse,
+        ]);
+        store.close();
+
+        store = new SoloWorldStore(path);
+        expect(store.initialCombat.health).toBe(0);
+        expect(
+            store.initialItemLocations.filter(location => location.item.itemId === weapon.itemId),
+        ).toEqual([stored]);
+
+        const respawned = store.saveRespawn(store.initialCombat.lifeRevision ?? 0, near);
+        const returned = new LocalWorldPickup(store.initialItemLocations);
+        const state = movement(near);
+        returned.receive('returning', {
+            type: 'pickup-item',
+            protocolVersion,
+            itemId: weapon.itemId,
+        });
+        returned.step(
+            new Map([['returning', { ...state, player: { ...state.player, playerId: owner } }]]),
+            () => respawned.health,
+        );
+        const retrieved = returned
+            .takePendingSave()
+            ?.find(location => location.item.itemId === weapon.itemId);
+        expect(retrieved).toMatchObject({ type: 'container', playerId: owner, item: weapon });
     } finally {
         store.close();
         rmSync(directory, { recursive: true, force: true });
