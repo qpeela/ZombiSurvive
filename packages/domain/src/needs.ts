@@ -3,4 +3,5 @@ export type PlayerNeeds = {
     readonly hungerMs: number;
     readonly fatigueMs: number;
     readonly wetnessMs: number;
+    readonly coldMs: number;
 };

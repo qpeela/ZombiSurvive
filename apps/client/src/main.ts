@@ -129,6 +129,7 @@ const restChip = document.querySelector<HTMLElement>('#rest-chip');
 const restLabel = document.querySelector<HTMLElement>('#rest-status');
 const restProgress = document.querySelector<HTMLProgressElement>('#rest-progress');
 const fatigueLabel = document.querySelector<HTMLElement>('#fatigue-status');
+const coldLabel = document.querySelector<HTMLElement>('#cold-status');
 const wetnessLabel = document.querySelector<HTMLElement>('#wetness-status');
 const hungerLabel = document.querySelector<HTMLElement>('#hunger-status');
 const thirstLabel = document.querySelector<HTMLElement>('#thirst-status');
@@ -236,6 +237,7 @@ if (
     !restProgress ||
     !fatigueLabel ||
     !wetnessLabel ||
+    !coldLabel ||
     !hungerLabel ||
     !thirstLabel ||
     !movementLabel ||
@@ -276,6 +278,7 @@ const characterHud = createCharacterHud({
     combatIdle,
     fatigueLabel,
     wetnessLabel,
+    coldLabel,
     hungerLabel,
     thirstLabel,
     stamina,
@@ -948,6 +951,7 @@ const connection = createWorldConnection(
             hungerMs: isAlive ? snapshot.needs?.hungerMs : undefined,
             fatigueMs: isAlive ? snapshot.needs?.fatigueMs : undefined,
             wetnessMs: isAlive ? snapshot.needs?.wetnessMs : undefined,
+            coldMs: isAlive ? snapshot.needs?.coldMs : undefined,
         });
         health.max = snapshot.maxHealth;
         health.value = snapshot.health;

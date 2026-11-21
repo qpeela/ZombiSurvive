@@ -1,4 +1,6 @@
 import {
+    coldSettings,
+    type DaylightPhase,
     fatigueSettings,
     hungerSettings,
     thirstSettings,
@@ -18,6 +20,7 @@ export const initialPlayerNeeds: PlayerNeeds = Object.freeze({
     hungerMs: 0,
     fatigueMs: 0,
     wetnessMs: 0,
+    coldMs: 0,
 });
 
 export const advanceNeeds = (needs: PlayerNeeds, elapsedWorldMs: number): PlayerNeeds => ({
@@ -48,6 +51,24 @@ export const advanceWetness = ({
     return weather === 'rain'
         ? Math.min(wetnessSettings.maximumMs, wetnessMs + elapsedWorldMs)
         : Math.max(0, wetnessMs - elapsedWorldMs);
+};
+
+export const advanceCold = ({
+    coldMs,
+    wetnessMs,
+    elapsedWorldMs,
+    phase,
+}: {
+    readonly coldMs: number;
+    readonly wetnessMs: number;
+    readonly elapsedWorldMs: number;
+    readonly phase: DaylightPhase;
+}): number => {
+    if (phase === 'day') return Math.max(0, coldMs - elapsedWorldMs);
+    if (phase !== 'night') return coldMs;
+
+    const multiplier = wetnessMs > 0 ? coldSettings.wetCoolingMultiplier : 1;
+    return Math.min(coldSettings.maximumMs, coldMs + elapsedWorldMs * multiplier);
 };
 
 export const staminaEffectsFromNeeds = ({

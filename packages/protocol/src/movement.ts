@@ -176,6 +176,9 @@ const isPlayer = (value: unknown): value is PlayerMovementState => {
             carriedWeight >= 0);
     if (!isValidWeight) return false;
 
+    const isWalkSlowedByCold = value['isWalkSlowedByCold'];
+    if (isWalkSlowedByCold !== undefined && typeof isWalkSlowedByCold !== 'boolean') return false;
+
     const effects = value['staminaEffects'];
     const maximum = isRecord(effects) ? effects['maximumStamina'] : undefined;
     const isValidMaximum =
@@ -272,6 +275,9 @@ export const copyMovementPlayer = (player: PlayerMovementState): PlayerMovementS
                       : { maximumStamina: player.staminaEffects.maximumStamina }),
               },
           }),
+    ...(player.isWalkSlowedByCold === undefined
+        ? {}
+        : { isWalkSlowedByCold: player.isWalkSlowedByCold }),
     isExhausted: player.isExhausted,
     isSneaking: player.isSneaking,
     noiseRadiusMeters: player.noiseRadiusMeters,

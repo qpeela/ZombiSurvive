@@ -32,6 +32,7 @@ export type PlayerMovementState = {
     /** Authoritative carried mass; absent in legacy snapshots means zero. */
     readonly carriedWeightGrams?: number;
     readonly staminaEffects?: StaminaEffects;
+    readonly isWalkSlowedByCold?: boolean;
     readonly isExhausted: boolean;
     readonly isSneaking: boolean;
     /** Current movement noise radius; zero while idle. */

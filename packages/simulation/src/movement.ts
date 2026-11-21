@@ -1,4 +1,9 @@
-import { hungerSettings, movementSettings, thirstSettings } from '@zombi-survive/content';
+import {
+    coldSettings,
+    hungerSettings,
+    movementSettings,
+    thirstSettings,
+} from '@zombi-survive/content';
 import type {
     MovementDirection,
     MovementModifiers,
@@ -55,7 +60,9 @@ const prepareStep = ({
     );
     const isExhausted =
         stamina === 0 || (player.isExhausted && stamina < movementSettings.sprintRecoveryThreshold);
-    let speed: number = movementSettings.walkSpeedMetersPerSecond;
+    const walkSpeedMultiplier =
+        player.isWalkSlowedByCold === true ? coldSettings.walkSpeedMultiplier : 1;
+    let speed = movementSettings.walkSpeedMetersPerSecond * walkSpeedMultiplier;
     let noiseRadiusMeters: number = movementSettings.walkNoiseRadiusMeters;
 
     if (isSneaking) {

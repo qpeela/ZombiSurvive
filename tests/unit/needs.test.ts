@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 
 import {
+    coldSettings,
     fatigueSettings,
     hungerSettings,
     rationLoot,
@@ -15,6 +16,7 @@ import {
 } from '@zombi-survive/content';
 import { copyItem, type ItemLocation } from '@zombi-survive/domain';
 import {
+    advanceCold,
     advanceNeeds,
     advanceWetness,
     drinkWater,
@@ -180,6 +182,7 @@ test('v21 worlds preserve thirst, start with zero hunger and reset needs on resp
             hungerMs: 0,
             fatigueMs: 0,
             wetnessMs: 0,
+            coldMs: 0,
         });
         expect(migrated.initialItemLocations).toEqual([
             ...oldLocations,
@@ -204,6 +207,7 @@ test('v21 worlds preserve thirst, start with zero hunger and reset needs on resp
                     hungerMs: hungerSettings.noticeableMs,
                     fatigueMs: 0,
                     wetnessMs: 0,
+                    coldMs: 0,
                 },
             },
         );
@@ -269,4 +273,18 @@ test('rain exposure stops at the canopy boundary and clear weather dries an expo
     ).toBe(elapsedWorldMs);
     expect(advanceWetness({ ...exposed, wetnessMs: elapsedWorldMs, weather: 'clear' })).toBe(0);
     expect(advanceWetness({ ...exposed, wetnessMs: 0, weather: 'clear' })).toBe(0);
+});
+
+test('wetness doubles overnight cooling, and daytime warmth reverses it', () => {
+    const elapsedWorldMs = coldSettings.walkPenaltyAtMs / 2;
+    const exposure = { coldMs: 0, elapsedWorldMs };
+    const dryCold = advanceCold({ ...exposure, phase: 'night', wetnessMs: 0 });
+    const wetCold = advanceCold({ ...exposure, phase: 'night', wetnessMs: 1 });
+    expect(dryCold).toBe(elapsedWorldMs);
+    expect(wetCold).toBe(coldSettings.walkPenaltyAtMs);
+    expect(advanceCold({ ...exposure, phase: 'dawn', coldMs: wetCold, wetnessMs: 1 })).toBe(
+        wetCold,
+    );
+    expect(advanceCold({ ...exposure, phase: 'day', coldMs: wetCold, wetnessMs: 1 })).toBe(dryCold);
+    expect(advanceCold({ ...exposure, phase: 'day', wetnessMs: 0 })).toBe(0);
 });

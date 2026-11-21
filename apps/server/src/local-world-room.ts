@@ -20,15 +20,16 @@ import {
     pickupStateRequest,
 } from '@zombi-survive/protocol';
 import {
+    advanceCold,
     advanceNeeds,
     advanceWetness,
     drinkWater,
     eatRation,
     findRespawnPosition,
+    getDaylightPhase,
     getWorldWeather,
     initialPlayerNeeds,
     movementStepSeconds,
-    staminaEffectsFromNeeds,
     stepWorldClock,
 } from '@zombi-survive/simulation';
 import { generateChunkLoot, loadWorldChunks } from '@zombi-survive/worldgen';
@@ -318,8 +319,14 @@ export class LocalWorldRoom extends Room {
                     position: movement.soloPosition(),
                     weather: getWorldWeather(this.worldTimeMs),
                 });
-                this.needs = { ...advanceNeeds(this.needs, elapsedWorldMs), wetnessMs };
-                movement.setStaminaEffects(soloPlayerId, staminaEffectsFromNeeds(this.needs));
+                const coldMs = advanceCold({
+                    coldMs: this.needs.coldMs,
+                    wetnessMs,
+                    elapsedWorldMs,
+                    phase: getDaylightPhase(this.worldTimeMs),
+                });
+                this.needs = { ...advanceNeeds(this.needs, elapsedWorldMs), wetnessMs, coldMs };
+                movement.setNeedsEffects(soloPlayerId, this.needs);
             }
 
             const expiredCorpses = this.pickup.stageExpiry(nowMs);
@@ -644,7 +651,7 @@ export class LocalWorldRoom extends Room {
         this.pickup.initializePlayer(playerId);
         this.movement?.setCarriedWeight(playerId, this.pickup.weightGrams(playerId));
         if (this.save !== undefined && playerId === this.access?.soloPlayerId)
-            this.movement?.setStaminaEffects(playerId, staminaEffectsFromNeeds(this.needs));
+            this.movement?.setNeedsEffects(playerId, this.needs);
     }
 
     override onLeave(client: Client): void {

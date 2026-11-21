@@ -1,4 +1,5 @@
 import {
+    coldSettings,
     fatigueSettings,
     hungerSettings,
     thirstSettings,
@@ -61,7 +62,16 @@ export const readSavedNeeds = (value: unknown): PlayerNeeds => {
     )
         throw new Error('Solo save contains invalid player wetness.');
 
-    return { thirstMs, hungerMs, fatigueMs, wetnessMs };
+    const coldMs = 'coldMs' in needs ? needs.coldMs : 0;
+    if (
+        typeof coldMs !== 'number' ||
+        !Number.isSafeInteger(coldMs) ||
+        coldMs < 0 ||
+        coldMs > coldSettings.maximumMs
+    )
+        throw new Error('Solo save contains invalid player cold exposure.');
+
+    return { thirstMs, hungerMs, fatigueMs, wetnessMs, coldMs };
 };
 
 export const writeSavedNeeds = (needs: PlayerNeeds): string =>
