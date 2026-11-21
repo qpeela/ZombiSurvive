@@ -10,7 +10,9 @@ import {
     rationLoot,
     restSettings,
     thirstSettings,
+    weatherSettings,
     workshopBench,
+    workshopCanopy,
     workshopWater,
 } from '@zombi-survive/content';
 
@@ -304,6 +306,59 @@ test('bench rest reports movement and control loss without reducing fatigue', as
             await page.keyboard.up('d');
         }
         await expect(fatigue).toContainText('Максимум выносливости 65%');
+    } finally {
+        await host.stop('SIGTERM');
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
+
+test('rain wets the player outside the workshop canopy and pauses under it', async ({ page }) => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-wetness-smoke-'));
+    const path = join(directory, 'world.sqlite');
+    const outside = {
+        xMeters: workshopCanopy.maxXMeters + 0.75,
+        yMeters: workshopBench.position.yMeters,
+    };
+    const store = new SoloWorldStore(path);
+    store.savePosition(outside, weatherSettings.rainStartsAtWorldMs);
+    store.close();
+    let host = startHost(path);
+    const canvas = page.locator('canvas');
+    const connection = page.getByRole('status');
+    const wetness = page.locator('#wetness-status');
+    try {
+        await expect.poll(host.output).toContain('Local world ready');
+        await page.goto(origin);
+        await expect(canvas).toHaveAttribute('data-player-visible', 'true');
+        await expect(wetness).toBeVisible({ timeout: 10000 });
+
+        const camera = await canvas.evaluate(element => ({
+            x: Number(element.dataset.cameraX),
+            y: Number(element.dataset.cameraY),
+        }));
+        const box = await canvas.boundingBox();
+        await page.mouse.click(
+            box.x + (box.width * (480 + workshopBench.position.xMeters * 24 - camera.x)) / 960,
+            box.y + (box.height * (270 + workshopBench.position.yMeters * 24 - camera.y)) / 540,
+        );
+        await expect
+            .poll(async () => Number(await connection.getAttribute('data-x-meters')))
+            .toBeLessThan(workshopCanopy.maxXMeters - 1);
+        await expect(canvas).toHaveAttribute('data-target-visible', 'false');
+
+        const shelteredWetness = await wetness.textContent();
+        const shelteredTick = Number(await connection.getAttribute('data-tick'));
+        await expect
+            .poll(async () => Number(await connection.getAttribute('data-tick')))
+            .toBeGreaterThan(shelteredTick + 22);
+        await expect(wetness).toHaveText(shelteredWetness);
+
+        await host.stop('SIGTERM');
+        host = startHost(path);
+        await expect.poll(host.output).toContain('Local world ready');
+        await page.goto(origin);
+        await expect(wetness).toHaveText(shelteredWetness);
+        await expect(wetness).toBeVisible();
     } finally {
         await host.stop('SIGTERM');
         rmSync(directory, { recursive: true, force: true });

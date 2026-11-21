@@ -1,4 +1,9 @@
-import { medicalOutpost, workshopBench, worldLandmarks } from '@zombi-survive/content';
+import {
+    medicalOutpost,
+    workshopBench,
+    workshopCanopy,
+    worldLandmarks,
+} from '@zombi-survive/content';
 import type { WorldChunk, WorldObstacle, WorldPosition } from '@zombi-survive/domain';
 import { loadWorldChunks } from '@zombi-survive/worldgen';
 import type { GameObjects, Scene } from 'phaser';
@@ -244,6 +249,18 @@ export class WorldTerrain {
                 entranceX: 480 + entrance.xMeters * pixelsPerMeter,
             });
             if (landmark.id === 'repair-workshop') {
+                const canopyX = 480 + workshopCanopy.minXMeters * pixelsPerMeter;
+                const canopyY = 270 + workshopCanopy.minYMeters * pixelsPerMeter;
+                const canopyWidth =
+                    (workshopCanopy.maxXMeters - workshopCanopy.minXMeters) * pixelsPerMeter;
+                const canopyHeight =
+                    (workshopCanopy.maxYMeters - workshopCanopy.minYMeters) * pixelsPerMeter;
+                graphics
+                    .fillStyle(0x253c40)
+                    .fillRect(canopyX, canopyY, canopyWidth, canopyHeight)
+                    .lineStyle(2, 0x759b94)
+                    .strokeRect(canopyX, canopyY, canopyWidth, canopyHeight)
+                    .lineBetween(canopyX, canopyY + 7, canopyX + canopyWidth, canopyY + 7);
                 const benchX = 480 + workshopBench.position.xMeters * pixelsPerMeter;
                 const benchY = 270 + workshopBench.position.yMeters * pixelsPerMeter;
                 graphics

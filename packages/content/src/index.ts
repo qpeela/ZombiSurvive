@@ -11,6 +11,7 @@ export {
     rationLoot,
     restSettings,
     thirstSettings,
+    wetnessSettings,
     workshopWater,
 } from './needs.ts';
 export { collisionSettings, startingRuins } from './obstacles.ts';
@@ -19,7 +20,12 @@ export { meleeWeapons } from './weapons.ts';
 export { fogSettings, weatherPhases, weatherSettings, type WorldWeather } from './weather.ts';
 export { worldClockSettings } from './world-clock.ts';
 export { worldGenerationSettings } from './world-generation.ts';
-export { militaryWarehouse, workshopBench, worldLandmarks } from './world-landmarks.ts';
+export {
+    militaryWarehouse,
+    workshopBench,
+    workshopCanopy,
+    worldLandmarks,
+} from './world-landmarks.ts';
 export {
     chunkLootSettings,
     expandedWeaponLootSites,

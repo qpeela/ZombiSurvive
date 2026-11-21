@@ -22,6 +22,7 @@ export {
 } from './movement.ts';
 export {
     advanceNeeds,
+    advanceWetness,
     drinkWater,
     eatRation,
     initialPlayerNeeds,

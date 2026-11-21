@@ -8,10 +8,19 @@ import {
     hungerSettings,
     rationLoot,
     thirstSettings,
+    wetnessSettings,
+    workshopBench,
+    workshopCanopy,
     workshopWater,
 } from '@zombi-survive/content';
 import { copyItem, type ItemLocation } from '@zombi-survive/domain';
-import { advanceNeeds, drinkWater, eatRation, initialPlayerNeeds } from '@zombi-survive/simulation';
+import {
+    advanceNeeds,
+    advanceWetness,
+    drinkWater,
+    eatRation,
+    initialPlayerNeeds,
+} from '@zombi-survive/simulation';
 import { expect, test } from 'vitest';
 
 import { chunkLootForKey } from '../../apps/server/src/saved-chunk-loot.ts';
@@ -166,7 +175,12 @@ test('v21 worlds preserve thirst, start with zero hunger and reset needs on resp
         }
 
         const migrated = open();
-        expect(migrated.initialNeeds).toEqual({ thirstMs: 6000, hungerMs: 0, fatigueMs: 0 });
+        expect(migrated.initialNeeds).toEqual({
+            thirstMs: 6000,
+            hungerMs: 0,
+            fatigueMs: 0,
+            wetnessMs: 0,
+        });
         expect(migrated.initialItemLocations).toEqual([
             ...oldLocations,
             { type: 'ground', item: rationLoot.item },
@@ -185,7 +199,12 @@ test('v21 worlds preserve thirst, start with zero hunger and reset needs on resp
             undefined,
             {
                 worldTimeMs: 12_000,
-                needs: { thirstMs: 6000, hungerMs: hungerSettings.noticeableMs, fatigueMs: 0 },
+                needs: {
+                    thirstMs: 6000,
+                    hungerMs: hungerSettings.noticeableMs,
+                    fatigueMs: 0,
+                    wetnessMs: 0,
+                },
             },
         );
         migrated.saveRespawn(0, { xMeters: 0, yMeters: 0 });
@@ -226,4 +245,28 @@ test('awake fatigue accumulates by elapsed world time, saturates and keeps its s
     } finally {
         rmSync(directory, { recursive: true, force: true });
     }
+});
+
+test('rain exposure stops at the canopy boundary and clear weather dries an exposed player', () => {
+    const elapsedWorldMs = wetnessSettings.noticeableMs;
+    const onBoundary = {
+        xMeters: workshopCanopy.maxXMeters,
+        yMeters: workshopBench.position.yMeters,
+    };
+    const outside = { ...onBoundary, xMeters: onBoundary.xMeters + 0.01 };
+    const exposed = { position: outside, elapsedWorldMs };
+    expect(advanceWetness({ ...exposed, wetnessMs: 0, weather: 'rain' })).toBe(elapsedWorldMs);
+    expect(
+        advanceWetness({ ...exposed, wetnessMs: wetnessSettings.maximumMs, weather: 'rain' }),
+    ).toBe(wetnessSettings.maximumMs);
+    expect(
+        advanceWetness({
+            position: onBoundary,
+            elapsedWorldMs,
+            wetnessMs: elapsedWorldMs,
+            weather: 'rain',
+        }),
+    ).toBe(elapsedWorldMs);
+    expect(advanceWetness({ ...exposed, wetnessMs: elapsedWorldMs, weather: 'clear' })).toBe(0);
+    expect(advanceWetness({ ...exposed, wetnessMs: 0, weather: 'clear' })).toBe(0);
 });
