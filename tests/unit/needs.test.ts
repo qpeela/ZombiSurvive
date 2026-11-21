@@ -255,7 +255,7 @@ test('awake fatigue accumulates by elapsed world time, saturates and keeps its s
     }
 });
 
-test('rain exposure stops at the canopy boundary and clear weather dries an exposed player', () => {
+test('the canopy dries a player in the rain while the adjacent exposed position gets wetter', () => {
     const elapsedWorldMs = wetnessSettings.noticeableMs;
     const onBoundary = {
         xMeters: workshopCanopy.maxXMeters,
@@ -267,14 +267,20 @@ test('rain exposure stops at the canopy boundary and clear weather dries an expo
     expect(
         advanceWetness({ ...exposed, wetnessMs: wetnessSettings.maximumMs, weather: 'rain' }),
     ).toBe(wetnessSettings.maximumMs);
-    expect(
-        advanceWetness({
-            position: onBoundary,
-            elapsedWorldMs,
-            wetnessMs: elapsedWorldMs,
-            weather: 'rain',
-        }),
-    ).toBe(elapsedWorldMs);
+    const sheltered = { position: onBoundary, elapsedWorldMs, weather: 'rain' } as const;
+    const wetnessMs = 3 * elapsedWorldMs;
+    const drying = advanceWetness({ ...sheltered, wetnessMs });
+    expect(drying).toBe(elapsedWorldMs);
+    expect(advanceWetness({ ...exposed, wetnessMs, weather: 'rain' })).toBe(4 * elapsedWorldMs);
+
+    const dried = advanceWetness({ ...sheltered, wetnessMs: drying });
+    expect(dried).toBe(0);
+    expect(advanceCold({ phase: 'night', coldMs: 0, elapsedWorldMs, wetnessMs: dried })).toBe(
+        elapsedWorldMs,
+    );
+    expect(advanceCold({ phase: 'night', coldMs: 0, elapsedWorldMs, wetnessMs: drying })).toBe(
+        elapsedWorldMs * coldSettings.wetCoolingMultiplier,
+    );
     expect(advanceWetness({ ...exposed, wetnessMs: elapsedWorldMs, weather: 'clear' })).toBe(0);
     expect(advanceWetness({ ...exposed, wetnessMs: 0, weather: 'clear' })).toBe(0);
 });

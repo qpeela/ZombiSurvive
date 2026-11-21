@@ -46,7 +46,8 @@ export const advanceWetness = ({
         xMeters >= workshopCanopy.minXMeters && xMeters <= workshopCanopy.maxXMeters;
     const isInsideCanopyY =
         yMeters >= workshopCanopy.minYMeters && yMeters <= workshopCanopy.maxYMeters;
-    if (isInsideCanopyX && isInsideCanopyY) return wetnessMs;
+    if (isInsideCanopyX && isInsideCanopyY)
+        return Math.max(0, wetnessMs - elapsedWorldMs * wetnessSettings.shelteredDryingMultiplier);
 
     return weather === 'rain'
         ? Math.min(wetnessSettings.maximumMs, wetnessMs + elapsedWorldMs)

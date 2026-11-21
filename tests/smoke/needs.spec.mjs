@@ -13,12 +13,14 @@ import {
     restSettings,
     thirstSettings,
     weatherSettings,
+    wetnessSettings,
     workshopBench,
     workshopCanopy,
     workshopWater,
 } from '@zombi-survive/content';
 
 import { SoloWorldStore } from '../../apps/server/dist/solo-world-store.js';
+import { movePlayerTo } from '../fixtures/game-controls.mjs';
 import { openInventory } from '../fixtures/game-panels.mjs';
 
 const origin = 'http://127.0.0.1:3159';
@@ -314,7 +316,9 @@ test('bench rest reports movement and control loss without reducing fatigue', as
     }
 });
 
-test('rain wets the player outside the workshop canopy and pauses under it', async ({ page }) => {
+test('the player wets in the rain and dries under the canopy across reconnect and restart', async ({
+    page,
+}) => {
     const directory = mkdtempSync(join(tmpdir(), 'zombi-wetness-smoke-'));
     const path = join(directory, 'world.sqlite');
     const outside = {
@@ -322,45 +326,44 @@ test('rain wets the player outside the workshop canopy and pauses under it', asy
         yMeters: workshopBench.position.yMeters,
     };
     const store = new SoloWorldStore(path);
-    store.savePosition(outside, weatherSettings.rainStartsAtWorldMs);
+    store.savePosition(outside, weatherSettings.rainStartsAtWorldMs, {
+        thirstMs: 0,
+        hungerMs: 0,
+        fatigueMs: 0,
+        coldMs: 0,
+        wetnessMs: wetnessSettings.maximumMs / 2,
+    });
     store.close();
     let host = startHost(path);
-    const canvas = page.locator('canvas');
-    const connection = page.getByRole('status');
     const wetness = page.locator('#wetness-status');
+    const percentage = () =>
+        wetness.evaluate(element => {
+            if (element.hidden) return 0;
+
+            return Number(element.textContent?.match(/[0-9]+/)?.[0]);
+        });
     try {
         await expect.poll(host.output).toContain('Local world ready');
         await page.goto(origin);
+        const canvas = page.locator('canvas');
         await expect(canvas).toHaveAttribute('data-player-visible', 'true');
-        await expect(wetness).toBeVisible({ timeout: 10000 });
-
-        const camera = await canvas.evaluate(element => ({
-            x: Number(element.dataset.cameraX),
-            y: Number(element.dataset.cameraY),
-        }));
-        const box = await canvas.boundingBox();
-        await page.mouse.click(
-            box.x + (box.width * (480 + workshopBench.position.xMeters * 24 - camera.x)) / 960,
-            box.y + (box.height * (270 + workshopBench.position.yMeters * 24 - camera.y)) / 540,
-        );
-        await expect
-            .poll(async () => Number(await connection.getAttribute('data-x-meters')))
-            .toBeLessThan(workshopCanopy.maxXMeters - 1);
+        await expect.poll(percentage).toBeGreaterThan(51);
+        await movePlayerTo({ page, position: workshopBench.position });
         await expect(canvas).toHaveAttribute('data-target-visible', 'false');
+        const enteredWetness = await percentage();
+        await expect.poll(percentage).toBeLessThan(enteredWetness - 2);
+        await expect(wetness).toBeVisible();
 
-        const shelteredWetness = await wetness.textContent();
-        const shelteredTick = Number(await connection.getAttribute('data-tick'));
-        await expect
-            .poll(async () => Number(await connection.getAttribute('data-tick')))
-            .toBeGreaterThan(shelteredTick + 22);
-        await expect(wetness).toHaveText(shelteredWetness);
-
+        await page.reload();
+        await expect(wetness).toBeVisible();
+        await expect.poll(percentage).toBeLessThan(enteredWetness);
         await host.stop('SIGTERM');
+
         host = startHost(path);
         await expect.poll(host.output).toContain('Local world ready');
         await page.goto(origin);
-        await expect(wetness).toHaveText(shelteredWetness);
         await expect(wetness).toBeVisible();
+        await expect.poll(percentage).toBeLessThan(enteredWetness);
     } finally {
         await host.stop('SIGTERM');
         rmSync(directory, { recursive: true, force: true });
