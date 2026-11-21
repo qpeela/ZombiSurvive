@@ -12,6 +12,22 @@ import {
 import { resolveMovement } from './collisions.ts';
 import { findInventorySpace } from './inventory.ts';
 
+export const canReachPickupPosition = ({
+    from,
+    to,
+    obstacles,
+}: {
+    readonly from: WorldPosition;
+    readonly to: WorldPosition;
+    readonly obstacles: readonly WorldObstacle[];
+}): boolean => {
+    const distance = Math.hypot(to.xMeters - from.xMeters, to.yMeters - from.yMeters);
+    if (!Number.isFinite(distance) || distance > pickupSettings.rangeMeters) return false;
+
+    const reached = resolveMovement(from, to, obstacles);
+    return Math.hypot(reached.xMeters - to.xMeters, reached.yMeters - to.yMeters) < 1e-8;
+};
+
 /** A single synchronous transition moves a world item to its owner. */
 export const pickUpItem = ({
     location,
@@ -40,22 +56,8 @@ export const pickUpItem = ({
         position = storage.position;
 
     if (position === undefined) return location;
-    const distanceMeters = Math.hypot(
-        position.xMeters - player.position.xMeters,
-        position.yMeters - player.position.yMeters,
-    );
-
-    if (!Number.isFinite(distanceMeters) || distanceMeters > pickupSettings.rangeMeters) {
+    if (!canReachPickupPosition({ from: player.position, to: position, obstacles }))
         return location;
-    }
-
-    const reached = resolveMovement(player.position, position, obstacles);
-    const isReachable =
-        Math.hypot(reached.xMeters - position.xMeters, reached.yMeters - position.yMeters) < 1e-8;
-
-    if (!isReachable) {
-        return location;
-    }
 
     const cell = findInventorySpace({ items, item: location.item });
 

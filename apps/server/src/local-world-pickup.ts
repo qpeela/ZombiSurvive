@@ -17,6 +17,7 @@ import {
     isInventoryMoveCommand,
     isMeleeCommand,
     isPickupCommand,
+    isStoreItemCommand,
     isUseBandageCommand,
     type MeleeCommand,
     type MovementSnapshot,
@@ -24,10 +25,12 @@ import {
     type PickupSnapshot,
     protocolVersion,
     type StorageLoot,
+    type StoreItemCommand,
     type UseBandageCommand,
 } from '@zombi-survive/protocol';
 import {
     addStarterWeapons,
+    canReachPickupPosition,
     equipmentWeightGrams,
     expireCorpses,
     isPositionVisible,
@@ -43,8 +46,15 @@ import { copyItemLocation } from './saved-item.ts';
 
 const crate = { storageId: workshopCrate.id, position: workshopCrate.position };
 
+const isCrateRegistered = (locations: readonly ItemLocation[]): boolean =>
+    locations.some(location => location.item.itemId === workshopCrate.stock.itemId);
+
+const isInCrate = (location: ItemLocation): boolean =>
+    location.type === 'storage' && location.storageId === crate.storageId;
+
 type ItemCommand =
     | PickupCommand
+    | StoreItemCommand
     | InventoryMoveCommand
     | UseBandageCommand
     | DrinkWaterCommand
@@ -160,6 +170,10 @@ export class LocalWorldPickup {
         }
     }
 
+    receiveStoreItem(sessionId: string, value: unknown): void {
+        if (isStoreItemCommand(value)) this.pending.set(sessionId, value);
+    }
+
     receiveMove(sessionId: string, value: unknown): void {
         if (isInventoryMoveCommand(value)) {
             this.pending.set(sessionId, {
@@ -238,6 +252,11 @@ export class LocalWorldPickup {
 
             if (location === undefined) continue;
 
+            if (command.type === 'store-item') {
+                next = this.storeItem({ command, location, locations: next, snapshot });
+                continue;
+            }
+
             if (command.type === 'inventory-move') {
                 const isOwner = location.type === 'container' && location.playerId === playerId;
 
@@ -305,6 +324,44 @@ export class LocalWorldPickup {
         }
     }
 
+    private storeItem({
+        command,
+        location,
+        locations,
+        snapshot,
+    }: {
+        readonly command: StoreItemCommand;
+        readonly location: ItemLocation;
+        readonly locations: readonly ItemLocation[];
+        readonly snapshot: MovementSnapshot;
+    }): readonly ItemLocation[] {
+        const isOwned =
+            location.type === 'container' && location.playerId === snapshot.player.playerId;
+        const isCrate = command.storageId === crate.storageId;
+        if (!this.requiresCommit || !isOwned || !isCrate || !isCrateRegistered(locations))
+            return locations;
+
+        if (locations.filter(isInCrate).length >= workshopCrate.capacity) return locations;
+
+        const from = snapshot.player.position;
+        const to = crate.position;
+        const chunks = loadWorldChunks({ positions: [from, to], previousChunks: [] });
+        if (
+            !canReachPickupPosition({
+                from,
+                to,
+                obstacles: chunks.flatMap(chunk => chunk.obstacles),
+            })
+        )
+            return locations;
+
+        return locations.map(candidate =>
+            candidate === location
+                ? { type: 'storage', storageId: crate.storageId, item: location.item }
+                : candidate,
+        );
+    }
+
     hands(playerId: string): Item | null {
         return playerHands(this.locations, playerId);
     }
@@ -351,10 +408,7 @@ export class LocalWorldPickup {
             position.yMeters - crate.position.yMeters,
         );
         if (distance > worldLootSettings.visibilityMeters) return;
-        const isRegistered = this.locations.some(
-            location => location.item.itemId === workshopCrate.stock.itemId,
-        );
-        if (!isRegistered) return;
+        if (!isCrateRegistered(this.locations)) return;
 
         const chunks = loadWorldChunks({
             positions: [position, crate.position],
@@ -371,9 +425,7 @@ export class LocalWorldPickup {
         return {
             ...crate,
             items: this.locations.flatMap(location =>
-                location.type === 'storage' && location.storageId === crate.storageId
-                    ? [{ ...location.item }]
-                    : [],
+                isInCrate(location) ? [{ ...location.item }] : [],
             ),
         };
     }

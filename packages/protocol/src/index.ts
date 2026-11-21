@@ -45,12 +45,14 @@ export {
     isEatRationCommand,
     isPickupCommand,
     isPickupSnapshot,
+    isStoreItemCommand,
     isUseBandageCommand,
     type LootRestock,
     type PickupCommand,
     type PickupSnapshot,
     pickupStateRequest,
     type StorageLoot,
+    type StoreItemCommand,
     type UseBandageCommand,
 } from './pickup.ts';
 export { type InventoryMoveCommand, inventoryVersion, isInventoryMoveCommand } from './pickup.ts';

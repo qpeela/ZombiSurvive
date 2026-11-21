@@ -38,6 +38,7 @@ const workshopCratePosition = Object.freeze({ xMeters: -59.5, yMeters: 0 });
 export const workshopCrate = Object.freeze({
     id: 'workshop-crate',
     name: 'Ящик мастерской',
+    capacity: 4,
     chunkX: -1,
     chunkY: 0,
     position: workshopCratePosition,

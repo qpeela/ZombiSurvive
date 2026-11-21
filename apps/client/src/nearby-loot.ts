@@ -37,6 +37,7 @@ type GroupSource = {
 type LootGroup = {
     readonly element: HTMLElement;
     readonly empty: HTMLElement;
+    readonly capacity: HTMLElement | null;
     readonly rows: Map<string, LootRow>;
 };
 
@@ -124,8 +125,10 @@ const createGroup = (source: GroupSource): LootGroup => {
     const empty = document.createElement('p');
     empty.textContent = isCorpse ? 'В теле ничего нет.' : 'Ящик пуст.';
     element.append(heading, empty);
+    const capacity = isCorpse ? null : document.createElement('p');
+    if (capacity !== null) element.append(capacity);
 
-    return { element, empty, rows: new Map() };
+    return { element, empty, capacity, rows: new Map() };
 };
 
 const getGroupSources = ({ corpses, storage }: NearbyState): GroupSource[] => {
@@ -320,6 +323,13 @@ export const createNearbyLoot = ({
 
                 const isEmpty = source.items.length === 0;
                 group.empty.hidden = !isEmpty;
+                if (group.capacity !== null) {
+                    group.capacity.hidden = isEmpty;
+                    setText(
+                        group.capacity,
+                        `Занято ${String(source.items.length)} из ${String(workshopCrate.capacity)}`,
+                    );
+                }
                 group.element.tabIndex = isEmpty ? 0 : -1;
                 const itemIds = new Set(source.items.map(item => item.itemId));
                 for (const [id, row] of group.rows) {

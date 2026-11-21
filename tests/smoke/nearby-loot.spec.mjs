@@ -422,3 +422,75 @@ for (const method of ['mouse', 'keyboard']) {
         }
     });
 }
+
+test('the workshop crate accepts inventory items, refuses another at capacity and retains supplies after restart', async ({
+    page,
+}) => {
+    const directory = mkdtempSync(join(tmpdir(), 'zombi-crate-storage-'));
+    const path = join(directory, 'world.sqlite');
+    const now = Date.now();
+    const store = new SoloWorldStore(path);
+    store.savePosition({ xMeters: workshopCrate.position.xMeters - 0.9, yMeters: 0 });
+    store.close();
+    let running = start({ path, now });
+    const crate = page.getByRole('region', { name: workshopCrate.name });
+    const capacity = String(workshopCrate.capacity);
+    const inventory = page.locator('#inventory-panel');
+    const takeBandage = crate.getByRole('button', { name: 'Взять: Бинт' });
+    const inventoryItem = name =>
+        inventory.getByRole('button', {
+            name: name === 'Бинт' ? /^Переместить бинт/ : `Переместить: ${name}`,
+        });
+    const showStoreAction = async name => {
+        const item = inventoryItem(name);
+        await expect(item).toBeEnabled();
+        await item.press('Shift+F10');
+        const action = page.getByRole('menuitem', { name: 'Положить в ящик', exact: true });
+        await expect(action).toBeVisible();
+        return action;
+    };
+    const putInCrate = async name => {
+        const action = await showStoreAction(name);
+        await action.click();
+        await expect(
+            crate.getByRole('button', { name: `Взять: ${name}`, exact: true }),
+        ).toBeVisible();
+        if (name === 'Бинт') await expect(inventoryItem(name)).toBeDisabled();
+        else await expect(inventoryItem(name)).toHaveCount(0);
+    };
+    try {
+        await expect.poll(running.output).toContain('Local world ready');
+        await page.goto(origin);
+        await expect(takeBandage).toBeEnabled();
+        await openInventory(page);
+        await takeBandage.click();
+        await expect(crate.getByText('Ящик пуст.', { exact: true })).toBeVisible();
+        await putInCrate('Бинт');
+        await takeBandage.click();
+        await expect(inventoryItem('Бинт')).toBeEnabled();
+        await putInCrate('Бинт');
+
+        for (const name of ['Дубинка', 'Нож', 'Лом']) await putInCrate(name);
+        await expect(crate).toContainText(`Занято ${capacity} из ${capacity}`);
+        const full = await showStoreAction('Топор');
+        await expect(full).toHaveAttribute('aria-disabled', 'true');
+        await expect(full).toHaveAccessibleDescription('Ящик заполнен.');
+        await full.press('Enter');
+        await expect(inventoryItem('Топор')).toBeVisible();
+
+        running.host.kill('SIGKILL');
+        await running.exited;
+        running = start({ path, now });
+        await expect.poll(running.output).toContain('Local world ready');
+        await page.goto(origin);
+        await expect(crate).toContainText(`Занято ${capacity} из ${capacity}`);
+        await openInventory(page);
+        await expect(inventoryItem('Топор')).toBeVisible();
+        await expect(inventoryItem('Бинт')).toBeDisabled();
+    } finally {
+        if (running.host.exitCode === null && running.host.signalCode === null)
+            running.host.kill('SIGKILL');
+        await running.exited;
+        rmSync(directory, { recursive: true, force: true });
+    }
+});
